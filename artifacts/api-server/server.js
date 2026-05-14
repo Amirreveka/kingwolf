@@ -439,16 +439,16 @@ app.post('/storage/:bucket/upload', authMiddleware, upload.single('file'), async
     try {
       const sharp = await getSharp();
       if (sharp) {
-        // Keep quality high, just compress. JPEG with q=85 and max 1920px wide is a great balance.
+        // Resize only if needed; quality kept at 92 so visual loss is imperceptible.
         const isPng = mime.includes('png');
         let pipeline = sharp(req.file.buffer, { failOn: 'none' })
           .rotate() // honor EXIF orientation
           .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true });
         if (isPng) {
-          outBuf = await pipeline.png({ quality: 90, compressionLevel: 9 }).toBuffer();
+          outBuf = await pipeline.png({ quality: 95, compressionLevel: 6 }).toBuffer();
           outExt = '.png';
         } else {
-          outBuf = await pipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+          outBuf = await pipeline.jpeg({ quality: 92, mozjpeg: true }).toBuffer();
           outExt = '.jpg';
         }
       }

@@ -216,7 +216,7 @@ class QueryBuilder {
 async function compressImageClientSide(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
   if (file.type.includes('svg') || file.type.includes('gif')) return file;
-  if (file.size < 200 * 1024) return file; // already small, skip
+  if (file.size < 500 * 1024) return file; // skip compression for files under 500KB
   try {
     const bmp = await createImageBitmap(file);
     const max = 1920;
@@ -230,7 +230,7 @@ async function compressImageClientSide(file: File): Promise<File> {
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext('2d')!;
     ctx.drawImage(bmp, 0, 0, width, height);
-    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.85));
+    const blob: Blob | null = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
     if (!blob) return file;
     return new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
   } catch {

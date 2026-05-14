@@ -146,7 +146,7 @@ export function useConversations() {
       .single();
     if (error || !conv) return null;
     const members = [user.id, ...memberIds].map((uid) => ({
-      conversation_id: conv.id, user_id: uid, role: uid === user.id ? 'admin' : 'member',
+      conversation_id: conv.id, user_id: uid, role: uid === user.id ? 'owner' : 'member',
     }));
     await supabase.from('conversation_members').insert(members);
     await fetchConversations();
@@ -162,7 +162,7 @@ export function useConversations() {
       .single();
     if (error || !conv) return null;
     await supabase.from('conversation_members').insert({
-      conversation_id: conv.id, user_id: user.id, role: 'admin',
+      conversation_id: conv.id, user_id: user.id, role: 'owner',
     });
     await fetchConversations();
     return conv.id;

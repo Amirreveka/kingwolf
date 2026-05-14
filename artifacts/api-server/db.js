@@ -353,6 +353,10 @@ const colMigrations = [
   ['conversations', 'avatar_url', "TEXT DEFAULT ''"],
   ['conversations', 'is_active', 'INTEGER DEFAULT 1'],
   ['conversations', 'is_verified', 'INTEGER DEFAULT 0'],
+  ['conversations', 'username', "TEXT DEFAULT ''"],
+  ['conversations', 'invite_link', "TEXT DEFAULT ''"],
+  ['conversation_members', 'admin_permissions', "TEXT DEFAULT '[]'"],
+  ['conversation_members', 'title', "TEXT DEFAULT ''"],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

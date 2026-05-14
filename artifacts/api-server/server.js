@@ -468,14 +468,81 @@ app.post('/storage/:bucket/upload', authMiddleware, upload.single('file'), async
 
 // ===== Conversation Member Management =====
 app.get('/conversations/:id/members', authMiddleware, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  const isMgr = myRole?.role === 'owner' || myRole?.role === 'admin' || conv.created_by === req.userId || req.profile.is_admin;
+  // For channels: only admins/owners see the full member list; others see only count
+  if (conv.type === 'channel' && !isMgr) {
+    const count = db.prepare('SELECT COUNT(*) as n FROM conversation_members WHERE conversation_id = ?').get(req.params.id)?.n || 0;
+    return res.json({ data: [], count, restricted: true });
+  }
   const members = db.prepare(`
-    SELECT p.*, cm.role, cm.joined_at
+    SELECT p.*, cm.role, cm.joined_at, cm.admin_permissions, cm.title
     FROM conversation_members cm
     JOIN profiles p ON p.id = cm.user_id
     WHERE cm.conversation_id = ?
-    ORDER BY cm.role DESC, cm.joined_at ASC
+    ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, cm.joined_at ASC
   `).all(req.params.id);
-  return res.json({ data: members.map(profileToClient).map((p, i) => ({ ...p, role: members[i].role, joined_at: members[i].joined_at })) });
+  const count = members.length;
+  return res.json({ data: members.map((m, i) => ({ ...profileToClient(m), role: m.role, joined_at: m.joined_at, admin_permissions: tryParse(m.admin_permissions, []), title: m.title })), count });
+});
+
+// Set conversation username (@id for groups/channels)
+app.post('/conversations/:id/username', authMiddleware, (req, res) => {
+  const { username } = req.body || {};
+  if (!username) return res.status(400).json({ error: 'username required' });
+  const clean = username.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+  if (clean.length < 3) return res.status(400).json({ error: 'username too short (min 3 chars)' });
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  const isMgr = myRole?.role === 'owner' || conv.created_by === req.userId || req.profile.is_admin;
+  if (!isMgr) return res.status(403).json({ error: 'owner only' });
+  const existing = db.prepare(`SELECT id FROM conversations WHERE username = ? AND id != ?`).get(clean, req.params.id);
+  if (existing) return res.status(409).json({ error: 'username already taken' });
+  db.prepare('UPDATE conversations SET username = ? WHERE id = ?').run(clean, req.params.id);
+  return res.json({ ok: true, username: clean });
+});
+
+// Find conversation by @username
+app.get('/conversations/by-username/:username', authMiddleware, (req, res) => {
+  const clean = req.params.username.replace(/^@/, '').toLowerCase();
+  const conv = db.prepare('SELECT * FROM conversations WHERE username = ?').get(clean);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const isMember = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(conv.id, req.userId);
+  const memberCount = db.prepare('SELECT COUNT(*) as n FROM conversation_members WHERE conversation_id = ?').get(conv.id)?.n || 0;
+  return res.json({ data: { ...conv, member_count: memberCount, is_member: !!isMember } });
+});
+
+// Promote member to admin
+app.post('/conversations/:id/promote', authMiddleware, (req, res) => {
+  const { user_id, permissions = [], title = '' } = req.body || {};
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  const canPromote = myRole?.role === 'owner' || conv.created_by === req.userId || req.profile.is_admin;
+  if (!canPromote) return res.status(403).json({ error: 'owner only' });
+  db.prepare('UPDATE conversation_members SET role = ?, admin_permissions = ?, title = ? WHERE conversation_id = ? AND user_id = ?')
+    .run('admin', JSON.stringify(permissions), title, req.params.id, user_id);
+  return res.json({ ok: true });
+});
+
+// Demote admin to member
+app.post('/conversations/:id/demote', authMiddleware, (req, res) => {
+  const { user_id } = req.body || {};
+  if (!user_id) return res.status(400).json({ error: 'user_id required' });
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  const canDemote = myRole?.role === 'owner' || conv.created_by === req.userId || req.profile.is_admin;
+  if (!canDemote) return res.status(403).json({ error: 'owner only' });
+  const targetRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, user_id);
+  if (targetRole?.role === 'owner') return res.status(400).json({ error: 'cannot demote owner' });
+  db.prepare('UPDATE conversation_members SET role = ?, admin_permissions = ?, title = ? WHERE conversation_id = ? AND user_id = ?')
+    .run('member', '[]', '', req.params.id, user_id);
+  return res.json({ ok: true });
 });
 
 app.post('/conversations/:id/members', authMiddleware, (req, res) => {
@@ -707,6 +774,41 @@ app.post('/reports', authMiddleware, (req, res) => {
 });
 
 // Admin: list pending reports
+// Admin: get login attempts (rate-limit map)
+app.get('/admin/login-attempts', authMiddleware, adminOnly, (req, res) => {
+  const now = Date.now();
+  const entries = [];
+  for (const [key, rec] of loginAttempts.entries()) {
+    const [ip, email] = key.split('|');
+    const isLocked = rec.lockedUntil && now < rec.lockedUntil;
+    entries.push({
+      ip,
+      email,
+      fails: rec.fails,
+      locks: rec.locks,
+      isLocked,
+      lockedUntil: isLocked ? new Date(rec.lockedUntil).toISOString() : null,
+      retryAfterSec: isLocked ? Math.ceil((rec.lockedUntil - now) / 1000) : 0,
+      lastFailAt: rec.lastFailAt ? new Date(rec.lastFailAt).toISOString() : null,
+    });
+  }
+  entries.sort((a, b) => (b.locks - a.locks) || (b.fails - a.fails));
+  return res.json({ data: entries });
+});
+
+// Admin: clear login lockout for an email
+app.post('/admin/login-attempts/clear', authMiddleware, adminOnly, (req, res) => {
+  const { email } = req.body || {};
+  if (!email) {
+    loginAttempts.clear();
+    return res.json({ ok: true, cleared: 'all' });
+  }
+  for (const key of loginAttempts.keys()) {
+    if (key.endsWith(`|${email.toLowerCase()}`)) loginAttempts.delete(key);
+  }
+  return res.json({ ok: true, cleared: email });
+});
+
 app.get('/admin/reports', authMiddleware, adminOnly, (req, res) => {
   const rows = db.prepare(`
     SELECT r.*, p.username AS reporter_username, p.display_name AS reporter_display_name

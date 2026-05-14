@@ -100,6 +100,12 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [addSearch, setAddSearch] = useState('');
   const [addResults, setAddResults] = useState<Profile[]>([]);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [memberCount, setMemberCount] = useState(0);
+  const [membersRestricted, setMembersRestricted] = useState(false);
+  const [myConvRole, setMyConvRole] = useState<string>('member');
+  const [showSetUsername, setShowSetUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [usernameMsg, setUsernameMsg] = useState('');
 
   // Reply / Edit / Forward
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -122,7 +128,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const isAdmin = !!(profile as any)?.is_admin;
   const isGroupOrChannel = conversation?.type === 'group' || conversation?.type === 'channel';
   const isChannel = conversation?.type === 'channel';
-  const canSend = !isChannel || conversation?.created_by === user?.id || isAdmin;
+  const isConvAdmin = myConvRole === 'owner' || myConvRole === 'admin' || isAdmin;
+  const isConvOwner = myConvRole === 'owner' || conversation?.created_by === user?.id || isAdmin;
+  const canSend = !isChannel || isConvAdmin;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -173,7 +181,30 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
     setMembersLoading(true);
     const data = await apiCall(`/conversations/${conversation.id}/members`);
     setMembers(data.data || []);
+    setMemberCount(data.count || data.data?.length || 0);
+    setMembersRestricted(!!data.restricted);
+    const me = (data.data || []).find((m: any) => m.id === user?.id);
+    if (me) setMyConvRole(me.role || 'member');
     setMembersLoading(false);
+  }
+
+  async function promoteMember(userId: string) {
+    if (!conversation) return;
+    await apiCall(`/conversations/${conversation.id}/promote`, { method: 'POST', body: JSON.stringify({ user_id: userId, permissions: ['post_messages', 'delete_messages', 'add_members'] }) });
+    await loadMembers();
+  }
+
+  async function demoteMember(userId: string) {
+    if (!conversation) return;
+    await apiCall(`/conversations/${conversation.id}/demote`, { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+    await loadMembers();
+  }
+
+  async function setConvUsername() {
+    if (!conversation || !newUsername.trim()) return;
+    const r = await apiCall(`/conversations/${conversation.id}/username`, { method: 'POST', body: JSON.stringify({ username: newUsername.trim() }) });
+    if (r.ok) { setUsernameMsg(fa ? '✓ ذخیره شد' : '✓ Saved'); setTimeout(() => { setUsernameMsg(''); setShowSetUsername(false); }, 1500); }
+    else setUsernameMsg(r.error || 'error');
   }
 
   async function searchToAdd(q: string) {
@@ -295,8 +326,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
     if (conversation.type === 'direct') {
       return conversation.other_user?.online_status === 'online' ? (fa ? 'آنلاین' : 'Online') : (fa ? 'آفلاین' : 'Offline');
     }
-    if (conversation.type === 'group') return `${members.length || conversation.member_count || 0} ${fa ? 'عضو' : 'members'}`;
-    if (conversation.type === 'channel') return fa ? 'کانال' : 'Channel';
+    const cnt = memberCount || members.length || (conversation as any).member_count || 0;
+    if (conversation.type === 'group') return `${cnt} ${fa ? 'عضو' : 'members'}`;
+    if (conversation.type === 'channel') return `${cnt} ${fa ? 'مشترک' : 'subscribers'}`;
     return '';
   }
 
@@ -577,16 +609,41 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
             <button onClick={() => setShowInfo(false)} style={{ color: 'var(--text-secondary)' }}><X size={18} /></button>
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {conversation.type === 'group' ? 'اعضای گروه' : 'اعضای کانال'}
+              {conversation.type === 'group' ? (fa ? 'اطلاعات گروه' : 'Group Info') : (fa ? 'اطلاعات کانال' : 'Channel Info')}
             </span>
           </div>
           <div className="flex-shrink-0 p-4 text-center" style={{ borderBottom: '1px solid var(--border-color)' }}>
             <div className="flex justify-center mb-2"><ConvAvatar conversation={conversation} size={16} /></div>
             <p className="font-bold text-base" style={{ color: 'var(--text-primary)' }}>{conversation.name}</p>
+            {(conversation as any).username && (
+              <p className="text-xs mt-0.5 font-mono" style={{ color: '#1d9bf0' }}>@{(conversation as any).username}</p>
+            )}
             {conversation.description && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{conversation.description}</p>}
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{members.length} {conversation.type === 'group' ? 'عضو' : 'مشترک'}</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{memberCount || members.length} {conversation.type === 'group' ? (fa ? 'عضو' : 'members') : (fa ? 'مشترک' : 'subscribers')}</p>
+            {/* Set username (owner only) */}
+            {isConvOwner && !showSetUsername && (
+              <button onClick={() => { setShowSetUsername(true); setNewUsername((conversation as any).username || ''); }}
+                className="mt-2 text-xs px-3 py-1 rounded-full transition-colors"
+                style={{ background: 'rgba(29,155,240,0.1)', color: '#1d9bf0' }}>
+                {(conversation as any).username ? (fa ? '✏️ تغییر شناسه' : '✏️ Change @ID') : (fa ? '+ تنظیم شناسه @' : '+ Set @ID')}
+              </button>
+            )}
+            {showSetUsername && (
+              <div className="mt-2 flex gap-1 items-center">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>@</span>
+                <input value={newUsername} onChange={e => setNewUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                  className="flex-1 text-xs px-2 py-1.5 rounded-lg outline-none font-mono"
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                  placeholder="channel_id"
+                  onKeyDown={e => { if (e.key === 'Enter') setConvUsername(); if (e.key === 'Escape') setShowSetUsername(false); }} />
+                <button onClick={setConvUsername} className="text-xs px-2 py-1.5 rounded-lg font-bold" style={{ background: '#1d9bf0', color: 'white' }}>
+                  {fa ? 'ذخیره' : 'Save'}
+                </button>
+              </div>
+            )}
+            {usernameMsg && <p className="text-xs mt-1" style={{ color: usernameMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>{usernameMsg}</p>}
           </div>
-          {isAdmin && (
+          {isConvAdmin && (
             <div className="flex-shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
               {showAddMember ? (
                 <div className="space-y-2">
@@ -623,31 +680,68 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
             </div>
           )}
           <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-            {membersLoading ? <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
-              : members.map(m => (
-              <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl">
-                <div className="relative flex-shrink-0">
-                  {m.avatar_url ? <img src={m.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
-                    : <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center"><span className="text-white text-xs font-bold">{(m.display_name||m.username).charAt(0).toUpperCase()}</span></div>}
-                  {m.online_status === 'online' && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2" style={{ borderColor: 'var(--bg-secondary)' }} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.display_name || m.username}</span>
-                    {m.role === 'admin' && <Crown size={10} className="text-yellow-400 flex-shrink-0" />}
-                    {(m as any).is_admin && <Shield size={10} className="text-blue-400 flex-shrink-0" />}
-                  </div>
-                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{m.username}</p>
-                </div>
-                {isAdmin && m.id !== user?.id && (
-                  <button onClick={() => removeMember(m.id)} title="حذف از گروه"
-                    className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
-                    style={{ color: 'var(--text-muted)' }}>
-                    <UserMinus size={12} />
-                  </button>
-                )}
+            {membersLoading ? (
+              <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
+            ) : membersRestricted ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center px-4">
+                <Shield size={28} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {fa ? 'فقط مدیران می‌توانند لیست اعضا را ببینند' : 'Only admins can view the member list'}
+                </p>
               </div>
-            ))}
+            ) : members.map(m => {
+              const role = (m as any).role || 'member';
+              const isOwnerRow = role === 'owner';
+              const isAdminRow = role === 'admin';
+              return (
+                <div key={m.id} className="flex items-center gap-2.5 px-2 py-2 rounded-xl group transition-colors"
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div className="relative flex-shrink-0">
+                    {m.avatar_url ? <img src={m.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
+                      : <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center"><span className="text-white text-xs font-bold">{(m.display_name||m.username).charAt(0).toUpperCase()}</span></div>}
+                    {(m as any).online_status === 'online' && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2" style={{ borderColor: 'var(--bg-secondary)' }} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.display_name || m.username}</span>
+                      {isOwnerRow && <Crown size={10} className="text-yellow-400 flex-shrink-0" title={fa ? 'مالک' : 'Owner'} />}
+                      {isAdminRow && <Shield size={10} className="text-blue-400 flex-shrink-0" title={fa ? 'مدیر' : 'Admin'} />}
+                      {(m as any).is_admin && <BadgeCheck size={10} className="text-sky-400 flex-shrink-0" />}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{m.username}</p>
+                      {isOwnerRow && <span className="text-xs px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>{fa ? 'مالک' : 'Owner'}</span>}
+                      {isAdminRow && <span className="text-xs px-1 rounded" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>{fa ? 'مدیر' : 'Admin'}</span>}
+                    </div>
+                  </div>
+                  {isConvOwner && m.id !== user?.id && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {isAdminRow ? (
+                        <button onClick={() => demoteMember(m.id)} title={fa ? 'لغو مدیریت' : 'Demote'}
+                          className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
+                          style={{ color: '#f87171' }}>
+                          <UserMinus size={12} />
+                        </button>
+                      ) : !isOwnerRow ? (
+                        <button onClick={() => promoteMember(m.id)} title={fa ? 'ارتقاء به مدیر' : 'Promote'}
+                          className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-blue-500/20"
+                          style={{ color: '#60a5fa' }}>
+                          <Shield size={12} />
+                        </button>
+                      ) : null}
+                      {!isOwnerRow && (
+                        <button onClick={() => removeMember(m.id)} title={fa ? 'حذف از گروه' : 'Remove'}
+                          className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
+                          style={{ color: 'var(--text-muted)' }}>
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -86,6 +86,9 @@ export function AdminPanel() {
   const [reports, setReports] = useState<any[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [resolvedReportIds, setResolvedReportIds] = useState<Set<string>>(new Set());
+  const [loginAttempts, setLoginAttempts] = useState<any[]>([]);
+  const [loginAttemptsLoading, setLoginAttemptsLoading] = useState(false);
+  const [reportsSubTab, setReportsSubTab] = useState<'reports' | 'login'>('reports');
 
   // Blue tick loading states
   const [blueTickLoadingId, setBlueTickLoadingId] = useState<string | null>(null);
@@ -343,6 +346,18 @@ export function AdminPanel() {
     const { body } = await adminFetch('/admin/reports');
     if (body?.data) setReports(body.data);
     setReportsLoading(false);
+  }
+
+  async function loadLoginAttempts() {
+    setLoginAttemptsLoading(true);
+    const { body } = await adminFetch('/admin/login-attempts');
+    if (body?.data) setLoginAttempts(body.data);
+    setLoginAttemptsLoading(false);
+  }
+
+  async function clearLoginAttempt(email?: string) {
+    await adminFetch('/admin/login-attempts/clear', { method: 'POST', body: JSON.stringify({ email }) });
+    await loadLoginAttempts();
   }
 
   async function resolveReport(id: string, action: string) {
@@ -804,6 +819,85 @@ export function AdminPanel() {
           {/* ── REPORTS ── */}
           {tab === 'reports' && (
             <div className="space-y-4">
+              {/* Sub-tabs */}
+              <div className="flex gap-2">
+                <button onClick={() => { setReportsSubTab('reports'); if (reports.length === 0) loadReports(); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: reportsSubTab === 'reports' ? 'rgba(239,68,68,0.15)' : '#161b22', color: reportsSubTab === 'reports' ? '#f87171' : '#6b7280' }}>
+                  <Flag size={13} />گزارش‌های تخلف
+                </button>
+                <button onClick={() => { setReportsSubTab('login'); if (loginAttempts.length === 0) loadLoginAttempts(); }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: reportsSubTab === 'login' ? 'rgba(245,158,11,0.15)' : '#161b22', color: reportsSubTab === 'login' ? '#fbbf24' : '#6b7280' }}>
+                  <Shield size={13} />تلاش‌های ورود ناموفق
+                </button>
+              </div>
+
+              {/* Login attempts sub-tab */}
+              {reportsSubTab === 'login' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500">کاربرانی که رمز اشتباه وارد کرده‌اند</p>
+                    <div className="flex gap-2">
+                      <button onClick={loadLoginAttempts} className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-gray-400" style={{ background: '#161b22' }}>
+                        <RefreshCw size={12} />
+                      </button>
+                      <button onClick={() => clearLoginAttempt(undefined)} className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-red-400" style={{ background: 'rgba(239,68,68,0.1)' }}>
+                        پاک کردن همه
+                      </button>
+                    </div>
+                  </div>
+                  {loginAttemptsLoading ? (
+                    <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" /></div>
+                  ) : loginAttempts.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 gap-2">
+                      <CheckCheck size={28} className="text-gray-700" />
+                      <p className="text-xs text-gray-500">هیچ تلاش ناموفقی ثبت نشده</p>
+                    </div>
+                  ) : (
+                    loginAttempts.map((entry, i) => (
+                      <div key={i} className="rounded-2xl border p-4" style={{ background: '#0d1117', borderColor: entry.isLocked ? 'rgba(239,68,68,0.3)' : '#1f2937' }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {entry.isLocked && (
+                                <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                                  🔒 قفل‌شده {entry.retryAfterSec}s
+                                </span>
+                              )}
+                              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}>
+                                {entry.fails} تلاش
+                              </span>
+                              {entry.locks > 0 && (
+                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171' }}>
+                                  {entry.locks}× قفل شد
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-300 font-medium">{entry.email || '—'}</p>
+                            <p className="text-xs text-gray-600 font-mono mt-0.5">IP: {entry.ip}</p>
+                            {entry.lastFailAt && (
+                              <p className="text-xs text-gray-700 mt-0.5">
+                                آخرین تلاش: {new Date(entry.lastFailAt).toLocaleString('fa-IR')}
+                              </p>
+                            )}
+                          </div>
+                          <button onClick={() => clearLoginAttempt(entry.email)}
+                            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                            style={{ background: '#161b22', color: '#6b7280' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,0.1)'; e.currentTarget.style.color = '#4ade80'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#161b22'; e.currentTarget.style.color = '#6b7280'; }}>
+                            رفع قفل
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Reports sub-tab */}
+              {reportsSubTab === 'reports' && (<>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-400">گزارش‌های تخلف ارسال‌شده توسط کاربران</h2>
                 <button onClick={loadReports} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white transition-colors" style={{ background: '#161b22' }}>
@@ -902,6 +996,7 @@ export function AdminPanel() {
                   })}
                 </div>
               )}
+              </>)}
             </div>
           )}
 

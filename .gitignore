@@ -1,0 +1,32 @@
+# Dependencies
+**/node_modules/
+
+# Build output
+artifacts/kingwolf/dist/
+
+# Database & secrets — never commit these
+artifacts/api-server/data/kingwolf.db
+artifacts/api-server/data/.jwt-secret
+artifacts/api-server/data/kingwolf.db.lock/
+
+# User-generated uploads
+artifacts/api-server/uploads/avatars/*
+artifacts/api-server/uploads/media/*
+!artifacts/api-server/uploads/avatars/.gitkeep
+!artifacts/api-server/uploads/media/.gitkeep
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

@@ -1,0 +1,43 @@
+version: '3.9'
+
+networks:
+  kingwolf-net:
+    driver: bridge
+    name: kingwolf-net
+
+volumes:
+  kingwolf-data:
+    name: kingwolf-data
+  kingwolf-uploads:
+    name: kingwolf-uploads
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: kingwolf-backend
+    restart: unless-stopped
+    networks:
+      - kingwolf-net
+    volumes:
+      - kingwolf-data:/app/data
+      - kingwolf-uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    expose:
+      - "3001"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: kingwolf-frontend
+    restart: unless-stopped
+    networks:
+      - kingwolf-net
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

@@ -1,0 +1,20 @@
+entrypoint = "artifacts/api-server/server.js"
+modules = ["nodejs-22"]
+
+run = "bash start.sh"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+deploymentTarget = "cloudrun"
+run = ["bash", "start.sh"]
+build = ["bash", "build.sh"]
+
+[[ports]]
+localPort = 5173
+externalPort = 80
+
+[[ports]]
+localPort = 3001
+externalPort = 3001

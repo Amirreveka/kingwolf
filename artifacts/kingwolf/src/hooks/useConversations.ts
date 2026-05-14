@@ -1,0 +1,194 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase } from '../lib/supabase';
+import { Conversation, Profile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+
+export function useConversations() {
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fetchingRef = useRef(false);
+
+  const fetchConversations = useCallback(async () => {
+    if (!user || fetchingRef.current) return;
+    fetchingRef.current = true;
+    try {
+      const { data: memberRows } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+
+      if (!memberRows || memberRows.length === 0) {
+        setConversations([]);
+        setLoading(false);
+        fetchingRef.current = false;
+        return;
+      }
+
+      const ids = memberRows.map((r: { conversation_id: string }) => r.conversation_id);
+      const { data: convos } = await supabase
+        .from('conversations')
+        .select('*')
+        .in('id', ids)
+        .order('last_message_at', { ascending: false });
+
+      if (!convos) { setLoading(false); fetchingRef.current = false; return; }
+
+      // Batch-fetch other users for direct conversations (avoids N+1 queries)
+      type ConvRow = { id: string; type: string; [key: string]: unknown };
+      type MemberRow = { conversation_id: string; user_id: string };
+      const directConvIds = (convos as ConvRow[]).filter((c: ConvRow) => c.type === 'direct').map((c: ConvRow) => c.id as string);
+      const otherUserMap: Record<string, Profile> = {};
+
+      if (directConvIds.length > 0) {
+        const { data: dirMembers } = await supabase
+          .from('conversation_members')
+          .select('conversation_id, user_id')
+          .in('conversation_id', directConvIds)
+          .neq('user_id', user.id);
+
+        if (dirMembers && dirMembers.length > 0) {
+          const typedMembers = dirMembers as MemberRow[];
+          const otherIds = [...new Set(typedMembers.map((r: MemberRow) => r.user_id))];
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', otherIds);
+
+          const profileMap = Object.fromEntries((profiles || []).map((p: Profile) => [p.id, p]));
+          for (const row of typedMembers) {
+            if (!otherUserMap[row.conversation_id]) {
+              otherUserMap[row.conversation_id] = profileMap[row.user_id] as Profile;
+            }
+          }
+        }
+      }
+
+      const enriched: Conversation[] = (convos as ConvRow[]).map((c: ConvRow) => {
+        if (c.type === 'direct') return { ...c, other_user: otherUserMap[c.id as string] } as unknown as Conversation;
+        return c as unknown as Conversation;
+      });
+
+      setConversations(enriched);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoading(false);
+    fetchingRef.current = false;
+  }, [user]);
+
+  useEffect(() => {
+    fetchConversations();
+    if (!user) return;
+    const channel = supabase
+      .channel('conversations-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        setTimeout(fetchConversations, 100);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchConversations]);
+
+  async function createDirectConversation(targetUserId: string): Promise<string | null> {
+    if (!user) return null;
+    try {
+      const { data: myRows } = await supabase
+        .from('conversation_members')
+        .select('conversation_id')
+        .eq('user_id', user.id);
+
+      if (myRows && myRows.length > 0) {
+        const myIds = (myRows as { conversation_id: string }[]).map((r) => r.conversation_id);
+        const { data: targetRows } = await supabase
+          .from('conversation_members')
+          .select('conversation_id')
+          .eq('user_id', targetUserId)
+          .in('conversation_id', myIds);
+
+        if (targetRows && targetRows.length > 0) {
+          for (const row of targetRows) {
+            const { data: conv } = await supabase
+              .from('conversations')
+              .select('id, type')
+              .eq('id', row.conversation_id)
+              .eq('type', 'direct')
+              .maybeSingle();
+            if (conv) { await fetchConversations(); return conv.id; }
+          }
+        }
+      }
+
+      const { data: conv, error: createErr } = await supabase
+        .from('conversations')
+        .insert({ type: 'direct', created_by: user.id, name: '' })
+        .select('id')
+        .single();
+
+      if (createErr || !conv) return null;
+      await supabase.from('conversation_members').insert([
+        { conversation_id: conv.id, user_id: user.id, role: 'member' },
+        { conversation_id: conv.id, user_id: targetUserId, role: 'member' },
+      ]);
+      await fetchConversations();
+      return conv.id;
+    } catch (e) {
+      console.error('createDirectConversation failed:', e);
+      return null;
+    }
+  }
+
+  async function createGroup(name: string, description: string, memberIds: string[]): Promise<string | null> {
+    if (!user) return null;
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .insert({ type: 'group', name, description, created_by: user.id })
+      .select('id')
+      .single();
+    if (error || !conv) return null;
+    const members = [user.id, ...memberIds].map((uid) => ({
+      conversation_id: conv.id, user_id: uid, role: uid === user.id ? 'admin' : 'member',
+    }));
+    await supabase.from('conversation_members').insert(members);
+    await fetchConversations();
+    return conv.id;
+  }
+
+  async function createChannel(name: string, description: string): Promise<string | null> {
+    if (!user) return null;
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .insert({ type: 'channel', name, description, created_by: user.id })
+      .select('id')
+      .single();
+    if (error || !conv) return null;
+    await supabase.from('conversation_members').insert({
+      conversation_id: conv.id, user_id: user.id, role: 'admin',
+    });
+    await fetchConversations();
+    return conv.id;
+  }
+
+  async function getSavedMessagesConversation(): Promise<string | null> {
+    if (!user) return null;
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('type', 'direct')
+      .eq('created_by', user.id)
+      .eq('name', '__saved__')
+      .maybeSingle();
+    if (existing) return existing.id;
+    const { data: conv, error } = await supabase
+      .from('conversations')
+      .insert({ type: 'direct', name: '__saved__', created_by: user.id })
+      .select('id')
+      .single();
+    if (error || !conv) return null;
+    await supabase.from('conversation_members').insert({
+      conversation_id: conv.id, user_id: user.id, role: 'member',
+    });
+    return conv.id;
+  }
+
+  return { conversations, loading, refresh: fetchConversations, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation };
+}

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "KingWolf Messenger"
+version = "1.0.0"
+id = "artifacts/kingwolf"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19241
+
+[services.development]
+run = "pnpm --filter @workspace/kingwolf run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/kingwolf", "run", "build" ]
+publicDir = "artifacts/kingwolf/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19241"
+BASE_PATH = "/"

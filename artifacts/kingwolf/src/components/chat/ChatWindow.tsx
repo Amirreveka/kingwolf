@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck } from 'lucide-react';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Conversation, Message, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { WolfLogo } from '../ui/WolfLogo';
@@ -84,6 +85,8 @@ function renderContent(text: string): React.ReactNode {
 
 export function ChatWindow({ conversation, conversations, onBack, onSelectConv }: ChatWindowProps) {
   const { user, profile } = useAuth();
+  const { language } = useTheme();
+  const fa = language === 'fa';
   const { messages, loading, sendMessage, editMessage, deleteMessage } = useMessages(conversation?.id ?? null);
 
   const [text, setText] = useState('');
@@ -281,19 +284,19 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
 
   function getDisplayName() {
     if (!conversation) return '';
-    if (conversation.name === '__saved__') return 'پیام‌های ذخیره‌شده';
-    if (conversation.type === 'direct') return conversation.other_user?.display_name || conversation.other_user?.username || 'کاربر';
+    if (conversation.name === '__saved__') return fa ? 'پیام‌های ذخیره‌شده' : 'Saved Messages';
+    if (conversation.type === 'direct') return conversation.other_user?.display_name || conversation.other_user?.username || (fa ? 'کاربر' : 'User');
     return conversation.name;
   }
 
   function getStatus() {
     if (!conversation) return '';
-    if (conversation.name === '__saved__') return 'پیام‌های شخصی شما';
+    if (conversation.name === '__saved__') return fa ? 'پیام‌های شخصی شما' : 'Your personal messages';
     if (conversation.type === 'direct') {
-      return conversation.other_user?.online_status === 'online' ? 'آنلاین' : 'آفلاین';
+      return conversation.other_user?.online_status === 'online' ? (fa ? 'آنلاین' : 'Online') : (fa ? 'آفلاین' : 'Offline');
     }
-    if (conversation.type === 'group') return `${members.length || conversation.member_count || 0} عضو`;
-    if (conversation.type === 'channel') return 'کانال';
+    if (conversation.type === 'group') return `${members.length || conversation.member_count || 0} ${fa ? 'عضو' : 'members'}`;
+    if (conversation.type === 'channel') return fa ? 'کانال' : 'Channel';
     return '';
   }
 
@@ -308,7 +311,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
             <WolfLogo size={48} />
           </div>
           <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-primary)' }}>KingWolf Messenger</h3>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>یک مکالمه از فهرست انتخاب کنید</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {fa ? 'یک مکالمه از فهرست انتخاب کنید' : 'Select a conversation from the list'}
+          </p>
         </div>
       </div>
     );
@@ -473,11 +478,11 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
             onClick={e => e.stopPropagation()}
           >
             {[
-              { icon: Reply, label: 'ریپلای', color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
-              ...(contextMenu.msg.sender_id === user?.id ? [{ icon: Edit2, label: 'ویرایش', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
-              { icon: Forward, label: 'فوروارد', color: 'var(--text-primary)', action: () => { setForwardMsg(contextMenu.msg); setContextMenu(null); } },
-              { icon: Copy, label: 'کپی متن', color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
-              ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: 'حذف', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
+              { icon: Reply,  label: fa ? 'ریپلای'  : 'Reply',   color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
+              ...(contextMenu.msg.sender_id === user?.id ? [{ icon: Edit2, label: fa ? 'ویرایش' : 'Edit', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
+              { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMsg(contextMenu.msg); setContextMenu(null); } },
+              { icon: Copy,   label: fa ? 'کپی متن' : 'Copy',    color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
+              ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
             ].map(item => (
               <button key={item.label}
                 className="flex items-center gap-2.5 px-3 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
@@ -543,7 +548,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                 value={text}
                 onChange={e => { setText(e.target.value); autoResize(); }}
                 onKeyDown={handleKey}
-                placeholder={editingId ? 'ویرایش پیام...' : conversation.name === '__saved__' ? 'یادداشت بنویسید...' : 'پیام بنویسید...'}
+                placeholder={editingId ? (fa ? 'ویرایش پیام...' : 'Edit message...') : conversation.name === '__saved__' ? (fa ? 'یادداشت بنویسید...' : 'Write a note...') : (fa ? 'پیام بنویسید...' : 'Write a message...')}
                 rows={1}
                 className="flex-1 bg-transparent outline-none text-sm resize-none py-1.5 min-h-[32px] max-h-[120px]"
                 style={{ color: 'var(--text-primary)' }}
@@ -559,7 +564,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           </div>
         ) : (
           <div className="flex-shrink-0 p-3 text-center" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>فقط مدیران می‌توانند در کانال پیام ارسال کنند</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {fa ? 'فقط مدیران می‌توانند در کانال پیام ارسال کنند' : 'Only admins can send messages in this channel'}
+          </p>
           </div>
         )}
       </div>

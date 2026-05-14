@@ -134,7 +134,6 @@ const AUTO_EN: Record<string, string> = {
   "نیاز به تأیید مدیر": "Requires admin approval",
   "تنظیمات برنامه": "App settings",
   "خانه": "Home",
-  "جستجو": "Search",
   "چه خبره؟ ...": "What's happening?...",
   "راه‌اندازی DB": "DB setup",
   "راه‌اندازی پایگاه داده": "Database setup",

@@ -274,9 +274,23 @@ class Channel {
   on(_eventStr: string, opts: any, handler: (payload: any) => void) {
     const table = opts?.table || null;
     const eventFilter = (opts?.event || '*').toUpperCase();
+    // Parse Supabase-style filter like "conversation_id=eq.uuid"
+    const filterStr: string | null = opts?.filter || null;
+    let rowFilter: ((row: any) => boolean) | null = null;
+    if (filterStr) {
+      const m = filterStr.match(/^(\w+)=eq\.(.+)$/);
+      if (m) {
+        const col = m[1], val = m[2];
+        rowFilter = (row: any) => row && String(row[col]) === String(val);
+      }
+    }
     if (table) {
       const internalHandler = (p: any) => {
         if (eventFilter !== '*' && p.eventType !== eventFilter) return;
+        if (rowFilter) {
+          const row = p.new || p.old;
+          if (!rowFilter(row)) return;
+        }
         handler(p);
       };
       this._subs.push({ table, eventFilter, handler, internalHandler });

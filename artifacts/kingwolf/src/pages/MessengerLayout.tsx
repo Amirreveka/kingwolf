@@ -29,7 +29,7 @@ export function MessengerLayout() {
   const { user } = useAuth();
   const { theme, language, setTheme, setLanguage } = useTheme();
   const isMobile = useIsMobile();
-  const { conversations, loading, refresh, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation } = useConversations();
+  const { conversations, loading, refresh, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation, setActiveConversation } = useConversations();
   const [page, setPage] = useState<Page>('messages');
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
@@ -42,12 +42,14 @@ export function MessengerLayout() {
       const convId = await createDirectConversation(targetUserId);
       if (convId) {
         setSelectedConvId(convId);
+        setActiveConversation(convId);
         setShowChatOnMobile(true);
         setPage('messages');
       }
       return;
     }
     setSelectedConvId(id);
+    setActiveConversation(id);
     setShowChatOnMobile(true);
     setPage('messages');
   }
@@ -229,7 +231,7 @@ export function MessengerLayout() {
           <ChatWindow
             conversation={selectedConv}
             conversations={conversations}
-            onBack={() => { setShowChatOnMobile(false); setSelectedConvId(null); }}
+            onBack={() => { setShowChatOnMobile(false); setSelectedConvId(null); setActiveConversation(null); }}
             onSelectConv={handleSelectConversation}
           />
         ) : page === 'calls' ? (

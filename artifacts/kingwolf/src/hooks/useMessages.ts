@@ -69,13 +69,25 @@ export function useMessages(conversationId: string | null) {
           .eq('id', payload.new.id)
           .single();
         if (msgWithSender) {
+          const msg = msgWithSender as Message;
           setMessages((prev) => {
-            // Don't add if already exists (optimistic update already added it)
-            if (prev.find(m => m.id === (msgWithSender as Message).id)) return prev;
-            return [...prev, msgWithSender as Message];
+            if (prev.find(m => m.id === msg.id)) return prev;
+            return [...prev, msg];
           });
-          // Mark new incoming message as read automatically
           markAsRead();
+          // Browser notification for messages from others when page is not focused
+          if (msg.sender_id !== user?.id && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+            const senderName = msg.sender?.display_name || msg.sender?.username || 'KingWolf';
+            const body = msg.type === 'image' ? '📷 عکس' : msg.type === 'video' ? '🎬 ویدیو' : msg.type === 'audio' ? '🎙️ پیام صوتی' : msg.type === 'file' ? '📎 فایل' : msg.content?.slice(0, 80) || '';
+            try {
+              new Notification(senderName, {
+                body,
+                icon: msg.sender?.avatar_url || '/icon-192.png',
+                tag: `msg-${conversationId}`,
+                renotify: true,
+              });
+            } catch {}
+          }
         }
       })
       .on('postgres_changes', {

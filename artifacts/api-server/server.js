@@ -988,6 +988,27 @@ app.post('/admin/login-attempts/clear', authMiddleware, adminOnly, (req, res) =>
   return res.json({ ok: true, cleared: email });
 });
 
+// Unread message counts per conversation for the current user
+app.get('/unread-counts', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT m.conversation_id, COUNT(*) as count
+    FROM messages m
+    WHERE m.sender_id != ?
+      AND m.is_deleted = 0
+      AND m.conversation_id IN (
+        SELECT conversation_id FROM conversation_members WHERE user_id = ?
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM message_read_receipts r
+        WHERE r.message_id = m.id AND r.user_id = ?
+      )
+    GROUP BY m.conversation_id
+  `).all(req.userId, req.userId, req.userId);
+  const data = {};
+  for (const r of rows) data[r.conversation_id] = r.count;
+  return res.json({ data });
+});
+
 app.get('/admin/reports', authMiddleware, adminOnly, (req, res) => {
   const typeFilter = req.query.type; // 'chat' | 'feed' | undefined (all)
   let whereClause = '';

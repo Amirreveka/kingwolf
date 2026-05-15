@@ -126,6 +126,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
   const [recording, setRecording] = useState(false);
   const [chatMuted, setChatMuted] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -194,13 +196,18 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   async function loadMembers() {
     if (!conversation) return;
     setMembersLoading(true);
-    const data = await apiCall(`/conversations/${conversation.id}/members`);
-    setMembers(data.data || []);
-    setMemberCount(data.count || data.data?.length || 0);
-    setMembersRestricted(!!data.restricted);
-    const me = (data.data || []).find((m: any) => m.id === user?.id);
-    if (me) setMyConvRole(me.role || 'member');
-    setMembersLoading(false);
+    try {
+      const data = await apiCall(`/conversations/${conversation.id}/members`);
+      setMembers(data.data || []);
+      setMemberCount(data.count || data.data?.length || 0);
+      setMembersRestricted(!!data.restricted);
+      const me = (data.data || []).find((m: any) => m.id === user?.id);
+      if (me) setMyConvRole(me.role || 'member');
+    } catch {
+      setMembers([]);
+    } finally {
+      setMembersLoading(false);
+    }
   }
 
   async function promoteMember(userId: string) {
@@ -275,13 +282,19 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   async function startVoiceRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+        : '';
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const ext = mimeType.includes('mp4') ? 'm4a' : mimeType.includes('ogg') ? 'ogg' : 'webm';
       audioChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+        const actualMime = mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: actualMime });
+        const file = new File([blob], `voice_${Date.now()}.${ext}`, { type: actualMime });
         setRecording(false);
         setUploadingFile(true);
         await sendMediaMessage(file, { replyToId: replyTo?.id });
@@ -303,20 +316,18 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   }
 
   async function submitReport() {
-    if (!showReport || !reportReason) return;
-    await apiCall('/reports', {
-      method: 'POST',
-      body: JSON.stringify({
-        target_type: showReport.type,
-        target_id: showReport.targetId,
-        reason: reportReason,
-        details: reportDetails,
-      }),
-    });
-    setShowReport(null);
-    setReportReason('');
-    setReportDetails('');
-    alert(fa ? 'گزارش با موفقیت ارسال شد' : 'Report submitted successfully');
+    if (!showReport || !reportReason || reportSubmitting) return;
+    setReportSubmitting(true);
+    try {
+      await apiCall('/reports', {
+        method: 'POST',
+        body: JSON.stringify({ target_type: showReport.type, target_id: showReport.targetId, reason: reportReason, details: reportDetails }),
+      });
+      setReportDone(true);
+      setTimeout(() => { setShowReport(null); setReportReason(''); setReportDetails(''); setReportDone(false); setReportSubmitting(false); }, 1500);
+    } catch {
+      setReportSubmitting(false);
+    }
   }
 
   function copyToClipboard(text: string) {
@@ -763,14 +774,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
               <div className="relative flex-shrink-0">
                 <button
                   onClick={e => { e.stopPropagation(); if (!uploadingFile) setShowAttach(v => !v); }}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl"
+                  className="w-10 h-10 flex items-center justify-center rounded-xl"
                   style={{ color: showAttach ? 'var(--accent)' : 'var(--text-muted)' }}
                   disabled={uploadingFile}
                   title={fa ? 'پیوست' : 'Attach'}
                 >
                   {uploadingFile
                     ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    : <Paperclip size={17} />}
+                    : <Paperclip size={22} />}
                 </button>
               </div>
             <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
@@ -1114,13 +1125,20 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                 className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
                 style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
               />
-              <button
-                onClick={submitReport}
-                disabled={!reportReason}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
-                style={{ background: reportReason ? '#ef4444' : 'var(--bg-input)', color: reportReason ? 'white' : 'var(--text-muted)' }}>
-                {fa ? 'ارسال گزارش' : 'Submit Report'}
-              </button>
+              {reportDone ? (
+                <div className="w-full py-3 rounded-xl text-sm font-semibold text-center" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
+                  ✓ {fa ? 'گزارش ارسال شد' : 'Report submitted'}
+                </div>
+              ) : (
+                <button
+                  onClick={submitReport}
+                  disabled={!reportReason || reportSubmitting}
+                  className="w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+                  style={{ background: reportReason ? '#ef4444' : 'var(--bg-input)', color: reportReason ? 'white' : 'var(--text-muted)' }}>
+                  {reportSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {fa ? 'ارسال گزارش' : 'Submit Report'}
+                </button>
+              )}
             </div>
           </div>
         </div>

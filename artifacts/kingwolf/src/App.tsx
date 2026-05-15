@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppSettingsProvider } from './contexts/AppSettingsContext';
@@ -5,9 +6,11 @@ import { AuthPage } from './pages/AuthPage';
 import { MessengerLayout } from './pages/MessengerLayout';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { AdminPanel } from './pages/AdminPanel';
+import { PermissionGate, needsPermissionGate } from './components/PermissionGate';
 
 function AppRouter() {
   const { user, profile, loading } = useAuth();
+  const [permDone, setPermDone] = useState(() => !needsPermissionGate());
 
   if (loading) return null;
 
@@ -28,6 +31,9 @@ function AppRouter() {
       </div>
     );
   }
+
+  // Show permission gate once after first login
+  if (!permDone) return <PermissionGate onDone={() => setPermDone(true)} />;
 
   return <MessengerLayout />;
 }

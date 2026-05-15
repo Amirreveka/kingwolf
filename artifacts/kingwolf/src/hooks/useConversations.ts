@@ -3,11 +3,37 @@ import { supabase } from '../lib/supabase';
 import { Conversation, Profile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
+const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
+
 export function useConversations() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const fetchingRef = useRef(false);
+  const activeConvRef = useRef<string | null>(null);
+
+  // Called by MessengerLayout when a conversation is selected
+  function setActiveConversation(id: string | null) {
+    activeConvRef.current = id;
+    if (id) {
+      // Clear unread for this conversation immediately
+      setConversations(prev => prev.map(c => c.id === id ? { ...c, unread_count: 0 } as any : c));
+    }
+  }
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = localStorage.getItem('kingwolf_token');
+      const res = await fetch(`${API_BASE}/unread-counts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      const counts: Record<string, number> = body.data || {};
+      setConversations(prev => prev.map(c => ({ ...c, unread_count: counts[c.id] || 0 } as any)));
+    } catch {}
+  }, [user]);
 
   const fetchConversations = useCallback(async () => {
     if (!user || fetchingRef.current) return;
@@ -34,7 +60,6 @@ export function useConversations() {
 
       if (!convos) { setLoading(false); fetchingRef.current = false; return; }
 
-      // Batch-fetch other users for direct conversations (avoids N+1 queries)
       type ConvRow = { id: string; type: string; [key: string]: unknown };
       type MemberRow = { conversation_id: string; user_id: string };
       const directConvIds = (convos as ConvRow[]).filter((c: ConvRow) => c.type === 'direct').map((c: ConvRow) => c.id as string);
@@ -78,16 +103,54 @@ export function useConversations() {
   }, [user]);
 
   useEffect(() => {
-    fetchConversations();
+    fetchConversations().then(() => fetchUnreadCounts());
     if (!user) return;
-    const channel = supabase
+
+    // Listen for conversation table changes (last_message_at updates → reorder)
+    const convChannel = supabase
       .channel('conversations-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
-        setTimeout(fetchConversations, 100);
+        setTimeout(() => fetchConversations().then(() => fetchUnreadCounts()), 100);
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, fetchConversations]);
+
+    // Listen for new messages to update unread counts + conversation order
+    const msgChannel = supabase
+      .channel('conversations-new-messages')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new as any;
+        if (!msg || !msg.conversation_id || msg.sender_id === user.id) return;
+        // If this message is NOT in the active conversation, increment unread
+        if (msg.conversation_id !== activeConvRef.current) {
+          setConversations(prev => {
+            const idx = prev.findIndex(c => c.id === msg.conversation_id);
+            if (idx < 0) return prev;
+            const updated = [...prev];
+            const conv = { ...updated[idx], unread_count: ((updated[idx] as any).unread_count || 0) + 1 } as any;
+            // Move to top
+            updated.splice(idx, 1);
+            updated.unshift(conv);
+            return updated;
+          });
+        } else {
+          // Active conversation — just move to top if needed
+          setConversations(prev => {
+            const idx = prev.findIndex(c => c.id === msg.conversation_id);
+            if (idx <= 0) return prev;
+            const updated = [...prev];
+            const conv = updated.splice(idx, 1)[0];
+            updated.unshift(conv);
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convChannel);
+      supabase.removeChannel(msgChannel);
+    };
+  }, [user, fetchConversations, fetchUnreadCounts]);
 
   async function createDirectConversation(targetUserId: string): Promise<string | null> {
     if (!user) return null;
@@ -190,5 +253,5 @@ export function useConversations() {
     return conv.id;
   }
 
-  return { conversations, loading, refresh: fetchConversations, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation };
+  return { conversations, loading, refresh: fetchConversations, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation, setActiveConversation };
 }

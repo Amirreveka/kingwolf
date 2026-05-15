@@ -323,9 +323,16 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
               </div>
               <div className="flex-1 min-w-0 text-right">
                 <div className="flex items-center justify-between gap-1">
-                  <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-                    {formatTime(c.last_message_at)}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                      {formatTime(c.last_message_at)}
+                    </span>
+                    {!!((c as any).unread_count) && (
+                      <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
+                        {(c as any).unread_count > 99 ? '99+' : (c as any).unread_count}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 min-w-0">
                     <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                       {getDisplayName(c)}

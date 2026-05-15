@@ -1081,10 +1081,9 @@ function getCpuPercent() {
 setInterval(getCpuPercent, 1000);
 
 // ── Disk stats helper ────────────────────────────────────────────────────────
-const fsSync = require('fs');
 function getDiskStats(path) {
   try {
-    const s = fsSync.statfsSync(path);
+    const s = fs.statfsSync(path);
     const total = s.blocks * s.bsize;
     const free = s.bfree * s.bsize;
     const used = total - free;

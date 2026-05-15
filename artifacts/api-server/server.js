@@ -1259,6 +1259,7 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 // ===== WebSocket for realtime =====
 const wss = new WebSocketServer({ server, path: '/realtime' });
 const clients = new Set();
+const userSockets = new Map(); // userId → ws (for WebRTC signaling)
 
 wss.on('connection', (ws, req) => {
   // optional auth via query token
@@ -1271,14 +1272,25 @@ wss.on('connection', (ws, req) => {
   ws.userId = userId;
   ws.subscriptions = new Set(); // table names
   clients.add(ws);
+  if (userId) userSockets.set(userId, ws);
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
       if (msg.type === 'subscribe' && msg.table) ws.subscriptions.add(msg.table);
       if (msg.type === 'unsubscribe' && msg.table) ws.subscriptions.delete(msg.table);
+      // WebRTC signaling: forward to target user
+      if (msg.type === 'signal' && msg.targetUserId && msg.payload) {
+        const targetWs = userSockets.get(msg.targetUserId);
+        if (targetWs && targetWs.readyState === 1) {
+          targetWs.send(JSON.stringify({ type: 'signal', fromUserId: ws.userId, payload: msg.payload }));
+        }
+      }
     } catch {}
   });
-  ws.on('close', () => clients.delete(ws));
+  ws.on('close', () => {
+    clients.delete(ws);
+    if (ws.userId && userSockets.get(ws.userId) === ws) userSockets.delete(ws.userId);
+  });
   ws.send(JSON.stringify({ type: 'ready' }));
 });
 

@@ -67,6 +67,7 @@ refreshSession();
 // ===== Realtime WS =====
 let ws: WebSocket | null = null;
 const wsSubs: Map<string, Set<(payload: any) => void>> = new Map();
+const signalListeners: Set<(payload: any, fromUserId: string) => void> = new Set();
 let wsConnecting = false;
 let wsReconnectDelay = 1000;
 
@@ -91,6 +92,8 @@ function connectWs() {
           const payload = { eventType: msg.event, new: msg.new || null, old: msg.old || null, table: msg.table };
           handlers.forEach((h) => { try { h(payload); } catch {} });
         }
+      } else if (msg.type === 'signal') {
+        signalListeners.forEach((h) => { try { h(msg.payload, msg.fromUserId); } catch {} });
       }
     } catch {}
   };
@@ -379,6 +382,20 @@ export const supabase = {
 };
 
 export const EDGE_URL = `${API_BASE}/edge`;
+
+export function sendSignal(targetUserId: string, payload: any) {
+  connectWs();
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'signal', targetUserId, payload }));
+  }
+}
+export function onSignal(handler: (payload: any, fromUserId: string) => void) {
+  signalListeners.add(handler);
+  connectWs();
+}
+export function offSignal(handler: (payload: any, fromUserId: string) => void) {
+  signalListeners.delete(handler);
+}
 
 export async function checkAdminAccess(username: string): Promise<boolean> {
   try {

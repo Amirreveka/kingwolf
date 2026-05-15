@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MessageSquare, Settings, LogOut, Sun, Moon, Phone } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { MessageSquare, Settings, Sun, Moon, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, PhoneIncoming, PhoneMissed } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useConversations } from '../hooks/useConversations';
@@ -9,7 +9,7 @@ import { ChatWindow } from '../components/chat/ChatWindow';
 import { FeedPage } from './FeedPage';
 import { SettingsPage } from './SettingsPage';
 import { Conversation } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, onSignal, offSignal, sendSignal } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { CallsPage } from './CallsPage';
 
@@ -35,6 +35,181 @@ export function MessengerLayout() {
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
 
   const selectedConv = conversations.find((c) => c.id === selectedConvId) ?? null;
+
+  // ── WebRTC call state ──────────────────────────────────────────────────────
+  type CallState = { type: 'voice' | 'video'; status: 'calling' | 'active'; targetUserId: string; displayName: string; avatar?: string };
+  type IncomingCall = { fromUserId: string; fromName: string; fromAvatar?: string; callType: 'voice' | 'video'; offer: RTCSessionDescriptionInit };
+
+  const [callState, setCallState] = useState<CallState | null>(null);
+  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [videoOn, setVideoOn] = useState(true);
+
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const pendingIce = useRef<RTCIceCandidateInit[]>([]);
+  const callTargetRef = useRef<string | null>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const callStateRef = useRef<CallState | null>(null);
+  useEffect(() => { callStateRef.current = callState; }, [callState]);
+
+  // Call duration timer
+  useEffect(() => {
+    if (callState?.status === 'active') {
+      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+    } else {
+      if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
+      if (!callState) setCallDuration(0);
+    }
+    return () => { if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; } };
+  }, [callState?.status]);
+
+  function cleanupCall() {
+    if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+    if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
+    if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null; }
+    pendingIce.current = [];
+    callTargetRef.current = null;
+    setCallState(null);
+    setCallDuration(0);
+    setMuted(false);
+    setVideoOn(true);
+  }
+
+  function buildPc() {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.onicecandidate = (e) => {
+      if (e.candidate && callTargetRef.current) {
+        sendSignal(callTargetRef.current, { type: 'call-ice-candidate', candidate: e.candidate.toJSON() });
+      }
+    };
+    pc.ontrack = (e) => {
+      if (remoteVideoRef.current && e.streams[0]) {
+        remoteVideoRef.current.srcObject = e.streams[0];
+      }
+    };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connected') {
+        setCallState(s => s ? { ...s, status: 'active' } : null);
+      } else if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+        cleanupCall();
+      }
+    };
+    return pc;
+  }
+
+  async function startCall(type: 'voice' | 'video', targetUserId: string) {
+    if (callStateRef.current || !user) return;
+    const conv = conversations.find(c => c.other_user?.id === targetUserId || c.id === targetUserId);
+    const displayName = conv?.other_user?.display_name || conv?.other_user?.username || conv?.name || targetUserId;
+    const avatar = conv?.other_user?.avatar_url;
+    callTargetRef.current = targetUserId;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      const pc = buildPc();
+      pcRef.current = pc;
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendSignal(targetUserId, {
+        type: 'call-ring',
+        callType: type,
+        fromName: profile?.display_name || profile?.username || '',
+        fromAvatar: profile?.avatar_url || '',
+        offer,
+      });
+      setCallState({ type, status: 'calling', targetUserId, displayName, avatar });
+    } catch {
+      cleanupCall();
+    }
+  }
+
+  async function acceptCall() {
+    if (!incomingCall) return;
+    const { fromUserId, callType, offer, fromName, fromAvatar } = incomingCall;
+    callTargetRef.current = fromUserId;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      const pc = buildPc();
+      pcRef.current = pc;
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      for (const c of pendingIce.current) {
+        await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+      }
+      pendingIce.current = [];
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      sendSignal(fromUserId, { type: 'call-answer', answer });
+      setCallState({ type: callType, status: 'active', targetUserId: fromUserId, displayName: fromName, avatar: fromAvatar });
+      setIncomingCall(null);
+    } catch {
+      cleanupCall();
+      setIncomingCall(null);
+    }
+  }
+
+  function rejectCall() {
+    if (!incomingCall) return;
+    sendSignal(incomingCall.fromUserId, { type: 'call-reject' });
+    setIncomingCall(null);
+  }
+
+  function endCall() {
+    if (callTargetRef.current) sendSignal(callTargetRef.current, { type: 'call-end' });
+    cleanupCall();
+  }
+
+  function toggleMute() {
+    localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = muted; });
+    setMuted(m => !m);
+  }
+
+  function toggleVideo() {
+    localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = !videoOn; });
+    setVideoOn(v => !v);
+  }
+
+  function formatCallDuration(s: number) {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+
+  // WebRTC signal handler
+  useEffect(() => {
+    function handleSignal(payload: any, fromUserId: string) {
+      if (payload.type === 'call-ring') {
+        if (callStateRef.current) {
+          sendSignal(fromUserId, { type: 'call-reject' });
+          return;
+        }
+        setIncomingCall({ fromUserId, fromName: payload.fromName || fromUserId, fromAvatar: payload.fromAvatar, callType: payload.callType, offer: payload.offer });
+      } else if (payload.type === 'call-answer') {
+        if (pcRef.current && payload.answer) {
+          pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.answer)).catch(() => {});
+        }
+      } else if (payload.type === 'call-ice-candidate') {
+        if (payload.candidate) {
+          if (pcRef.current?.remoteDescription) {
+            pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate)).catch(() => {});
+          } else {
+            pendingIce.current.push(payload.candidate);
+          }
+        }
+      } else if (payload.type === 'call-reject' || payload.type === 'call-end') {
+        cleanupCall();
+      }
+    }
+    onSignal(handleSignal);
+    return () => offSignal(handleSignal);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSelectConversation(id: string) {
     if (id.startsWith('direct:')) {
@@ -233,6 +408,7 @@ export function MessengerLayout() {
             conversations={conversations}
             onBack={() => { setShowChatOnMobile(false); setSelectedConvId(null); setActiveConversation(null); }}
             onSelectConv={handleSelectConversation}
+            onStartCall={startCall}
           />
         ) : page === 'calls' ? (
           <CallsPage />
@@ -242,6 +418,121 @@ export function MessengerLayout() {
           <SettingsPage onClose={() => setPage('messages')} />
         )}
       </div>
+
+      {/* ── Incoming call overlay ────────────────────────── */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-8 px-6"
+          style={{ background: 'linear-gradient(135deg,#0f2027,#203a43,#2c5364)' }}>
+          <div className="text-center">
+            <p className="text-white/60 text-sm mb-2">{incomingCall.callType === 'voice' ? '🎙️ تماس صوتی ورودی' : '📹 تماس تصویری ورودی'}</p>
+            {incomingCall.fromAvatar
+              ? <img src={incomingCall.fromAvatar} className="w-28 h-28 rounded-full object-cover border-4 border-white/20 mx-auto mb-3" alt="" />
+              : <div className="w-28 h-28 rounded-full bg-blue-700 flex items-center justify-center border-4 border-white/20 mx-auto mb-3">
+                  <span className="text-white text-5xl font-bold">{incomingCall.fromName.charAt(0).toUpperCase()}</span>
+                </div>
+            }
+            <h2 className="text-white text-2xl font-bold">{incomingCall.fromName}</h2>
+            <div className="mt-3 flex gap-1 justify-center">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-2 h-2 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-12">
+            <div className="flex flex-col items-center gap-2">
+              <button onClick={rejectCall}
+                className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-colors">
+                <PhoneMissed size={26} className="text-white" />
+              </button>
+              <span className="text-white/60 text-xs">{fa ? 'رد' : 'Decline'}</span>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <button onClick={acceptCall}
+                className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-colors">
+                <PhoneIncoming size={26} className="text-white" />
+              </button>
+              <span className="text-white/60 text-xs">{fa ? 'پذیرش' : 'Accept'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active/outgoing call overlay ─────────────────── */}
+      {callState && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-between py-16"
+          style={{ background: callState.type === 'video' ? '#0a0a0a' : 'linear-gradient(135deg,#1e3a5f,#0f1b2d)' }}>
+          {/* Remote stream: full-screen for video, hidden (audio only) for voice */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className={callState.type === 'video' ? 'absolute inset-0 w-full h-full object-cover' : 'hidden'}
+          />
+          {/* Local video preview (picture-in-picture, video calls only) */}
+          {callState.type === 'video' && videoOn && (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute bottom-28 right-4 w-28 h-40 rounded-2xl object-cover border-2 border-white/20 z-10"
+            />
+          )}
+
+          {/* Call header */}
+          <div className="text-center relative z-10">
+            <p className="text-white/60 text-sm mb-1">{callState.type === 'voice' ? '🎙️ تماس صوتی' : '📹 تماس تصویری'}</p>
+            <h2 className="text-white text-2xl font-bold">{callState.displayName}</h2>
+            <p className="text-white/60 text-sm mt-1">
+              {callState.status === 'calling' ? (fa ? 'در حال برقراری ارتباط...' : 'Connecting...') : formatCallDuration(callDuration)}
+            </p>
+          </div>
+
+          {/* Avatar (voice calls / while connecting) */}
+          {(callState.type === 'voice' || callState.status === 'calling') && (
+            <div className="flex flex-col items-center relative z-10">
+              {callState.avatar
+                ? <img src={callState.avatar} className="w-32 h-32 rounded-full object-cover border-4 border-white/20" alt="" />
+                : <div className="w-32 h-32 rounded-full bg-blue-700 flex items-center justify-center border-4 border-white/20">
+                    <span className="text-white text-5xl font-bold">{callState.displayName.charAt(0)}</span>
+                  </div>
+              }
+              {callState.status === 'calling' && (
+                <div className="mt-4 flex gap-1">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="w-2 h-2 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Call controls */}
+          <div className="flex items-center gap-6 relative z-10">
+            <button onClick={toggleMute}
+              className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
+              style={{ background: muted ? '#ef4444' : 'rgba(255,255,255,0.15)' }}>
+              {muted ? <MicOff size={22} className="text-white" /> : <Mic size={22} className="text-white" />}
+            </button>
+            <button onClick={endCall}
+              className="w-16 h-16 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 transition-colors">
+              <PhoneOff size={26} className="text-white" />
+            </button>
+            {callState.type === 'video' ? (
+              <button onClick={toggleVideo}
+                className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: videoOn ? 'rgba(255,255,255,0.15)' : '#ef4444' }}>
+                {videoOn ? <Video size={22} className="text-white" /> : <VideoOff size={22} className="text-white" />}
+              </button>
+            ) : (
+              <button className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'rgba(255,255,255,0.15)' }}>
+                <Volume2 size={22} className="text-white" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Mobile bottom navigation ─────────────────────── */}
       <div

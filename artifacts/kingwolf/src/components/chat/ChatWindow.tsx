@@ -12,6 +12,7 @@ interface ChatWindowProps {
   conversations: Conversation[];
   onBack: () => void;
   onSelectConv?: (id: string) => void;
+  onStartCall?: (type: 'voice' | 'video', targetUserId: string) => void;
 }
 
 const EMOJI_LIST = ['😀','😂','❤️','👍','🔥','✅','🎉','💯','🙏','😍','🤔','😎','👏','🥳','💪','🌟','😊','🤣','😭','🙄'];
@@ -83,7 +84,7 @@ function renderContent(text: string): React.ReactNode {
   return <>{parts}</>;
 }
 
-export function ChatWindow({ conversation, conversations, onBack, onSelectConv }: ChatWindowProps) {
+export function ChatWindow({ conversation, conversations, onBack, onSelectConv, onStartCall }: ChatWindowProps) {
   const { user, profile } = useAuth();
   const { language } = useTheme();
   const fa = language === 'fa';
@@ -116,13 +117,6 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
 
   const [showUserProfile, setShowUserProfile] = useState<Profile | null>(null);
 
-  // Call
-  const [callState, setCallState] = useState<{ type: 'voice' | 'video'; status: 'calling' | 'active' } | null>(null);
-  const [callDuration, setCallDuration] = useState(0);
-  const [muted, setMuted] = useState(false);
-  const [speakerOn, setSpeakerOn] = useState(true);
-  const [videoOn, setVideoOn] = useState(true);
-
   const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
@@ -140,7 +134,6 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isAdmin = !!(profile as any)?.is_admin;
   const isGroupOrChannel = conversation?.type === 'group' || conversation?.type === 'channel';
@@ -162,26 +155,6 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   useEffect(() => {
     if (showInfo && conversation) loadMembers();
   }, [showInfo, conversation?.id]);
-
-  // Call timer
-  useEffect(() => {
-    if (callState?.status === 'active') {
-      callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
-    } else {
-      if (callTimerRef.current) clearInterval(callTimerRef.current);
-      setCallDuration(0);
-    }
-    return () => { if (callTimerRef.current) clearInterval(callTimerRef.current); };
-  }, [callState?.status]);
-
-  // Simulate call connection after 2s
-  useEffect(() => {
-    if (callState?.status === 'calling') {
-      const t = setTimeout(() => setCallState(s => s ? { ...s, status: 'active' } : null), 2000);
-      return () => clearTimeout(t);
-    }
-    return undefined;
-  }, [callState?.status]);
 
   // Reset states on conversation change
   useEffect(() => {
@@ -403,11 +376,6 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
     return new Date(a).toDateString() === new Date(b).toDateString();
   }
 
-  function formatCallDuration(s: number) {
-    const m = Math.floor(s / 60), sec = s % 60;
-    return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-  }
-
   function getDisplayName() {
     if (!conversation) return '';
     if (conversation.name === '__saved__') return fa ? 'پیام‌های ذخیره‌شده' : 'Saved Messages';
@@ -476,12 +444,12 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           <div className="flex items-center gap-1 flex-shrink-0">
             {conversation.type === 'direct' && conversation.name !== '__saved__' && (
               <>
-                <button onClick={() => setCallState({ type: 'voice', status: 'calling' })}
+                <button onClick={() => conversation.other_user?.id && onStartCall?.('voice', conversation.other_user.id)}
                   className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors hover:bg-green-500/10"
                   style={{ color: 'var(--text-secondary)' }} title="تماس صوتی">
                   <Phone size={16} />
                 </button>
-                <button onClick={() => setCallState({ type: 'video', status: 'calling' })}
+                <button onClick={() => conversation.other_user?.id && onStartCall?.('video', conversation.other_user.id)}
                   className="w-8 h-8 rounded-xl flex items-center justify-center transition-colors hover:bg-blue-500/10"
                   style={{ color: 'var(--text-secondary)' }} title="تماس تصویری">
                   <Video size={16} />
@@ -1144,61 +1112,6 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
         </div>
       )}
 
-      {/* CALL OVERLAY */}
-      {callState && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-between py-16"
-          style={{ background: callState.type === 'video' ? '#0a0a0a' : 'linear-gradient(135deg,#1e3a5f,#0f1b2d)' }}>
-          {/* Call header */}
-          <div className="text-center">
-            <p className="text-white/60 text-sm mb-1">{callState.type === 'voice' ? '🎙️ تماس صوتی' : '📹 تماس تصویری'}</p>
-            <h2 className="text-white text-2xl font-bold">{getDisplayName()}</h2>
-            <p className="text-white/60 text-sm mt-1">
-              {callState.status === 'calling' ? 'در حال برقراری ارتباط...' : formatCallDuration(callDuration)}
-            </p>
-          </div>
-
-          {/* Avatar */}
-          <div className="flex flex-col items-center">
-            {conversation.other_user?.avatar_url
-              ? <img src={conversation.other_user.avatar_url} className="w-32 h-32 rounded-full object-cover border-4 border-white/20" alt="" />
-              : <div className="w-32 h-32 rounded-full bg-blue-700 flex items-center justify-center border-4 border-white/20"><span className="text-white text-5xl font-bold">{getDisplayName().charAt(0)}</span></div>
-            }
-            {callState.status === 'calling' && (
-              <div className="mt-4 flex gap-1">
-                {[0,1,2].map(i => (
-                  <div key={i} className="w-2 h-2 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: `${i*0.3}s` }} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Call controls */}
-          <div className="flex items-center gap-6">
-            <button onClick={() => setMuted(!muted)}
-              className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
-              style={{ background: muted ? '#ef4444' : 'rgba(255,255,255,0.15)' }}>
-              {muted ? <MicOff size={22} className="text-white" /> : <Mic size={22} className="text-white" />}
-            </button>
-            <button onClick={() => { setCallState(null); setMuted(false); setSpeakerOn(true); setVideoOn(true); }}
-              className="w-16 h-16 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 transition-colors">
-              <PhoneOff size={26} className="text-white" />
-            </button>
-            {callState.type === 'video' ? (
-              <button onClick={() => setVideoOn(!videoOn)}
-                className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
-                style={{ background: videoOn ? 'rgba(255,255,255,0.15)' : '#ef4444' }}>
-                {videoOn ? <Video size={22} className="text-white" /> : <VideoOff size={22} className="text-white" />}
-              </button>
-            ) : (
-              <button onClick={() => setSpeakerOn(!speakerOn)}
-                className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
-                style={{ background: speakerOn ? 'rgba(255,255,255,0.15)' : '#ef4444' }}>
-                <Volume2 size={22} className="text-white" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

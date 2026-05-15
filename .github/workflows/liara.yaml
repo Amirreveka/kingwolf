@@ -15,4 +15,5 @@ jobs:
         run: npm install -g @liara/cli
 
       - name: Deploy to Liara
+        working-directory: artifacts
         run: liara deploy --app="kingwolf" --api-token="${{ secrets.LIARA_API_TOKEN }}" --platform="docker" --detach

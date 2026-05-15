@@ -80,12 +80,14 @@ export function AdminPanel() {
   const [feedMsg, setFeedMsg] = useState('');
 
   // Reports tab state
-  const [reports, setReports] = useState<any[]>([]);
-  const [reportsLoading, setReportsLoading] = useState(false);
+  const [chatReports, setChatReports] = useState<any[]>([]);
+  const [chatReportsLoading, setChatReportsLoading] = useState(false);
+  const [feedReports, setFeedReports] = useState<any[]>([]);
+  const [feedReportsLoading, setFeedReportsLoading] = useState(false);
   const [resolvedReportIds, setResolvedReportIds] = useState<Set<string>>(new Set());
   const [loginAttempts, setLoginAttempts] = useState<any[]>([]);
   const [loginAttemptsLoading, setLoginAttemptsLoading] = useState(false);
-  const [reportsSubTab, setReportsSubTab] = useState<'reports' | 'login'>('reports');
+  const [reportsSubTab, setReportsSubTab] = useState<'chat' | 'feed' | 'login'>('chat');
 
   // Blue tick loading states
   const [blueTickLoadingId, setBlueTickLoadingId] = useState<string | null>(null);
@@ -273,16 +275,23 @@ export function AdminPanel() {
     if (tab === 'content' && feedPosts.length === 0) {
       loadFeedPosts();
     }
-    if (tab === 'reports' && reports.length === 0) {
-      loadReports();
+    if (tab === 'reports' && chatReports.length === 0) {
+      loadChatReports();
     }
   }, [tab]);
 
-  async function loadReports() {
-    setReportsLoading(true);
-    const { body } = await adminFetch('/admin/reports');
-    if (body?.data) setReports(body.data);
-    setReportsLoading(false);
+  async function loadChatReports() {
+    setChatReportsLoading(true);
+    const { body } = await adminFetch('/admin/reports?type=chat');
+    if (body?.data) setChatReports(body.data);
+    setChatReportsLoading(false);
+  }
+
+  async function loadFeedReports() {
+    setFeedReportsLoading(true);
+    const { body } = await adminFetch('/admin/reports?type=feed');
+    if (body?.data) setFeedReports(body.data);
+    setFeedReportsLoading(false);
   }
 
   async function loadLoginAttempts() {
@@ -394,7 +403,7 @@ export function AdminPanel() {
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-800 flex items-center gap-3" style={{ background: '#0a0f1a', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
           <h1 className="text-base font-bold text-white flex-1">{tabTitle[tab]}</h1>
           <button
-            onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); }}
+            onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); if (tab === 'reports') { if (reportsSubTab === 'chat') loadChatReports(); else if (reportsSubTab === 'feed') loadFeedReports(); else loadLoginAttempts(); } }}
             className="p-2 rounded-xl text-gray-500 hover:text-gray-300"
           >
             <RefreshCw size={16} />
@@ -725,14 +734,19 @@ export function AdminPanel() {
           {tab === 'reports' && (
             <div className="space-y-4">
               {/* Sub-tabs */}
-              <div className="flex gap-2">
-                <button onClick={() => { setReportsSubTab('reports'); if (reports.length === 0) loadReports(); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ background: reportsSubTab === 'reports' ? 'rgba(239,68,68,0.15)' : '#161b22', color: reportsSubTab === 'reports' ? '#f87171' : '#6b7280' }}>
-                  <Flag size={13} />گزارش‌های تخلف
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => { setReportsSubTab('chat'); if (chatReports.length === 0) loadChatReports(); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: reportsSubTab === 'chat' ? 'rgba(239,68,68,0.15)' : '#161b22', color: reportsSubTab === 'chat' ? '#f87171' : '#6b7280' }}>
+                  <MessageSquare size={13} />گزارش‌های چت
+                </button>
+                <button onClick={() => { setReportsSubTab('feed'); if (feedReports.length === 0) loadFeedReports(); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: reportsSubTab === 'feed' ? 'rgba(139,92,246,0.15)' : '#161b22', color: reportsSubTab === 'feed' ? '#a78bfa' : '#6b7280' }}>
+                  <Flag size={13} />گزارش‌های توییت
                 </button>
                 <button onClick={() => { setReportsSubTab('login'); if (loginAttempts.length === 0) loadLoginAttempts(); }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                   style={{ background: reportsSubTab === 'login' ? 'rgba(245,158,11,0.15)' : '#161b22', color: reportsSubTab === 'login' ? '#fbbf24' : '#6b7280' }}>
                   <Shield size={13} />تلاش‌های ورود ناموفق
                 </button>
@@ -801,26 +815,35 @@ export function AdminPanel() {
                 </div>
               )}
 
-              {/* Reports sub-tab */}
-              {reportsSubTab === 'reports' && (<>
+              {/* Chat reports sub-tab */}
+              {(reportsSubTab === 'chat' || reportsSubTab === 'feed') && (() => {
+                const isFeed = reportsSubTab === 'feed';
+                const reps = isFeed ? feedReports : chatReports;
+                const loading2 = isFeed ? feedReportsLoading : chatReportsLoading;
+                const reload = isFeed ? loadFeedReports : loadChatReports;
+                const accentColor = isFeed ? '#a78bfa' : '#f87171';
+                const accentBorder = isFeed ? 'border-purple-500' : 'border-red-500';
+                return (<>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-400">گزارش‌های تخلف ارسال‌شده توسط کاربران</h2>
-                <button onClick={loadReports} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white transition-colors" style={{ background: '#161b22' }}>
+                <h2 className="text-sm font-semibold text-gray-400">
+                  {isFeed ? 'گزارش‌های توییت و پست‌های فید' : 'گزارش‌های چت، پیام، گروه و کانال'}
+                </h2>
+                <button onClick={reload} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-white transition-colors" style={{ background: '#161b22' }}>
                   <RefreshCw size={13} />بارگذاری مجدد
                 </button>
               </div>
-              {reportsLoading ? (
+              {loading2 ? (
                 <div className="flex justify-center py-12">
-                  <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                  <div className={`w-6 h-6 border-2 border-t-transparent rounded-full animate-spin`} style={{ borderColor: accentColor, borderTopColor: 'transparent' }} />
                 </div>
-              ) : reports.length === 0 ? (
+              ) : reps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-3">
                   <Flag size={36} className="text-gray-700" />
-                  <p className="text-sm text-gray-500">هیچ گزارشی ثبت نشده است</p>
+                  <p className="text-sm text-gray-500">هیچ گزارشی در این بخش ثبت نشده است</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {reports.map(r => {
+                  {reps.map(r => {
                     const isResolved = resolvedReportIds.has(r.id) || r.status === 'resolved' || r.status === 'dismissed';
                     const targetTypeLabel: Record<string, string> = {
                       post: 'پست', message: 'پیام', user: 'کاربر',
@@ -901,7 +924,8 @@ export function AdminPanel() {
                   })}
                 </div>
               )}
-              </>)}
+              </>);
+              })()}
             </div>
           )}
 

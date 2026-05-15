@@ -763,24 +763,34 @@ app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, 
 
   // Write buffer to disk (multer uses memoryStorage)
   const mime = req.file.mimetype || '';
-  const type = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
-  const ext = path.extname(req.file.originalname || '').toLowerCase() || (mime.startsWith('image/') ? '.jpg' : mime.startsWith('video/') ? '.mp4' : '');
+  const mimeExtMap = {
+    'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png', 'image/gif': '.gif',
+    'image/webp': '.webp', 'image/heic': '.heic', 'image/heif': '.heif',
+    'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm',
+    'video/3gpp': '.3gp', 'video/mpeg': '.mpg', 'video/x-msvideo': '.avi',
+    'audio/webm': '.webm', 'audio/ogg': '.ogg', 'audio/mpeg': '.mp3',
+    'audio/wav': '.wav', 'audio/mp4': '.m4a', 'audio/aac': '.aac',
+  };
+  const type = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
+  const ext = path.extname(req.file.originalname || '').toLowerCase() || mimeExtMap[mime] || (type === 'image' ? '.jpg' : type === 'video' ? '.mp4' : type === 'audio' ? '.webm' : '');
   const filename = `${nanoid()}_msg${ext}`;
   const mediaDir = path.join(UPLOADS_DIR, 'media');
   fs.mkdirSync(mediaDir, { recursive: true });
   fs.writeFileSync(path.join(mediaDir, filename), req.file.buffer);
   const mediaUrl = `/uploads/media/${filename}`;
-  const content = type === 'image' ? '📷 عکس' : type === 'video' ? '🎬 ویدیو' : `📎 ${req.file.originalname}`;
+  const content = type === 'image' ? '📷 عکس' : type === 'video' ? '🎬 ویدیو' : type === 'audio' ? '🎙️ پیام صوتی' : `📎 ${req.file.originalname || 'file'}`;
 
   const msgId = nanoid();
   db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type, media_url, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(msgId, conversation_id, req.userId, content, type, mediaUrl, reply_to_id || null);
   db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?")
     .run(content, conversation_id);
-  const newMsg = db.prepare(`
-    SELECT m.*, p.username, p.display_name, p.avatar_url
+  const flatMsg = db.prepare(`
+    SELECT m.*, p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name, p.avatar_url AS _s_avatar_url
     FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?
   `).get(msgId);
+  const { _s_id, _s_username, _s_display_name, _s_avatar_url, ...msgFields } = flatMsg || {};
+  const newMsg = { ...msgFields, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null } : null };
   broadcast({ event: 'INSERT', table: 'messages', new: newMsg });
   return res.json({ ok: true, message: newMsg, content, media_url: mediaUrl });
 });
@@ -921,6 +931,17 @@ app.post('/social/block/:userId', authMiddleware, (req, res) => {
   return res.json({ blocked: true });
 });
 
+// Leave a group/channel
+app.post('/conversations/:id/leave', authMiddleware, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'not found' });
+  const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!myRole) return res.status(403).json({ error: 'not a member' });
+  if (myRole.role === 'owner') return res.status(403).json({ error: 'owner cannot leave — transfer ownership first' });
+  db.prepare('DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?').run(req.params.id, req.userId);
+  return res.json({ ok: true });
+});
+
 // Submit a report
 app.post('/reports', authMiddleware, (req, res) => {
   const { target_type, target_id, reason, details } = req.body || {};
@@ -968,12 +989,21 @@ app.post('/admin/login-attempts/clear', authMiddleware, adminOnly, (req, res) =>
 });
 
 app.get('/admin/reports', authMiddleware, adminOnly, (req, res) => {
+  const typeFilter = req.query.type; // 'chat' | 'feed' | undefined (all)
+  let whereClause = '';
+  const params = [];
+  if (typeFilter === 'chat') {
+    whereClause = "WHERE r.target_type IN ('message','user','group','channel','conversation')";
+  } else if (typeFilter === 'feed') {
+    whereClause = "WHERE r.target_type IN ('post','feed_post','comment')";
+  }
   const rows = db.prepare(`
     SELECT r.*, p.username AS reporter_username, p.display_name AS reporter_display_name
     FROM reports r LEFT JOIN profiles p ON p.id = r.reporter_id
+    ${whereClause}
     ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.created_at DESC
     LIMIT 200
-  `).all();
+  `).all(...params);
   return res.json({ data: rows });
 });
 

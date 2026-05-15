@@ -118,12 +118,12 @@ function TelegramStoriesBar({ onOpen }: { onOpen: () => void }) {
           )}
         </div>
         <span style={{
-          fontSize: 10, color: 'var(--text-muted)',
+          fontSize: 10,
           maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis',
           whiteSpace: 'nowrap', textAlign: 'center',
           fontWeight: allViewed ? 400 : 600,
           color: allViewed ? 'var(--text-muted)' : 'var(--text-primary)',
-        } as any}>
+        }}>
           {group.display_name || group.username}
         </span>
       </button>

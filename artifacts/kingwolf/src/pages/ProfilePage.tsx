@@ -73,6 +73,16 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
 
   const isOwn = me?.id === userId;
 
+  // When viewing own profile, merge real-time AuthContext data so Settings changes reflect instantly
+  const effectiveProfile: ProfileUser | null = (isOwn && myProfile && profileUser)
+    ? {
+        ...profileUser,
+        avatar_url: myProfile.avatar_url || effectiveProfile.avatar_url,
+        display_name: myProfile.display_name || profileUser.display_name,
+        bio: myProfile.bio !== undefined ? myProfile.bio : effectiveProfile.bio,
+      }
+    : profileUser;
+
   useEffect(() => { load(); }, [userId]);
 
   async function load() {
@@ -124,7 +134,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
     );
   }
 
-  if (!profileUser) {
+  if (!effectiveProfile) {
     return (
       <div className="flex-1 flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <p style={{ color: 'var(--text-muted)' }}>{fa ? 'کاربر یافت نشد' : 'User not found'}</p>
@@ -132,7 +142,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
     );
   }
 
-  const initials = (profileUser.display_name || profileUser.username || '?').charAt(0).toUpperCase();
+  const initials = (effectiveProfile.display_name || effectiveProfile.username || '?').charAt(0).toUpperCase();
   const avatarColor = `hsl(${(initials.charCodeAt(0) * 17 + 100) % 360},55%,42%)`;
 
   return (
@@ -147,7 +157,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm truncate" style={{ color: 'var(--text-primary)' }}>
-            {profileUser.display_name || profileUser.username}
+            {effectiveProfile.display_name || effectiveProfile.username}
           </p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {fmtN(posts.length)} {fa ? 'توییت' : 'tweets'}
@@ -166,8 +176,8 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
           <div className="flex items-end justify-between" style={{ marginTop: -44 }}>
             <div className="w-20 h-20 rounded-full border-4 overflow-hidden flex-shrink-0"
               style={{ borderColor: 'var(--bg-card)', background: avatarColor }}>
-              {profileUser.avatar_url
-                ? <img src={profileUser.avatar_url} className="w-full h-full object-cover" alt="" />
+              {effectiveProfile.avatar_url
+                ? <img src={effectiveProfile.avatar_url} className="w-full h-full object-cover" alt="" />
                 : <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">{initials}</div>
               }
             </div>
@@ -210,20 +220,20 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
           <div className="mt-3">
             <div className="flex items-center gap-1.5">
               <h1 className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>
-                {profileUser.display_name || profileUser.username}
+                {effectiveProfile.display_name || effectiveProfile.username}
               </h1>
-              {profileUser.is_admin && <BadgeCheck size={18} className="text-blue-400" />}
+              {effectiveProfile.is_admin && <BadgeCheck size={18} className="text-blue-400" />}
             </div>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>@{profileUser.username}</p>
-            {profileUser.bio && (
-              <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--text-primary)' }}>{profileUser.bio}</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>@{effectiveProfile.username}</p>
+            {effectiveProfile.bio && (
+              <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--text-primary)' }}>{effectiveProfile.bio}</p>
             )}
             <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
               <span className="inline-flex items-center gap-1">
                 <Link2 size={12} />
                 {fa
-                  ? `تاریخ عضویت: ${new Date(profileUser.created_at).toLocaleDateString('fa-IR')}`
-                  : `Joined ${new Date(profileUser.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                  ? `تاریخ عضویت: ${new Date(effectiveProfile.created_at).toLocaleDateString('fa-IR')}`
+                  : `Joined ${new Date(effectiveProfile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
                 }
               </span>
             </p>
@@ -281,16 +291,16 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full flex-shrink-0 overflow-hidden" style={{ background: avatarColor }}>
-                      {profileUser.avatar_url
-                        ? <img src={profileUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                      {effectiveProfile.avatar_url
+                        ? <img src={effectiveProfile.avatar_url} className="w-full h-full object-cover" alt="" />
                         : <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm">{initials}</div>
                       }
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{profileUser.display_name || profileUser.username}</span>
-                        {profileUser.is_admin && <BadgeCheck size={14} className="text-blue-400" />}
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>@{profileUser.username}</span>
+                        <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{effectiveProfile.display_name || effectiveProfile.username}</span>
+                        {effectiveProfile.is_admin && <BadgeCheck size={14} className="text-blue-400" />}
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>@{effectiveProfile.username}</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>·</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtTime(post.created_at, fa)}</span>
                       </div>

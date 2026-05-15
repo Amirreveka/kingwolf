@@ -565,6 +565,13 @@ function PostCard({
               <span style={{ fontSize: 13, color: 'var(--text-muted)', flexShrink: 0 }}>
                 {fmtTime(post.created_at, language)}
               </span>
+              {!isOwn && !following && (
+                <button
+                  onClick={e => { e.stopPropagation(); onFollow(post.author_id); }}
+                  style={{ fontSize: 13, fontWeight: 700, color: '#1d9bf0', background: 'transparent', border: 'none', padding: '0 2px', cursor: 'pointer', flexShrink: 0, touchAction: 'manipulation' }}>
+                  · {language === 'fa' ? 'دنبال کن' : 'Follow'}
+                </button>
+              )}
             </div>
             <button
               onClick={e => { e.stopPropagation(); setShowMenu(true); }}
@@ -1502,7 +1509,14 @@ export function FeedPage() {
     );
     return postList.map(post => {
       const displayPost = (post.author_id === user?.id && profile)
-        ? { ...post, author: { ...post.author!, avatar_url: profile.avatar_url || post.author?.avatar_url || '', display_name: profile.display_name || post.author?.display_name || '' } }
+        ? { ...post, author: {
+            id: user.id,
+            username: profile.username || post.author?.username || '',
+            display_name: profile.display_name || post.author?.display_name || '',
+            avatar_url: profile.avatar_url || post.author?.avatar_url || '',
+            bio: profile.bio || post.author?.bio,
+            is_admin: !!(profile as any).is_admin,
+          } }
         : post;
       return (<PostCard key={post.id} post={displayPost}
         liked={liked.has(post.id)} bookmarked={bookmarked.has(post.id)} following={following.has(post.author_id)}
@@ -1511,7 +1525,7 @@ export function FeedPage() {
         onReply={() => setReplyTarget(post)}
         onRepost={() => doRepost(post)}
         onQuote={() => setQuoteTarget(post)}
-        onFollow={id => apiPost(`/social/follow/${id}`)}
+        onFollow={id => { apiPost(`/social/follow/${id}`); setFollowing(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); }}
         onDelete={() => deletePost(post.id)}
         onPin={() => pinPost(post)}
         onProfileClick={id => setViewProfileId(id)}

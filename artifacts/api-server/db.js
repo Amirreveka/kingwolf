@@ -328,6 +328,26 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS stories (
+  id TEXT PRIMARY KEY,
+  author_id TEXT NOT NULL,
+  media_url TEXT NOT NULL,
+  media_type TEXT DEFAULT 'image',
+  caption TEXT DEFAULT '',
+  views_count INTEGER DEFAULT 0,
+  expires_at TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_stories_author ON stories(author_id, expires_at);
+
+CREATE TABLE IF NOT EXISTS story_views (
+  story_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  viewed_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (story_id, user_id)
+);
 `);
 
 // Default settings

@@ -658,8 +658,34 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                         <Download size={16} /><span className="truncate max-w-[200px]">{msg.content.replace(/^📎\s*/, '')}</span>
                       </a>
                     )}
+                    {/* Location message */}
+                    {msg.type === 'location' && (() => {
+                      try {
+                        const loc = JSON.parse(msg.content);
+                        const mapUrl = `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}&zoom=15`;
+                        const imgUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${loc.lat},${loc.lng}&zoom=14&size=280x140&markers=${loc.lat},${loc.lng},red-pushpin`;
+                        return (
+                          <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                            className="block rounded-xl overflow-hidden mt-1 hover:opacity-90 transition-opacity"
+                            style={{ border: '1px solid rgba(255,255,255,0.1)', maxWidth: 260 }}>
+                            <div className="relative" style={{ height: 120, background: '#1a3a4a' }}>
+                              <img src={imgUrl} alt="map" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <MapPin size={28} style={{ color: '#ef4444', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-2">
+                              <MapPin size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+                              <span className="text-xs">{fa ? 'موقعیت مکانی — روی نقشه ببین' : 'Location — tap to open map'}</span>
+                            </div>
+                          </a>
+                        );
+                      } catch {
+                        return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>;
+                      }
+                    })()}
                     {/* Text content - show for text type OR when no media_url */}
-                    {(msg.type === 'text' || msg.type === 'location' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio')) && (
+                    {(msg.type === 'text' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio' && msg.type !== 'location')) && (
                       <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>
                     )}
                     {/* Footer */}
@@ -751,7 +777,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     setShowAttach(false);
                     if (!navigator.geolocation) { alert(fa ? 'موقعیت‌یابی پشتیبانی نمی‌شود' : 'Geolocation not supported'); return; }
                     navigator.geolocation.getCurrentPosition(
-                      pos => { sendMessage(`📍 https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`); },
+                      async pos => {
+                        const { latitude: lat, longitude: lng } = pos.coords;
+                        await apiCall('/messages/location', { method: 'POST', body: JSON.stringify({ conversation_id: conversation?.id, lat, lng, label: '' }) });
+                      },
                       () => { alert(fa ? 'دسترسی به موقعیت رد شد' : 'Location access denied'); }
                     );
                   }},

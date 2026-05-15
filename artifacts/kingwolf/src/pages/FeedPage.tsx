@@ -5,7 +5,7 @@ import {
   Bell, BarChart2, Calendar, UserPlus, UserCheck, Quote,
   Pin, Trash2, Flag, Check, Clock, ChevronRight, Volume2,
   List, DollarSign, BadgeCheck, Sparkles, AtSign, Hash,
-  Home, Compass, PenSquare, Ban,
+  Home, Compass, PenSquare, Ban, Camera, Plus, ChevronLeft, ChevronRight as ChevronRightIcon, Eye,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -864,6 +864,209 @@ function ComposeBox({ onPosted, placeholder }: { onPosted: (p: Post) => void; pl
   );
 }
 
+// ─── StoriesBar ─────────────────────────────────────────────────────────────────
+interface StoryGroup {
+  author_id: string; username: string; display_name: string; avatar_url: string;
+  stories: Array<{ id: string; media_url: string; media_type: string; caption: string; views_count: number; viewed: boolean; created_at: string }>;
+}
+function StoriesBar({ language, t, currentUserId }: { language: string; t: (fa: string, en?: string) => string; currentUserId: string }) {
+  const [groups, setGroups] = useState<StoryGroup[]>([]);
+  const [viewing, setViewing] = useState<{ group: StoryGroup; idx: number } | null>(null);
+  const [storyProgress, setStoryProgress] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const load = useCallback(async () => {
+    const token = localStorage.getItem('kingwolf_token');
+    const res = await fetch('/api/stories', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const { data } = await res.json();
+    setGroups((data as StoryGroup[]) || []);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  function startViewing(group: StoryGroup, idx = 0) {
+    setViewing({ group, idx });
+    setStoryProgress(0);
+    markViewed(group.stories[idx]?.id);
+  }
+
+  function markViewed(storyId: string) {
+    const token = localStorage.getItem('kingwolf_token');
+    fetch(`/api/stories/${storyId}/view`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {} }).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (!viewing) { if (timerRef.current) clearInterval(timerRef.current); return; }
+    setStoryProgress(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setStoryProgress(p => {
+        if (p >= 100) {
+          // Advance to next story or next group
+          const { group, idx } = viewing;
+          if (idx + 1 < group.stories.length) {
+            setViewing({ group, idx: idx + 1 });
+            markViewed(group.stories[idx + 1]?.id);
+          } else {
+            setViewing(null);
+          }
+          return 0;
+        }
+        return p + 2;
+      });
+    }, 100);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [viewing?.group?.author_id, viewing?.idx]);
+
+  async function uploadStory(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const token = localStorage.getItem('kingwolf_token');
+    const fd = new FormData();
+    fd.append('file', file);
+    await fetch('/api/stories', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+    e.target.value = '';
+    load();
+  }
+
+  const myGroup = groups.find(g => g.author_id === currentUserId);
+  const others = groups.filter(g => g.author_id !== currentUserId);
+
+  const AvatarCircle = ({ src, name, size = 56 }: { src?: string; name: string; size?: number }) => {
+    const init = (name || '?').charAt(0).toUpperCase();
+    const color = `hsl(${(init.charCodeAt(0) * 17 + 100) % 360},55%,48%)`;
+    return src
+      ? <img src={src} className="w-full h-full object-cover" alt="" />
+      : <div className="w-full h-full flex items-center justify-center text-white font-bold" style={{ background: color, fontSize: size * 0.3 }}>{init}</div>;
+  };
+
+  return (
+    <>
+      <div className="flex gap-3 overflow-x-auto px-3 py-3"
+        style={{ borderBottom: '1px solid var(--border-color)', scrollbarWidth: 'none' }}>
+        {/* Add my story */}
+        <button onClick={() => fileRef.current?.click()}
+          className="flex flex-col items-center gap-1 flex-shrink-0"
+          style={{ touchAction: 'manipulation' }}>
+          <div className="relative rounded-full overflow-hidden flex-shrink-0"
+            style={{ width: 56, height: 56, border: '2px dashed var(--border-color)' }}>
+            <div className="w-full h-full flex items-center justify-center"
+              style={{ background: 'var(--bg-card)' }}>
+              <Plus size={20} style={{ color: '#1d9bf0' }} />
+            </div>
+            {myGroup && (
+              <div className="absolute inset-0 rounded-full overflow-hidden">
+                <AvatarCircle src={myGroup.avatar_url} name={myGroup.display_name || myGroup.username} />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <Camera size={16} className="text-white" />
+                </div>
+              </div>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', maxWidth: 60 }} className="truncate text-center">
+            {t('استوری', 'Story')}
+          </span>
+        </button>
+
+        {/* Others' stories */}
+        {others.map(group => {
+          const allViewed = group.stories.every(s => s.viewed);
+          return (
+            <button key={group.author_id}
+              onClick={() => startViewing(group)}
+              className="flex flex-col items-center gap-1 flex-shrink-0"
+              style={{ touchAction: 'manipulation' }}>
+              <div className="rounded-full flex-shrink-0 p-0.5"
+                style={{
+                  background: allViewed ? 'var(--border-color)' : 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)',
+                  width: 60, height: 60,
+                }}>
+                <div className="w-full h-full rounded-full overflow-hidden"
+                  style={{ border: '2px solid var(--bg-primary)' }}>
+                  <AvatarCircle src={group.avatar_url} name={group.display_name || group.username} />
+                </div>
+              </div>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', maxWidth: 60 }} className="truncate text-center">
+                {group.display_name || group.username}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={uploadStory} />
+
+      {/* Story Viewer Modal */}
+      {viewing && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.95)' }}
+          onClick={() => setViewing(null)}>
+          <div className="relative w-full max-w-sm h-full max-h-[90vh] flex flex-col"
+            style={{ maxHeight: '90dvh' }}
+            onClick={e => e.stopPropagation()}>
+            {/* Progress bars */}
+            <div className="flex gap-1 p-2 absolute top-0 inset-x-0 z-10">
+              {viewing.group.stories.map((s, i) => (
+                <div key={s.id} className="flex-1 rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(255,255,255,0.35)' }}>
+                  <div className="h-full rounded-full transition-none"
+                    style={{
+                      background: 'white',
+                      width: i < viewing.idx ? '100%' : i === viewing.idx ? `${storyProgress}%` : '0%',
+                    }} />
+                </div>
+              ))}
+            </div>
+
+            {/* Author */}
+            <div className="flex items-center gap-2 px-3 pt-8 pb-2 absolute top-0 inset-x-0 z-10">
+              <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                <AvatarCircle src={viewing.group.avatar_url} name={viewing.group.display_name || viewing.group.username} size={32} />
+              </div>
+              <span className="text-white text-sm font-semibold">{viewing.group.display_name || viewing.group.username}</span>
+              {viewing.group.author_id === currentUserId && (
+                <span className="text-white/60 text-xs flex items-center gap-1 ml-auto">
+                  <Eye size={12} />{viewing.group.stories[viewing.idx]?.views_count || 0}
+                </span>
+              )}
+              <button className="ml-auto text-white/70 p-1" onClick={() => setViewing(null)}><X size={20} /></button>
+            </div>
+
+            {/* Media */}
+            <div className="flex-1 flex items-center justify-center" style={{ borderRadius: 16, overflow: 'hidden', background: '#111' }}>
+              {viewing.group.stories[viewing.idx]?.media_type === 'video'
+                ? <video src={viewing.group.stories[viewing.idx]?.media_url} className="w-full h-full object-contain" autoPlay loop muted />
+                : <img src={viewing.group.stories[viewing.idx]?.media_url} className="w-full h-full object-contain" alt="" />}
+            </div>
+
+            {/* Caption */}
+            {viewing.group.stories[viewing.idx]?.caption && (
+              <div className="absolute bottom-8 inset-x-0 px-4">
+                <p className="text-white text-sm text-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
+                  {viewing.group.stories[viewing.idx]?.caption}
+                </p>
+              </div>
+            )}
+
+            {/* Tap areas */}
+            <div className="absolute inset-0 flex" style={{ pointerEvents: 'none' }}>
+              <div style={{ flex: 1, pointerEvents: 'all', cursor: 'pointer' }}
+                onClick={() => {
+                  if (viewing.idx > 0) { setViewing({ ...viewing, idx: viewing.idx - 1 }); markViewed(viewing.group.stories[viewing.idx - 1]?.id); }
+                  else setViewing(null);
+                }} />
+              <div style={{ flex: 1, pointerEvents: 'all', cursor: 'pointer' }}
+                onClick={() => {
+                  if (viewing.idx + 1 < viewing.group.stories.length) { setViewing({ ...viewing, idx: viewing.idx + 1 }); markViewed(viewing.group.stories[viewing.idx + 1]?.id); }
+                  else setViewing(null);
+                }} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── NotificationsTab ──────────────────────────────────────────────────────────
 function NotificationsTab({ language, t }: { language: string; t: (fa: string, en?: string) => string }) {
   const [notifs, setNotifs] = useState<Notif[]>([]);
@@ -885,6 +1088,7 @@ function NotificationsTab({ language, t }: { language: string; t: (fa: string, e
       follow: ['شما را دنبال کرد', 'followed you'],
       mention: ['شما را منشن کرد', 'mentioned you'],
       comment: ['به پست شما پاسخ داد', 'replied to your post'],
+      join: ['به KingWolf پیوست', 'joined KingWolf'],
     };
     const entry = map[type] || ['اعلان جدید', 'new notification'];
     return language === 'fa' ? entry[0] : entry[1];
@@ -894,6 +1098,7 @@ function NotificationsTab({ language, t }: { language: string; t: (fa: string, e
     if (type === 'repost') return <Repeat2 size={13} style={{ color: '#00ba7c' }} />;
     if (type === 'follow') return <UserPlus size={13} style={{ color: '#1d9bf0' }} />;
     if (type === 'comment') return <MessageCircle size={13} style={{ color: '#1d9bf0' }} />;
+    if (type === 'join') return <UserPlus size={13} style={{ color: '#7c3aed' }} />;
     return <Bell size={13} style={{ color: '#1d9bf0' }} />;
   };
 
@@ -1637,6 +1842,10 @@ export function FeedPage() {
         <CenterHeader />
         <div className="flex-1 overflow-y-auto overscroll-contain"
           style={{ WebkitOverflowScrolling: 'touch' }}>
+          {/* Stories bar on feed tabs */}
+          {(tab === 'foryou' || tab === 'following') && user && (
+            <StoriesBar language={language} t={t} currentUserId={user.id} />
+          )}
           {/* Compose on feed tabs */}
           {(tab === 'foryou' || tab === 'following') && user && (
             <ComposeBox onPosted={addPost} />
@@ -1730,6 +1939,11 @@ export function FeedPage() {
         <div className="h-full overflow-y-auto overscroll-contain"
           style={{ WebkitOverflowScrolling: 'touch' }}>
           <CenterHeader />
+
+          {/* Stories bar (foryou/following only) */}
+          {(tab === 'foryou' || tab === 'following') && user && (
+            <StoriesBar language={language} t={t} currentUserId={user.id} />
+          )}
 
           {/* Compose box in center (foryou/following only) */}
           {(tab === 'foryou' || tab === 'following') && user && (

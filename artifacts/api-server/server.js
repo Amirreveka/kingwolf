@@ -142,6 +142,15 @@ app.post('/auth/signup', async (req, res) => {
   });
   tx();
 
+  // Notify existing users who have the same email domain (same org) about the new member
+  try {
+    const allUserIds = db.prepare("SELECT id FROM profiles WHERE id != ? AND is_active = 1 AND is_approved = 1 LIMIT 500").all(id);
+    for (const u of allUserIds) {
+      db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, target_id, target_type, message) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(nanoid(), u.id, 'join', id, id, 'profile', `${username} joined KingWolf`);
+    }
+  } catch (_) {}
+
   // Auto-issue token so subsequent client calls (profile upsert) work without a second round-trip.
   const sessionId = nanoid();
   const ip = getClientIp(req);
@@ -849,6 +858,28 @@ app.post('/messages/forward', authMiddleware, async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Send location as a message
+app.post('/messages/location', authMiddleware, (req, res) => {
+  const { conversation_id, lat, lng, label } = req.body || {};
+  if (!conversation_id || lat == null || lng == null) return res.status(400).json({ error: 'conversation_id, lat, lng required' });
+  const member = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(conversation_id, req.userId);
+  if (!member && !req.profile.is_admin) return res.status(403).json({ error: 'not a member' });
+  const msgId = nanoid();
+  const content = JSON.stringify({ lat, lng, label: label || '' });
+  db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type) VALUES (?, ?, ?, ?, ?)')
+    .run(msgId, conversation_id, req.userId, content, 'location');
+  db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?")
+    .run('📍 موقعیت مکانی', conversation_id);
+  const flatMsg = db.prepare(`
+    SELECT m.*, p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name, p.avatar_url AS _s_avatar_url
+    FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?
+  `).get(msgId);
+  const { _s_id, _s_username, _s_display_name, _s_avatar_url, ...msgFields } = flatMsg || {};
+  const newMsg = { ...msgFields, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null } : null };
+  broadcast({ event: 'INSERT', table: 'messages', new: newMsg });
+  return res.json({ ok: true, message: newMsg });
+});
+
 // Mark messages as read in a conversation
 app.post('/messages/read', authMiddleware, (req, res) => {
   const { conversation_id } = req.body || {};
@@ -1156,6 +1187,107 @@ app.post('/admin/reports/:id/resolve', authMiddleware, adminOnly, (req, res) => 
   db.prepare('INSERT INTO admin_audit_log (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)')
     .run(req.userId, 'resolve_report', 'report', req.params.id, action || '');
   return res.json({ ok: true });
+});
+
+// ===== STORIES =====
+// List active stories (grouped by author, last 24h)
+app.get('/stories', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT s.*, p.username, p.display_name, p.avatar_url
+    FROM stories s
+    JOIN profiles p ON p.id = s.author_id
+    WHERE s.expires_at > datetime('now')
+    ORDER BY s.created_at DESC
+    LIMIT 200
+  `).all();
+  // Group by author
+  const grouped = {};
+  for (const r of rows) {
+    if (!grouped[r.author_id]) {
+      grouped[r.author_id] = {
+        author_id: r.author_id, username: r.username,
+        display_name: r.display_name, avatar_url: r.avatar_url,
+        stories: [],
+      };
+    }
+    // Check if current user viewed
+    const viewed = db.prepare('SELECT 1 FROM story_views WHERE story_id=? AND user_id=?').get(r.id, req.userId);
+    grouped[r.author_id].stories.push({ ...r, viewed: !!viewed });
+  }
+  return res.json({ data: Object.values(grouped) });
+});
+
+// Create a story
+app.post('/stories', authMiddleware, upload.single('file'), async (req, res) => {
+  const caption = req.body?.caption || '';
+  let mediaUrl = '';
+  let mediaType = 'image';
+  if (req.file) {
+    const mime = req.file.mimetype || '';
+    mediaType = mime.startsWith('video/') ? 'video' : 'image';
+    const ext = path.extname(req.file.originalname || '') || (mediaType === 'video' ? '.mp4' : '.jpg');
+    const filename = `story_${nanoid()}${ext}`;
+    const dir = path.join(UPLOADS_DIR, 'media');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), req.file.buffer);
+    mediaUrl = `/uploads/media/${filename}`;
+  } else if (req.body?.media_url) {
+    mediaUrl = req.body.media_url;
+    mediaType = req.body.media_type || 'image';
+  }
+  if (!mediaUrl) return res.status(400).json({ error: 'media required' });
+  const id = nanoid();
+  const expiresAt = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+  db.prepare('INSERT INTO stories (id, author_id, media_url, media_type, caption, expires_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, req.userId, mediaUrl, mediaType, caption, expiresAt);
+  broadcast({ event: 'INSERT', table: 'stories', new: { id, author_id: req.userId } });
+  return res.json({ ok: true, id });
+});
+
+// View a story (mark as seen)
+app.post('/stories/:id/view', authMiddleware, (req, res) => {
+  const story = db.prepare('SELECT * FROM stories WHERE id=?').get(req.params.id);
+  if (!story) return res.status(404).json({ error: 'not found' });
+  const already = db.prepare('SELECT 1 FROM story_views WHERE story_id=? AND user_id=?').get(req.params.id, req.userId);
+  if (!already) {
+    db.prepare('INSERT OR IGNORE INTO story_views (story_id, user_id) VALUES (?, ?)').run(req.params.id, req.userId);
+    db.prepare('UPDATE stories SET views_count = views_count + 1 WHERE id=?').run(req.params.id);
+  }
+  return res.json({ ok: true });
+});
+
+// Delete a story
+app.delete('/stories/:id', authMiddleware, (req, res) => {
+  const story = db.prepare('SELECT * FROM stories WHERE id=?').get(req.params.id);
+  if (!story) return res.status(404).json({ error: 'not found' });
+  if (story.author_id !== req.userId && !req.profile.is_admin) return res.status(403).json({ error: 'forbidden' });
+  db.prepare('DELETE FROM story_views WHERE story_id=?').run(req.params.id);
+  db.prepare('DELETE FROM stories WHERE id=?').run(req.params.id);
+  return res.json({ ok: true });
+});
+
+// Follow counts for a profile
+app.get('/profiles/:id/follow-counts', authMiddleware, (req, res) => {
+  const followersCount = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE followed_id=?').get(req.params.id).n;
+  const followingCount = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE follower_id=?').get(req.params.id).n;
+  const isFollowing = !!db.prepare('SELECT 1 FROM follows WHERE follower_id=? AND followed_id=?').get(req.userId, req.params.id);
+  return res.json({ followers: followersCount, following: followingCount, is_following: isFollowing });
+});
+
+// Followers list
+app.get('/profiles/:id/followers', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.* FROM follows f JOIN profiles p ON p.id = f.follower_id WHERE f.followed_id=? LIMIT 100
+  `).all(req.params.id);
+  return res.json({ data: rows });
+});
+
+// Following list
+app.get('/profiles/:id/following', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.* FROM follows f JOIN profiles p ON p.id = f.followed_id WHERE f.follower_id=? LIMIT 100
+  `).all(req.params.id);
+  return res.json({ data: rows });
 });
 
 // Notifications: list mine

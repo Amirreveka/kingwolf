@@ -32,10 +32,12 @@ function AppRouter() {
     );
   }
 
-  // Show permission gate once after first login
-  if (!permDone) return <PermissionGate onDone={() => setPermDone(true)} />;
-
-  return <MessengerLayout />;
+  return (
+    <>
+      <MessengerLayout />
+      {!permDone && <PermissionGate onDone={() => setPermDone(true)} />}
+    </>
+  );
 }
 
 export default function App() {

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Bell, Mic, Camera, CheckCircle, ArrowLeft } from 'lucide-react';
-import { WolfLogo } from './ui/WolfLogo';
 import { useTheme } from '../contexts/ThemeContext';
 
 const STORAGE_KEY = 'kw_permissions_done';
@@ -145,14 +144,15 @@ export function PermissionGate({ onDone }: Props) {
       style={{ background: 'var(--bg-primary)' }}
       dir={fa ? 'rtl' : 'ltr'}
     >
-      {/* Logo */}
-      <div className="mb-6 flex flex-col items-center gap-3">
-        <WolfLogo size={64} />
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>KingWolf</h1>
-        <p className="text-sm text-center max-w-xs" style={{ color: 'var(--text-secondary)' }}>
+      {/* Header */}
+      <div className="mb-5 text-center max-w-xs">
+        <h2 className="text-base font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
+          {fa ? 'دسترسی‌های مورد نیاز' : 'Required Permissions'}
+        </h2>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           {fa
-            ? 'برای بهترین تجربه، دسترسی‌های زیر را به اپ بدهید'
-            : 'For the best experience, allow the following permissions'}
+            ? 'برای استفاده از تماس و پیام صوتی، دسترسی‌های زیر را بدهید'
+            : 'Allow these permissions to use calls and voice messages'}
         </p>
       </div>
 
@@ -203,32 +203,41 @@ export function PermissionGate({ onDone }: Props) {
 
       {/* Actions */}
       <div className="w-full max-w-sm space-y-2">
-        {!allDone && !allResolved && (
+        {!allResolved && (
           <button
             onClick={requestAll}
             disabled={requesting}
             className="w-full py-3.5 rounded-2xl text-sm font-bold text-white transition-all flex items-center justify-center gap-2"
             style={{ background: 'var(--accent)' }}
           >
-            {requesting
-              ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              : null}
+            {requesting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {fa ? 'اجازه دادن به همه' : 'Allow All'}
           </button>
         )}
         <button
           onClick={handleDone}
-          className="w-full py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-          style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
+          className="w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-colors"
+          style={{
+            background: allResolved ? 'var(--accent)' : 'var(--bg-input)',
+            color: allResolved ? 'white' : 'var(--text-secondary)',
+          }}
         >
           {allResolved
-            ? (fa ? 'ورود به KingWolf' : 'Enter KingWolf')
+            ? (fa ? '✓ ورود به KingWolf' : '✓ Enter KingWolf')
             : (fa ? 'رد کردن و ادامه' : 'Skip for now')}
-          <ArrowLeft size={15} style={{ transform: fa ? 'rotate(180deg)' : 'none' }} />
+          {!allResolved && <ArrowLeft size={15} style={{ transform: fa ? 'rotate(180deg)' : 'none' }} />}
         </button>
       </div>
 
-      <p className="text-xs mt-4 text-center max-w-xs" style={{ color: 'var(--text-muted)' }}>
+      {perms.some(p => p.state === 'denied') && (
+        <div className="w-full max-w-sm mt-3 p-3 rounded-xl text-xs text-center" style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>
+          {fa
+            ? 'برای فعال کردن دسترسی‌های رد‌شده: تنظیمات Chrome ← تنظیمات سایت ← این آدرس ← مجوزها'
+            : 'To enable blocked permissions: Chrome Settings → Site Settings → this URL → Permissions'}
+        </div>
+      )}
+
+      <p className="text-xs mt-3 text-center max-w-xs" style={{ color: 'var(--text-muted)' }}>
         {fa
           ? 'می‌توانید این دسترسی‌ها را بعداً از تنظیمات مرورگر تغییر دهید'
           : 'You can change these permissions later in browser settings'}

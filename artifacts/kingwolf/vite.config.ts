@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import basicSsl from "@vitejs/plugin-basic-ssl";
 
 const isBuild = process.argv.includes("build");
 
@@ -25,6 +26,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
+    basicSsl(),
   ],
   resolve: {
     alias: {
@@ -43,6 +45,7 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    https: {},
     hmr: { overlay: false },
     proxy: {
       "/api": { target: "http://localhost:3001", changeOrigin: true },

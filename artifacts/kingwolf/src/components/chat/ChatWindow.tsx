@@ -742,14 +742,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
               <div className="relative flex-shrink-0">
                 <button
                   onClick={e => { e.stopPropagation(); if (!uploadingFile) setShowAttach(v => !v); }}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl"
+                  className="w-12 h-12 flex items-center justify-center rounded-xl"
                   style={{ color: showAttach ? 'var(--accent)' : 'var(--text-muted)' }}
                   disabled={uploadingFile}
                   title={fa ? 'پیوست' : 'Attach'}
                 >
                   {uploadingFile
-                    ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    : <Paperclip size={22} />}
+                    ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    : <Paperclip size={26} />}
                 </button>
               </div>
             <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>

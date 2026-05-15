@@ -662,27 +662,44 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                         <Download size={16} /><span className="truncate max-w-[200px]">{msg.content.replace(/^📎\s*/, '')}</span>
                       </a>
                     )}
-                    {/* Location message */}
+                    {/* Location message — fully local, no external map API */}
                     {msg.type === 'location' && (() => {
                       try {
                         const loc = JSON.parse(msg.content);
                         const mapUrl = `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}&zoom=15`;
-                        const imgUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${loc.lat},${loc.lng}&zoom=14&size=280x140&markers=${loc.lat},${loc.lng},red-pushpin`;
                         return (
-                          <a href={mapUrl} target="_blank" rel="noopener noreferrer"
-                            className="block rounded-xl overflow-hidden mt-1 hover:opacity-90 transition-opacity"
+                          <div className="rounded-xl overflow-hidden mt-1"
                             style={{ border: '1px solid rgba(255,255,255,0.1)', maxWidth: 260 }}>
-                            <div className="relative" style={{ height: 120, background: '#1a3a4a' }}>
-                              <img src={imgUrl} alt="map" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <MapPin size={28} style={{ color: '#ef4444', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
+                            {/* Local SVG map preview — works 100% offline */}
+                            <div className="relative flex items-center justify-center" style={{ height: 120, background: 'linear-gradient(135deg, #0d2137 0%, #0a1929 100%)' }}>
+                              {/* Grid lines */}
+                              <svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 260 120" preserveAspectRatio="none">
+                                {[20,40,60,80,100].map(y => <line key={y} x1="0" y1={y} x2="260" y2={y} stroke="#38bdf8" strokeWidth="0.5"/>)}
+                                {[40,80,120,160,200].map(x => <line key={x} x1={x} y1="0" x2={x} y2="120" stroke="#38bdf8" strokeWidth="0.5"/>)}
+                                <circle cx="130" cy="60" r="30" fill="none" stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="4 3"/>
+                                <circle cx="130" cy="60" r="55" fill="none" stroke="#38bdf8" strokeWidth="0.5" strokeDasharray="4 3"/>
+                              </svg>
+                              <div className="relative flex flex-col items-center gap-1">
+                                <MapPin size={28} style={{ color: '#ef4444', filter: 'drop-shadow(0 2px 6px rgba(239,68,68,0.6))' }} />
+                                <div className="text-center">
+                                  <p className="text-xs font-mono font-bold text-sky-300">{Number(loc.lat).toFixed(4)}°N</p>
+                                  <p className="text-xs font-mono font-bold text-sky-300">{Number(loc.lng).toFixed(4)}°E</p>
+                                </div>
+                              </div>
+                              {/* Local mode badge */}
+                              <div className="absolute top-2 left-2 flex items-center gap-1 px-1.5 py-0.5 rounded text-xs" style={{ background: 'rgba(14,165,233,0.2)', color: '#38bdf8', fontSize: '9px' }}>
+                                <span className="w-1 h-1 rounded-full bg-sky-400" />
+                                حالت محلی
                               </div>
                             </div>
-                            <div className="flex items-center gap-2 px-3 py-2">
+                            {/* Open in external map link (works when online) */}
+                            <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 hover:opacity-80 transition-opacity"
+                              style={{ background: 'rgba(14,165,233,0.08)' }}>
                               <MapPin size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
-                              <span className="text-xs">{fa ? 'موقعیت مکانی — روی نقشه ببین' : 'Location — tap to open map'}</span>
-                            </div>
-                          </a>
+                              <span className="text-xs">{fa ? 'موقعیت مکانی — باز کردن در نقشه' : 'Location — open in map'}</span>
+                            </a>
+                          </div>
                         );
                       } catch {
                         return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>;

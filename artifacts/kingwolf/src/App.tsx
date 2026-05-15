@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppSettingsProvider } from './contexts/AppSettingsContext';
@@ -7,6 +7,25 @@ import { MessengerLayout } from './pages/MessengerLayout';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { PermissionGate, needsPermissionGate } from './components/PermissionGate';
+
+function LocalModeBanner() {
+  const [offline, setOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const on = () => setOffline(false);
+    const off = () => setOffline(true);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-2 py-1.5 text-xs font-medium"
+      style={{ background: 'linear-gradient(90deg, #78350f, #92400e)', color: '#fde68a', boxShadow: '0 2px 12px rgba(0,0,0,0.4)' }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fbbf24', display: 'inline-block' }} />
+      حالت محلی — اینترنت در دسترس نیست. تمام قابلیت‌ها روی شبکه داخلی فعال است.
+    </div>
+  );
+}
 
 function AppRouter() {
   const { user, profile, loading } = useAuth();
@@ -46,6 +65,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AppSettingsProvider>
+        <LocalModeBanner />
         {isAdmin ? (
           <AdminPanel />
         ) : (

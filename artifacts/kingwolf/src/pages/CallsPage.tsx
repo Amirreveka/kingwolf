@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Search, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CallRecord {
   id: string;
@@ -20,25 +21,28 @@ interface CallRecord {
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds: number, fa: boolean): string {
   if (seconds === 0) return '';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  if (m === 0) return `${s} ثانیه`;
+  if (m === 0) return fa ? `${s} ثانیه` : `${s}s`;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function formatCallTime(iso: string): string {
+function formatCallTime(iso: string, fa: boolean): string {
   const d = new Date(iso);
   const now = new Date();
   const diff = now.getTime() - d.getTime();
-  if (diff < 86400000) return d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-  if (diff < 604800000) return d.toLocaleDateString('fa-IR', { weekday: 'short' });
-  return d.toLocaleDateString('fa-IR', { month: 'short', day: 'numeric' });
+  const locale = fa ? 'fa-IR' : 'en-GB';
+  if (diff < 86400000) return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  if (diff < 604800000) return d.toLocaleDateString(locale, { weekday: 'short' });
+  return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 export function CallsPage() {
   const { user } = useAuth();
+  const { t, language } = useTheme();
+  const fa = language === 'fa';
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -87,23 +91,23 @@ export function CallsPage() {
       {/* Header */}
       <div className="flex-shrink-0 p-3 pb-2" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))', background: 'var(--bg-secondary)' }}>
         <div className="flex items-center gap-2 mb-3">
-          <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>تماس‌ها</h2>
+          <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>{t('تماس‌ها', 'Calls')}</h2>
           <button
             className="w-8 h-8 rounded-xl flex items-center justify-center"
             style={{ background: 'var(--bg-input)', color: 'var(--accent)' }}
-            onClick={() => setActiveCallUser({ name: 'تماس جدید', avatar: '', type: 'voice' })}
-            title="تماس جدید"
+            onClick={() => setActiveCallUser({ name: t('تماس جدید', 'New Call'), avatar: '', type: 'voice' })}
+            title={t('تماس جدید', 'New Call')}
           >
             <PhoneCall size={16} />
           </button>
         </div>
         <div className="relative">
-          <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
+          <Search size={14} className={`absolute ${fa ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2`} style={{ color: 'var(--text-muted)' }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="جستجو در تماس‌ها..."
-            className="w-full pr-8 pl-3 py-2 rounded-xl text-sm outline-none"
+            placeholder={t('جستجو در تماس‌ها...', 'Search calls...')}
+            className={`w-full ${fa ? 'pr-8 pl-3' : 'pl-8 pr-3'} py-2 rounded-xl text-sm outline-none`}
             style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           />
         </div>
@@ -121,10 +125,10 @@ export function CallsPage() {
               <Phone size={28} style={{ color: 'var(--text-muted)' }} />
             </div>
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
-              {search ? 'نتیجه‌ای یافت نشد' : 'هنوز تماسی ندارید'}
+              {search ? t('نتیجه‌ای یافت نشد', 'No results found') : t('هنوز تماسی ندارید', 'No calls yet')}
             </p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {search ? 'عبارت دیگری جستجو کنید' : 'از دکمه تماس در چت استفاده کنید'}
+              {search ? t('عبارت دیگری جستجو کنید', 'Try a different search') : t('از دکمه تماس در چت استفاده کنید', 'Use the call button in a chat')}
             </p>
           </div>
         ) : (
@@ -141,7 +145,6 @@ export function CallsPage() {
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
-                {/* Avatar */}
                 <div className="relative flex-shrink-0">
                   {other.avatar ? (
                     <img src={other.avatar} className="w-11 h-11 rounded-full object-cover" alt="" />
@@ -150,39 +153,26 @@ export function CallsPage() {
                       <span className="text-white text-sm font-bold">{(other.name || '?').charAt(0).toUpperCase()}</span>
                     </div>
                   )}
-                  {/* Call type badge */}
                   <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--bg-secondary)' }}>
-                    {call.type === 'video' ? (
-                      <Video size={10} style={{ color: 'var(--accent)' }} />
-                    ) : (
-                      <Phone size={10} style={{ color: 'var(--accent)' }} />
-                    )}
+                    {call.type === 'video' ? <Video size={10} style={{ color: 'var(--accent)' }} /> : <Phone size={10} style={{ color: 'var(--accent)' }} />}
                   </div>
                 </div>
-                {/* Info */}
                 <div className="flex-1 min-w-0 text-right">
                   <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{other.name || other.username}</p>
                   <div className="flex items-center gap-1 justify-end mt-0.5">
-                    {isMissed ? (
-                      <PhoneMissed size={12} className="text-red-400 flex-shrink-0" />
-                    ) : isOutgoing ? (
-                      <PhoneOutgoing size={12} className="text-blue-400 flex-shrink-0" />
-                    ) : (
-                      <PhoneIncoming size={12} className="text-green-400 flex-shrink-0" />
-                    )}
+                    {isMissed ? <PhoneMissed size={12} className="text-red-400 flex-shrink-0" />
+                      : isOutgoing ? <PhoneOutgoing size={12} className="text-blue-400 flex-shrink-0" />
+                      : <PhoneIncoming size={12} className="text-green-400 flex-shrink-0" />}
                     <span className="text-xs" style={{ color: isMissed ? '#f87171' : 'var(--text-muted)' }}>
-                      {isMissed ? 'از دست رفته' : isOutgoing ? 'برقرار شد' : 'دریافتی'}
+                      {isMissed ? t('از دست رفته', 'Missed') : isOutgoing ? t('برقرار شد', 'Outgoing') : t('دریافتی', 'Incoming')}
                     </span>
                     {call.duration > 0 && (
-                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        · {formatDuration(call.duration)}
-                      </span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>· {formatDuration(call.duration, fa)}</span>
                     )}
                   </div>
                 </div>
-                {/* Time + call button */}
                 <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCallTime(call.created_at)}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCallTime(call.created_at, fa)}</span>
                   <button
                     className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
                     style={{ background: 'rgba(37,99,235,0.1)', color: 'var(--accent)' }}
@@ -202,9 +192,9 @@ export function CallsPage() {
         <div className="fixed inset-0 z-[60] flex flex-col items-center justify-between py-16"
           style={{ background: activeCallUser.type === 'video' ? '#0a0a0a' : 'linear-gradient(135deg,#1e3a5f,#0f1b2d)' }}>
           <div className="text-center">
-            <p className="text-white/60 text-sm mb-1">{activeCallUser.type === 'voice' ? '🎙️ تماس صوتی' : '📹 تماس تصویری'}</p>
+            <p className="text-white/60 text-sm mb-1">{activeCallUser.type === 'voice' ? `🎙️ ${t('تماس صوتی','Voice call')}` : `📹 ${t('تماس تصویری','Video call')}`}</p>
             <h2 className="text-white text-2xl font-bold">{activeCallUser.name}</h2>
-            <p className="text-white/60 text-sm mt-1">در حال برقراری ارتباط...</p>
+            <p className="text-white/60 text-sm mt-1">{t('در حال برقراری ارتباط...', 'Connecting...')}</p>
           </div>
           <div className="flex flex-col items-center">
             {activeCallUser.avatar ? (
@@ -221,9 +211,7 @@ export function CallsPage() {
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <button
-              onClick={() => setActiveCallUser(null)}
-              className="w-16 h-16 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 transition-colors">
+            <button onClick={() => setActiveCallUser(null)} className="w-16 h-16 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 transition-colors">
               <X size={26} className="text-white" />
             </button>
           </div>

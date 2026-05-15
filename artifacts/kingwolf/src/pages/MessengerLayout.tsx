@@ -192,7 +192,7 @@ export function MessengerLayout() {
         }}
       >
         {/* Mobile header for non-messages pages */}
-        {page !== 'messages' && page !== 'calls' && (
+        {page !== 'messages' && page !== 'calls' && page !== 'settings' && (
           <div
             className="flex-shrink-0 flex items-center gap-3 px-4 py-3 md:hidden"
             style={{

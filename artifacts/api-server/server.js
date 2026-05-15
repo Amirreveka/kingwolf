@@ -286,13 +286,14 @@ const ALLOWED_TABLES = new Set([
   'hashtag_stats', 'conversation_settings', 'calls',
 ]);
 
-function buildWhere(filters) {
+function buildWhere(filters, tableAlias) {
   // filters: [{ col, op, val }]
   if (!filters || !filters.length) return { sql: '', params: [] };
+  const prefix = tableAlias ? `${tableAlias}.` : '';
   const parts = [];
   const params = [];
   for (const f of filters) {
-    const c = f.col.replace(/[^a-zA-Z0-9_]/g, '');
+    const c = prefix + f.col.replace(/[^a-zA-Z0-9_]/g, '');
     switch (f.op) {
       case 'eq': parts.push(`${c} = ?`); params.push(f.val); break;
       case 'neq': parts.push(`${c} != ?`); params.push(f.val); break;
@@ -330,6 +331,28 @@ function doSelect(req, res) {
   const { table } = req.params;
   if (!ALLOWED_TABLES.has(table)) return res.status(400).json({ error: 'unknown table' });
   const { filters = [], order, limit, single } = req.body || {};
+
+  // Special handling for messages: join profiles to populate sender object
+  if (table === 'messages') {
+    const w = buildWhere(filters, 'm');
+    let sql = `SELECT m.*,
+      p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name,
+      p.avatar_url AS _s_avatar_url, p.bio AS _s_bio, p.is_admin AS _s_is_admin
+      FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id ${w.sql}`;
+    if (order) {
+      const c = order.col.replace(/[^a-zA-Z0-9_]/g, '');
+      const dir = order.ascending ? 'ASC' : 'DESC';
+      sql += ` ORDER BY m.${c} ${dir}`;
+    }
+    if (limit) sql += ` LIMIT ${Number(limit)}`;
+    const rows = db.prepare(sql).all(...w.params);
+    const out = rows.map(r => {
+      const { _s_id, _s_username, _s_display_name, _s_avatar_url, _s_bio, _s_is_admin, ...msg } = r;
+      return { ...msg, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null, bio: _s_bio, is_admin: _s_is_admin } : null };
+    });
+    if (single) return res.json({ data: out[0] || null });
+    return res.json({ data: out });
+  }
 
   const w = buildWhere(filters);
   let sql = `SELECT * FROM ${table} ${w.sql}`;
@@ -737,19 +760,29 @@ app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, 
   if (!conversation_id) return res.status(400).json({ error: 'conversation_id required' });
   const member = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(conversation_id, req.userId);
   if (!member && !req.profile.is_admin) return res.status(403).json({ error: 'not a member' });
-  const mime = req.file.mimetype;
+
+  // Write buffer to disk (multer uses memoryStorage)
+  const mime = req.file.mimetype || '';
   const type = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
-  const mediaUrl = `/uploads/media/${req.file.filename}`;
+  const ext = path.extname(req.file.originalname || '').toLowerCase() || (mime.startsWith('image/') ? '.jpg' : mime.startsWith('video/') ? '.mp4' : '');
+  const filename = `${nanoid()}_msg${ext}`;
+  const mediaDir = path.join(UPLOADS_DIR, 'media');
+  fs.mkdirSync(mediaDir, { recursive: true });
+  fs.writeFileSync(path.join(mediaDir, filename), req.file.buffer);
+  const mediaUrl = `/uploads/media/${filename}`;
   const content = type === 'image' ? '📷 عکس' : type === 'video' ? '🎬 ویدیو' : `📎 ${req.file.originalname}`;
-  const { nanoid: nid } = await import('nanoid');
-  const msgId = nid();
+
+  const msgId = nanoid();
   db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type, media_url, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .run(msgId, conversation_id, req.userId, content, type, mediaUrl, reply_to_id || null);
   db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?")
     .run(content, conversation_id);
-  const newMsg = db.prepare('SELECT m.*, p.username, p.display_name, p.avatar_url FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?').get(msgId);
+  const newMsg = db.prepare(`
+    SELECT m.*, p.username, p.display_name, p.avatar_url
+    FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?
+  `).get(msgId);
   broadcast({ event: 'INSERT', table: 'messages', new: newMsg });
-  return res.json({ ok: true, message: newMsg, content });
+  return res.json({ ok: true, message: newMsg, content, media_url: mediaUrl });
 });
 
 // ===== Admin: reveal user password =====

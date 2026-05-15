@@ -106,11 +106,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   }
 
   async function changePassword() {
-    if (!newPw || newPw.length < 6) { setPwError('رمز جدید باید حداقل ۶ کاراکتر باشد'); return; }
+    if (!newPw || newPw.length < 6) { setPwError(t('رمز جدید باید حداقل ۶ کاراکتر باشد', 'New password must be at least 6 characters')); return; }
     setPwError(''); setSaving(true);
     const { error } = await supabase.auth.updateUser({ password: newPw });
     setSaving(false);
-    if (error) { setPwError('خطا در تغییر رمز عبور'); return; }
+    if (error) { setPwError(t('خطا در تغییر رمز عبور', 'Error changing password')); return; }
     setPwSuccess(true);
     setOldPw(''); setNewPw('');
     setTimeout(() => setPwSuccess(false), 2000);
@@ -181,7 +181,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(72px + env(safe-area-inset-bottom))' }}>
         {/* MAIN */}
         {section === 'main' && (
           <div className="p-4 space-y-3">
@@ -270,16 +270,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             <div className="space-y-3">
               <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
                 <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>نام نمایشی</label>
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('نام نمایشی', 'Display Name')}</label>
                   <input
                     value={displayName} onChange={(e) => setDisplayName(e.target.value)}
                     className="w-full bg-transparent outline-none text-sm py-1"
                     style={{ color: 'var(--text-primary)' }}
-                    placeholder="نام نمایشی"
+                    placeholder={t('نام نمایشی', 'Display Name')}
                   />
                 </div>
                 <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>نام کاربری</label>
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('نام کاربری', 'Username')}</label>
                   <input
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
@@ -290,27 +290,27 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   />
                 </div>
                 <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>بیوگرافی</label>
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('بیوگرافی', 'Bio')}</label>
                   <textarea
                     value={bio} onChange={(e) => setBio(e.target.value)}
                     className="w-full bg-transparent outline-none text-sm py-1 resize-none"
                     style={{ color: 'var(--text-primary)' }}
-                    placeholder="درباره خودت بنویس..."
+                    placeholder={t('درباره خودت بنویس...', 'Write about yourself...')}
                     rows={3}
                   />
                 </div>
                 <div className="px-4 py-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>شماره تلفن</label>
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('شماره تلفن', 'Phone Number')}</label>
                   <input
                     value={phone} onChange={(e) => setPhone(e.target.value)}
                     className="w-full bg-transparent outline-none text-sm py-1"
                     style={{ color: 'var(--text-primary)' }}
-                    placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                    placeholder="09123456789"
                     dir="ltr"
                   />
                 </div>
                 <div className="px-4 py-2">
-                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>تاریخ تولد</label>
+                  <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{t('تاریخ تولد', 'Birthday')}</label>
                   <input
                     type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)}
                     className="w-full bg-transparent outline-none text-sm py-1"
@@ -327,7 +327,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         {section === 'appearance' && (
           <div className="p-4 space-y-4">
             <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>تم رنگی</p>
+              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{t('تم رنگی', 'Color Theme')}</p>
               <div className="grid grid-cols-2 gap-3">
                 {/* Dark */}
                 <button
@@ -355,7 +355,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   <div className="absolute bottom-0 inset-x-0 p-1 text-center">
                     <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
                       <Moon size={10} className="inline-block ml-1" />
-                      تاریک
+                      {t('تاریک', 'Dark')}
                     </span>
                   </div>
                 </button>
@@ -386,7 +386,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   <div className="absolute bottom-0 inset-x-0 p-1 text-center">
                     <span className="text-xs font-medium" style={{ color: '#64748b' }}>
                       <Sun size={10} className="inline-block ml-1" />
-                      روشن
+                      {t('روشن', 'Light')}
                     </span>
                   </div>
                 </button>
@@ -428,8 +428,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           <div className="p-4 space-y-3">
             <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               {[
-                { label: 'صدای اعلان', sublabel: 'صدا هنگام دریافت پیام', value: notifSound, onChange: setNotifSound },
-                { label: 'پیش‌نمایش پیام', sublabel: 'نمایش محتوای پیام در اعلان', value: msgPreview, onChange: setMsgPreview },
+                { label: t('صدای اعلان', 'Notification Sound'), sublabel: t('صدا هنگام دریافت پیام', 'Play sound on new message'), value: notifSound, onChange: setNotifSound },
+                { label: t('پیش‌نمایش پیام', 'Message Preview'), sublabel: t('نمایش محتوای پیام در اعلان', 'Show message content in notification'), value: msgPreview, onChange: setMsgPreview },
               ].map((item, idx) => (
                 <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < 1 ? '1px solid var(--border-color)' : 'none' }}>
                   <button
@@ -453,11 +453,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         {section === 'security' && (
           <div className="p-4 space-y-3">
             <div className="rounded-2xl overflow-hidden p-4 space-y-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>تغییر رمز عبور</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('تغییر رمز عبور', 'Change Password')}</p>
               <div className="relative">
                 <input
                   type={showOld ? 'text' : 'password'} value={oldPw} onChange={(e) => setOldPw(e.target.value)}
-                  placeholder="رمز عبور فعلی"
+                  placeholder={t('رمز عبور فعلی', 'Current password')}
                   className="w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
                   style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
                 />
@@ -468,7 +468,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <div className="relative">
                 <input
                   type={showNew ? 'text' : 'password'} value={newPw} onChange={(e) => setNewPw(e.target.value)}
-                  placeholder="رمز عبور جدید (حداقل ۶ کاراکتر)"
+                  placeholder={t('رمز عبور جدید (حداقل ۶ کاراکتر)', 'New password (min 6 characters)')}
                   className="w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
                   style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
                 />
@@ -477,14 +477,14 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </button>
               </div>
               {pwError && <p className="text-xs text-red-400">{pwError}</p>}
-              {pwSuccess && <p className="text-xs text-green-400">رمز عبور با موفقیت تغییر کرد ✓</p>}
+              {pwSuccess && <p className="text-xs text-green-400">{t('رمز عبور با موفقیت تغییر کرد', 'Password changed successfully')} ✓</p>}
               <button
                 onClick={changePassword}
                 disabled={saving}
                 className="w-full py-3 rounded-xl text-sm font-medium text-white transition-all"
                 style={{ background: 'var(--accent)' }}
               >
-                {saving ? 'در حال ذخیره...' : 'تغییر رمز عبور'}
+                {saving ? t('در حال ذخیره...', 'Saving...') : t('تغییر رمز عبور', 'Change Password')}
               </button>
             </div>
           </div>

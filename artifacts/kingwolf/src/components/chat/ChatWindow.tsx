@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText } from 'lucide-react';
+import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin } from 'lucide-react';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -125,7 +125,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -141,7 +144,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   }, [messages]);
 
   useEffect(() => {
-    function handleClick() { setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); }
+    function handleClick() { setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); setShowAttach(false); }
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
@@ -592,21 +595,57 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
 
         {/* Input */}
         {canSend ? (
-          <div className="flex-shrink-0 p-3" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)' }}>
-            <div className="flex items-end gap-2 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
+          <div className="flex-shrink-0" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)' }}>
+            {/* Hidden file inputs */}
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileUpload} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.zip,.rar,.xls,.xlsx,.ppt,.pptx" className="hidden" onChange={handleFileUpload} />
+
+            {/* Attachment options row */}
+            {showAttach && (
+              <div className="flex items-center gap-3 px-4 py-3 overflow-x-auto" style={{ borderBottom: '1px solid var(--border-color)' }}
+                onClick={e => e.stopPropagation()}>
+                {[
+                  { icon: Image, label: fa ? 'عکس' : 'Photo', color: '#3b82f6', action: () => { imageInputRef.current?.click(); setShowAttach(false); } },
+                  { icon: Film, label: fa ? 'ویدیو' : 'Video', color: '#8b5cf6', action: () => { videoInputRef.current?.click(); setShowAttach(false); } },
+                  { icon: FileUp, label: fa ? 'فایل' : 'File', color: '#10b981', action: () => { fileInputRef.current?.click(); setShowAttach(false); } },
+                  { icon: MapPin, label: fa ? 'موقعیت' : 'Location', color: '#ef4444', action: async () => {
+                    setShowAttach(false);
+                    if (!navigator.geolocation) return;
+                    navigator.geolocation.getCurrentPosition(pos => {
+                      const { latitude: lat, longitude: lng } = pos.coords;
+                      sendMessage(`📍 https://maps.google.com/?q=${lat},${lng}`);
+                    });
+                  }},
+                ].map(opt => (
+                  <button key={opt.label} onClick={opt.action}
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                      style={{ background: `${opt.color}20` }}>
+                      <opt.icon size={22} style={{ color: opt.color }} />
+                    </div>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-end gap-2 p-3">
               <div className="relative flex-shrink-0">
-                <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFileUpload} />
                 <button
-                  onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                  className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"
-                  style={{ color: 'var(--text-muted)' }}
+                  onClick={e => { e.stopPropagation(); if (!uploadingFile) setShowAttach(v => !v); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl"
+                  style={{ color: showAttach ? 'var(--accent)' : 'var(--text-muted)' }}
                   disabled={uploadingFile}
-                  title={fa ? 'ارسال فایل' : 'Attach file'}
+                  title={fa ? 'پیوست' : 'Attach'}
                 >
                   {uploadingFile
                     ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     : <Paperclip size={17} />}
                 </button>
+              </div>
+            <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
+              <div className="relative flex-shrink-0">
                 <button onClick={e => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
                   className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"
                   style={{ color: 'var(--text-muted)' }}>
@@ -642,6 +681,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                   ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : editingId ? <Check size={15} /> : <Send size={15} />}
               </button>
+            </div>
             </div>
           </div>
         ) : (

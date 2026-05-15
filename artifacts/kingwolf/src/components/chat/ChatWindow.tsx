@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin } from 'lucide-react';
+import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin, Link2, Flag, BellOff, LogOut, Square, Download, Mic2 } from 'lucide-react';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -122,6 +122,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [muted, setMuted] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
+
+  const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [recording, setRecording] = useState(false);
+  const [chatMuted, setChatMuted] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,6 +270,64 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
     setReplyTo(null);
     setUploadingFile(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  }
+
+  async function startVoiceRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
+        setRecording(false);
+        setUploadingFile(true);
+        await sendMediaMessage(file, { replyToId: replyTo?.id });
+        setReplyTo(null);
+        setUploadingFile(false);
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      alert(fa ? 'دسترسی به میکروفن داده نشد' : 'Microphone access denied');
+    }
+  }
+
+  function stopVoiceRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  }
+
+  async function submitReport() {
+    if (!showReport || !reportReason) return;
+    await apiCall('/reports', {
+      method: 'POST',
+      body: JSON.stringify({
+        target_type: showReport.type,
+        target_id: showReport.targetId,
+        reason: reportReason,
+        details: reportDetails,
+      }),
+    });
+    setShowReport(null);
+    setReportReason('');
+    setReportDetails('');
+    alert(fa ? 'گزارش با موفقیت ارسال شد' : 'Report submitted successfully');
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    });
   }
 
   function handleKey(e: React.KeyboardEvent) {
@@ -426,24 +492,79 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                 <MoreVertical size={16} />
               </button>
               {showHeaderMenu && (
-                <div className="absolute top-full left-0 mt-1 w-48 rounded-xl py-1 shadow-xl z-50"
+                <div className={`absolute top-full ${fa ? 'left-0' : 'right-0'} mt-1 w-56 rounded-2xl py-1.5 shadow-2xl z-50`}
                   style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
                   onClick={e => e.stopPropagation()}>
                   {isGroupOrChannel && (
                     <button onClick={() => { setShowInfo(true); setShowHeaderMenu(false); }}
-                      className="flex items-center gap-2 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
                       style={{ color: 'var(--text-primary)' }}>
-                      <Info size={14} /><span>{conversation.type === 'group' ? 'اعضای گروه' : 'اعضای کانال'}</span>
+                      <Info size={15} /><span>{conversation.type === 'group' ? (fa ? 'اطلاعات گروه' : 'Group Info') : (fa ? 'اطلاعات کانال' : 'Channel Info')}</span>
+                    </button>
+                  )}
+                  {conversation.type === 'direct' && conversation.name !== '__saved__' && (
+                    <button onClick={() => { setShowUserProfile(conversation.other_user as any); setShowHeaderMenu(false); }}
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
+                      style={{ color: 'var(--text-primary)' }}>
+                      <Users size={15} /><span>{fa ? 'مشاهده پروفایل' : 'View Profile'}</span>
+                    </button>
+                  )}
+                  <button onClick={() => { setChatMuted(v => !v); setShowHeaderMenu(false); }}
+                    className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
+                    style={{ color: 'var(--text-primary)' }}>
+                    <BellOff size={15} /><span>{chatMuted ? (fa ? 'رفع سکوت' : 'Unmute') : (fa ? 'بی‌صدا' : 'Mute')}</span>
+                  </button>
+                  {isGroupOrChannel && (conversation as any).username && (
+                    <button onClick={() => {
+                      const link = `${window.location.origin}/@${(conversation as any).username}`;
+                      copyToClipboard(link);
+                      setShowHeaderMenu(false);
+                      alert(fa ? 'لینک کپی شد' : 'Link copied');
+                    }}
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
+                      style={{ color: 'var(--text-primary)' }}>
+                      <Link2 size={15} /><span>{fa ? 'کپی لینک' : 'Copy Link'}</span>
+                    </button>
+                  )}
+                  <div style={{ height: 1, background: 'var(--border-color)', margin: '4px 0' }} />
+                  {isGroupOrChannel && !isConvOwner && (
+                    <button onClick={async () => {
+                      if (!window.confirm(fa ? 'از گروه خارج شوید؟' : 'Leave group?')) { setShowHeaderMenu(false); return; }
+                      await apiCall(`/conversations/${conversation.id}/leave`, { method: 'POST' });
+                      setShowHeaderMenu(false);
+                    }}
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-red-500/10"
+                      style={{ color: '#f87171' }}>
+                      <LogOut size={15} /><span>{fa ? 'خروج از گروه' : 'Leave Group'}</span>
+                    </button>
+                  )}
+                  {conversation.type !== 'direct' && !isConvOwner && (
+                    <button onClick={() => {
+                      setShowReport({ type: conversation.type as any, targetId: conversation.id, name: conversation.name });
+                      setShowHeaderMenu(false);
+                    }}
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-red-500/10"
+                      style={{ color: '#f87171' }}>
+                      <Flag size={15} /><span>{fa ? 'گزارش' : 'Report'}</span>
+                    </button>
+                  )}
+                  {conversation.type === 'direct' && conversation.name !== '__saved__' && (
+                    <button onClick={() => {
+                      const otherId = conversation.other_user?.id;
+                      if (otherId) setShowReport({ type: 'user', targetId: otherId, name: conversation.other_user?.display_name || conversation.other_user?.username || '' });
+                      setShowHeaderMenu(false);
+                    }}
+                      className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-red-500/10"
+                      style={{ color: '#f87171' }}>
+                      <Flag size={15} /><span>{fa ? 'گزارش کاربر' : 'Report User'}</span>
                     </button>
                   )}
                   <button onClick={async () => {
-                    const confirmResult = window.confirm('آیا مطمئنید که می‌خواهید تمام پیام‌های این چت را پاک کنید؟');
-                    if (!confirmResult) { setShowHeaderMenu(false); return; }
-                    // Clear messages locally
+                    if (!window.confirm(fa ? 'تاریخچه پیام‌ها پاک شود؟' : 'Clear message history?')) { setShowHeaderMenu(false); return; }
                     for (const msg of messages) { if (msg.sender_id === user?.id || isAdmin) await deleteMessage(msg.id); }
                     setShowHeaderMenu(false);
-                  }} className="flex items-center gap-2 px-4 py-2.5 w-full text-right text-sm text-red-400 hover:bg-red-500/10 transition-colors">
-                    <Trash2 size={14} /><span>پاک کردن تاریخچه</span>
+                  }} className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm text-red-400 hover:bg-red-500/10 transition-colors">
+                    <Trash2 size={15} /><span>{fa ? 'پاک کردن تاریخچه' : 'Clear History'}</span>
                   </button>
                 </div>
               )}
@@ -509,20 +630,27 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                     )}
                     {/* Media content */}
                     {msg.media_url && msg.type === 'image' && (
-                      <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-pointer block" onClick={() => window.open(msg.media_url!, '_blank')} />
+                      <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-pointer block" onClick={() => window.open(msg.media_url!, '_blank')} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
                     )}
                     {msg.media_url && msg.type === 'video' && (
-                      <video src={msg.media_url} controls className="rounded-xl max-w-full max-h-64 mb-1 block" />
+                      <video controls className="rounded-xl max-w-full max-h-64 mb-1 block" style={{ maxWidth: 280 }}>
+                        <source src={msg.media_url} />
+                      </video>
+                    )}
+                    {msg.media_url && msg.type === 'audio' && (
+                      <audio controls className="mb-1 block" style={{ maxWidth: 240, height: 36 }}>
+                        <source src={msg.media_url} />
+                      </audio>
                     )}
                     {msg.media_url && msg.type === 'file' && (
-                      <a href={msg.media_url} target="_blank" rel="noopener noreferrer"
+                      <a href={msg.media_url} download target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1 text-sm hover:opacity-80"
                         style={{ background: 'rgba(255,255,255,0.1)' }}>
-                        <FileText size={16} /><span className="truncate max-w-[180px]">{msg.content.replace(/^📎\s*/, '')}</span>
+                        <Download size={16} /><span className="truncate max-w-[200px]">{msg.content.replace(/^📎\s*/, '')}</span>
                       </a>
                     )}
-                    {/* Text content */}
-                    {(!msg.media_url || msg.type === 'text') && (
+                    {/* Text content - show for text type OR when no media_url */}
+                    {(msg.type === 'text' || msg.type === 'location' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio')) && (
                       <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>
                     )}
                     {/* Footer */}
@@ -547,7 +675,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
         {contextMenu && (
           <div
             className="fixed z-50 rounded-xl py-1 shadow-xl overflow-hidden w-44"
-            style={{ left: contextMenu.x, top: contextMenu.y, background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
+            style={{ left: Math.min(contextMenu.x, window.innerWidth - 180), top: Math.min(contextMenu.y, window.innerHeight - 200), background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
             onClick={e => e.stopPropagation()}
           >
             {[
@@ -609,13 +737,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                   { icon: Image, label: fa ? 'عکس' : 'Photo', color: '#3b82f6', action: () => { imageInputRef.current?.click(); setShowAttach(false); } },
                   { icon: Film, label: fa ? 'ویدیو' : 'Video', color: '#8b5cf6', action: () => { videoInputRef.current?.click(); setShowAttach(false); } },
                   { icon: FileUp, label: fa ? 'فایل' : 'File', color: '#10b981', action: () => { fileInputRef.current?.click(); setShowAttach(false); } },
-                  { icon: MapPin, label: fa ? 'موقعیت' : 'Location', color: '#ef4444', action: async () => {
+                  { icon: Mic2, label: fa ? 'ضبط صدا' : 'Voice', color: '#f59e0b', action: () => { setShowAttach(false); startVoiceRecording(); } },
+                  { icon: MapPin, label: fa ? 'موقعیت' : 'Location', color: '#ef4444', action: () => {
                     setShowAttach(false);
-                    if (!navigator.geolocation) return;
-                    navigator.geolocation.getCurrentPosition(pos => {
-                      const { latitude: lat, longitude: lng } = pos.coords;
-                      sendMessage(`📍 https://maps.google.com/?q=${lat},${lng}`);
-                    });
+                    if (!navigator.geolocation) { alert(fa ? 'موقعیت‌یابی پشتیبانی نمی‌شود' : 'Geolocation not supported'); return; }
+                    navigator.geolocation.getCurrentPosition(
+                      pos => { sendMessage(`📍 https://maps.google.com/?q=${pos.coords.latitude},${pos.coords.longitude}`); },
+                      () => { alert(fa ? 'دسترسی به موقعیت رد شد' : 'Location access denied'); }
+                    );
                   }},
                 ].map(opt => (
                   <button key={opt.label} onClick={opt.action}
@@ -664,6 +793,12 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                   </div>
                 )}
               </div>
+              {recording ? (
+                <div className="flex-1 flex items-center gap-2 py-1.5">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{fa ? 'در حال ضبط...' : 'Recording...'}</span>
+                </div>
+              ) : (
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -674,6 +809,13 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                 className="flex-1 bg-transparent outline-none text-sm resize-none py-1.5 min-h-[32px] max-h-[120px]"
                 style={{ color: 'var(--text-primary)' }}
               />
+              )}
+              {recording ? (
+                <button onClick={stopVoiceRecording}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 bg-red-500">
+                  <Square size={14} className="text-white" />
+                </button>
+              ) : (
               <button onClick={handleSend} disabled={!text.trim() || sending}
                 className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all"
                 style={{ background: text.trim() ? (editingId ? '#10b981' : 'var(--accent)') : 'transparent', color: text.trim() ? 'white' : 'var(--text-muted)' }}>
@@ -681,6 +823,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                   ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : editingId ? <Check size={15} /> : <Send size={15} />}
               </button>
+              )}
             </div>
             </div>
           </div>
@@ -748,7 +891,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
       {/* Info / Members Panel */}
       {showInfo && isGroupOrChannel && (
         <div className="fixed inset-0 z-50 md:static md:z-auto md:inset-auto md:w-72 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)' }}>
-          <div className="flex-shrink-0 px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+          <div className="flex-shrink-0 px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
             <button onClick={() => setShowInfo(false)} className="p-1 rounded-lg" style={{ color: 'var(--text-secondary)' }}><ArrowRight size={18} /></button>
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {conversation.type === 'group' ? (fa ? 'اطلاعات گروه' : 'Group Info') : (fa ? 'اطلاعات کانال' : 'Channel Info')}
@@ -784,6 +927,20 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
               </div>
             )}
             {usernameMsg && <p className="text-xs mt-1" style={{ color: usernameMsg.startsWith('✓') ? '#4ade80' : '#f87171' }}>{usernameMsg}</p>}
+            {(conversation as any).username && (
+              <button
+                onClick={() => {
+                  const link = `${window.location.origin}/@${(conversation as any).username}`;
+                  copyToClipboard(link);
+                  alert(fa ? 'لینک دعوت کپی شد' : 'Invite link copied');
+                }}
+                className="mt-2 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full mx-auto transition-colors"
+                style={{ background: 'rgba(29,155,240,0.1)', color: '#1d9bf0' }}>
+                <Link2 size={11} />
+                <span>@{(conversation as any).username}</span>
+                <Copy size={11} />
+              </button>
+            )}
           </div>
           {isConvAdmin && (
             <div className="flex-shrink-0 px-3 py-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
@@ -791,7 +948,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                 <div className="space-y-2">
                   <div className="relative">
                     <Search size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                    <input value={addSearch} onChange={e => searchToAdd(e.target.value)} placeholder="جستجوی کاربر..."
+                    <input value={addSearch} onChange={e => searchToAdd(e.target.value)} placeholder={fa ? 'جستجوی کاربر...' : 'Search user...'}
                       className="w-full pr-8 pl-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }} autoFocus />
                   </div>
                   <div className="space-y-1 max-h-36 overflow-y-auto">
@@ -894,7 +1051,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           <div className="w-full max-w-sm rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={e => e.stopPropagation()} dir="rtl">
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-color)' }}>
               <button onClick={() => setForwardMsg(null)} style={{ color: 'var(--text-secondary)' }}><X size={18} /></button>
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>فوروارد به...</h3>
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{fa ? 'فوروارد به...' : 'Forward to...'}</h3>
             </div>
             <div className="max-h-80 overflow-y-auto p-2 space-y-1">
               {conversations.filter(c => c.name !== '__saved__').map(c => (
@@ -914,6 +1071,56 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                   <Forward size={14} style={{ color: 'var(--text-muted)' }} />
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReport && (
+        <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setShowReport(null)}>
+          <div className="w-full max-w-sm rounded-t-3xl md:rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={e => e.stopPropagation()} dir={fa ? 'rtl' : 'ltr'}>
+            <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--border-color)' }}>
+              <button onClick={() => setShowReport(null)} style={{ color: 'var(--text-muted)' }}><X size={18} /></button>
+              <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                {fa ? `گزارش ${showReport.name}` : `Report ${showReport.name}`}
+              </h3>
+              <Flag size={18} className="text-red-400" />
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{fa ? 'دلیل گزارش را انتخاب کنید:' : 'Select a reason for reporting:'}</p>
+              {[
+                { val: 'spam', label: fa ? 'اسپم' : 'Spam' },
+                { val: 'violence', label: fa ? 'خشونت' : 'Violence' },
+                { val: 'nudity', label: fa ? 'محتوای نامناسب' : 'Inappropriate Content' },
+                { val: 'harassment', label: fa ? 'آزار و اذیت' : 'Harassment' },
+                { val: 'scam', label: fa ? 'کلاهبرداری' : 'Scam/Fraud' },
+                { val: 'other', label: fa ? 'سایر' : 'Other' },
+              ].map(opt => (
+                <button key={opt.val} onClick={() => setReportReason(opt.val)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-right transition-colors"
+                  style={{ background: reportReason === opt.val ? 'rgba(239,68,68,0.12)' : 'var(--bg-input)', color: reportReason === opt.val ? '#f87171' : 'var(--text-primary)', border: reportReason === opt.val ? '1px solid rgba(239,68,68,0.3)' : '1px solid transparent' }}>
+                  <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${reportReason === opt.val ? 'border-red-400 bg-red-400' : ''}`} style={{ borderColor: reportReason === opt.val ? '#f87171' : 'var(--border-color)' }}>
+                    {reportReason === opt.val && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                  {opt.label}
+                </button>
+              ))}
+              <textarea
+                value={reportDetails}
+                onChange={e => setReportDetails(e.target.value)}
+                placeholder={fa ? 'توضیحات بیشتر (اختیاری)...' : 'Additional details (optional)...'}
+                rows={2}
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
+                style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
+              />
+              <button
+                onClick={submitReport}
+                disabled={!reportReason}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition-all"
+                style={{ background: reportReason ? '#ef4444' : 'var(--bg-input)', color: reportReason ? 'white' : 'var(--text-muted)' }}>
+                {fa ? 'ارسال گزارش' : 'Submit Report'}
+              </button>
             </div>
           </div>
         </div>

@@ -16,4 +16,4 @@ jobs:
 
       - name: Deploy to Liara
         working-directory: artifacts
-        run: liara deploy --app="kingwolf" --api-token="${{ secrets.LIARA_API_TOKEN }}" --platform="docker" --detach
+        run: liara deploy --app="kingwolf" --api-token="${{ secrets.LIARA_API_TOKEN }}" --platform="docker" --detach --debug

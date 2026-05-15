@@ -1,5 +1,5 @@
 {
   "app": "kingwolf",
   "platform": "docker",
-  "port": 3001
+  "port": 8000
 }

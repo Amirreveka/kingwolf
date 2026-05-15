@@ -8,34 +8,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: artifacts/kingwolf/package-lock.json
-
-      - name: Install frontend dependencies
-        working-directory: artifacts/kingwolf
-        run: npm ci
-
-      - name: Build frontend
-        working-directory: artifacts/kingwolf
-        run: npm run build
+      - name: Install Liara CLI
+        run: npm install -g @liara/cli
 
       - name: Deploy to Liara
-        env:
-          LIARA_TOKEN: ${{ secrets.LIARA_API_TOKEN }}
-        run: |
-          npm install -g @liara/cli@9
-          liara deploy \
-            --app="kingwolf" \
-            --api-token="$LIARA_TOKEN" \
-            --path="./artifacts" \
-            --port=3001 \
-            --no-app-logs
+        run: liara deploy --app="kingwolf" --api-token="${{ secrets.LIARA_API_TOKEN }}" --platform="docker" --detach

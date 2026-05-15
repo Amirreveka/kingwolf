@@ -1,22 +1,26 @@
+# ── Stage 1: Build frontend ────────────────────────────────────────────────────
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /frontend
+COPY kingwolf/package*.json ./
+RUN npm install --prefer-offline 2>/dev/null || npm install
+COPY kingwolf/ ./
+RUN npm run build
+
+# ── Stage 2: Production server ────────────────────────────────────────────────
 FROM node:20-alpine
 
 WORKDIR /app
 
-# ── Isolation note ─────────────────────────────────────────────────────────────
-# At RUNTIME the container makes zero external network requests:
-#   • All fonts (Vazirmatn) are bundled in dist/public/assets (no Google Fonts CDN)
-#   • All icons (Lucide React) are bundled in the JS chunk
-#   • No external API calls from the frontend or backend
-# The only outbound connection at runtime is the WebSocket to other KingWolf clients
-# on the SAME server (internal), plus any user-triggered media uploads.
-# ──────────────────────────────────────────────────────────────────────────────
-
-# Copy api-server (includes pre-built frontend in ../kingwolf/dist/public)
+# Install backend dependencies
 COPY api-server/package*.json ./
 RUN npm install --omit=dev --prefer-offline 2>/dev/null || npm install --omit=dev
 
+# Copy backend source
 COPY api-server/ ./
-COPY kingwolf/dist/public/ ./kingwolf/dist/public/
+
+# Copy pre-built frontend from stage 1
+COPY --from=frontend-builder /frontend/dist/public/ ./kingwolf/dist/public/
 
 RUN mkdir -p data uploads/avatars uploads/media
 
@@ -27,7 +31,6 @@ ENV NODE_ENV=production
 ENV PORT=3001
 ENV HTTPS_PORT=3443
 
-# Health check for docker-compose service_healthy condition
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 

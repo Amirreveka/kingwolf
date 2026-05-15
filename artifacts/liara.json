@@ -1,9 +1,9 @@
 {
   "app": "kingwolf",
   "platform": "docker",
-  "port": 8000,
+  "port": 3001,
   "healthCheck": {
-    "command": ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"],
+    "command": ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"],
     "interval": 10,
     "timeout": 5,
     "retries": 3,

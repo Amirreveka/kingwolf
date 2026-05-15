@@ -39,6 +39,12 @@ app.use((req, _res, next) => {
 
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Serve built frontend from kingwolf/dist/public
+const FRONTEND_DIST = path.join(__dirname, '..', 'kingwolf', 'dist', 'public');
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+}
+
 // ===== Auth helpers =====
 function makeToken(userId, sessionId) {
   return jwt.sign({ sub: userId, sid: sessionId }, JWT_SECRET, { expiresIn: '30d' });
@@ -1087,6 +1093,14 @@ app.get('/calls', authMiddleware, (req, res) => {
     return res.json({ data: [] });
   }
 });
+
+// SPA fallback — serve index.html for any non-API route
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/realtime')) return next();
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
 
 // ===== Start HTTP + WS =====
 const server = app.listen(PORT, '0.0.0.0', async () => {

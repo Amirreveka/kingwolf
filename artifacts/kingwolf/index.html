@@ -70,6 +70,13 @@
         } else { attempts++; setTimeout(check, 100); }
       };
       check();
+
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
     </script>
   </body>
 </html>

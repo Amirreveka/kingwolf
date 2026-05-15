@@ -1,5 +1,7 @@
 import express from 'express';
 import os from 'os';
+import https from 'https';
+import http from 'http';
 
 // Crash visibility
 process.on('uncaughtException', (e) => console.error('[UNCAUGHT]', e));
@@ -18,6 +20,7 @@ import { db, UPLOADS_DIR } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
   const secretFile = path.join(__dirname, 'data', '.jwt-secret');
   if (fs.existsSync(secretFile)) return fs.readFileSync(secretFile, 'utf8').trim();
@@ -1102,11 +1105,77 @@ if (fs.existsSync(FRONTEND_DIST)) {
   });
 }
 
-// ===== Start HTTP + WS =====
-const server = app.listen(PORT, '0.0.0.0', async () => {
+// ===== Generate/load TLS cert at startup =====
+const CERT_FILE = path.join(__dirname, 'data', 'cert.pem');
+const KEY_FILE  = path.join(__dirname, 'data', 'key.pem');
+let tlsCreds = null;
+try {
+  if (fs.existsSync(CERT_FILE) && fs.existsSync(KEY_FILE)) {
+    tlsCreds = { cert: fs.readFileSync(CERT_FILE), key: fs.readFileSync(KEY_FILE) };
+  } else {
+    const { execSync } = await import('child_process');
+    execSync(
+      `openssl req -x509 -newkey rsa:2048 -keyout "${KEY_FILE.replace(/\\/g,'/')}" -out "${CERT_FILE.replace(/\\/g,'/')}" -days 365 -nodes -subj "//CN=kingwolf.local"`,
+      { stdio: 'ignore', shell: true }
+    );
+    tlsCreds = { cert: fs.readFileSync(CERT_FILE), key: fs.readFileSync(KEY_FILE) };
+    console.log('✅ TLS cert generated');
+  }
+} catch (e) { console.error('TLS setup failed:', e.message); }
+
+// ===== Servers =====
+const httpServer  = http.createServer(app);
+const httpsServer = tlsCreds ? https.createServer(tlsCreds, app) : null;
+
+// ===== WebSocket connection handler (shared by HTTP + HTTPS) =====
+const clients = new Set();
+const userSockets = new Map();
+
+function onWsConnection(ws, req) {
+  const url = new URL(req.url, 'http://x');
+  const token = url.searchParams.get('token');
+  let userId = null;
+  if (token) { try { userId = jwt.verify(token, JWT_SECRET).sub; } catch {} }
+  ws.userId = userId;
+  ws.subscriptions = new Set();
+  clients.add(ws);
+  if (userId) userSockets.set(userId, ws);
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      if (msg.type === 'subscribe' && msg.table) ws.subscriptions.add(msg.table);
+      if (msg.type === 'unsubscribe' && msg.table) ws.subscriptions.delete(msg.table);
+      if (msg.type === 'signal' && msg.targetUserId && msg.payload) {
+        const targetWs = userSockets.get(msg.targetUserId);
+        if (targetWs && targetWs.readyState === 1) {
+          targetWs.send(JSON.stringify({ type: 'signal', fromUserId: ws.userId, payload: msg.payload }));
+        }
+      }
+    } catch {}
+  });
+  ws.on('close', () => {
+    clients.delete(ws);
+    if (ws.userId && userSockets.get(ws.userId) === ws) userSockets.delete(ws.userId);
+  });
+  ws.send(JSON.stringify({ type: 'ready' }));
+}
+
+const wss    = new WebSocketServer({ server: httpServer,  path: '/realtime' });
+wss.on('connection', onWsConnection);
+if (httpsServer) {
+  const wssHttps = new WebSocketServer({ server: httpsServer, path: '/realtime' });
+  wssHttps.on('connection', onWsConnection);
+}
+
+// ===== Start listening =====
+const server = httpServer; // keep alias for legacy references
+
+httpServer.listen(PORT, '0.0.0.0', async () => {
+  if (httpsServer) httpsServer.listen(HTTPS_PORT, '0.0.0.0');
   console.log(`\n🐺 KingWolf Backend`);
-  console.log(`   Listening on http://0.0.0.0:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health\n`);
+  console.log(`   HTTP:  http://0.0.0.0:${PORT}`);
+  if (httpsServer) console.log(`   HTTPS: https://0.0.0.0:${HTTPS_PORT}`);
+  console.log(`   Health: http://localhost:${PORT}/api/health\n`);
 
   // Auto-seed default admin on first run
   try {
@@ -1270,43 +1339,6 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   }
 });
 
-// ===== WebSocket for realtime =====
-const wss = new WebSocketServer({ server, path: '/realtime' });
-const clients = new Set();
-const userSockets = new Map(); // userId → ws (for WebRTC signaling)
-
-wss.on('connection', (ws, req) => {
-  // optional auth via query token
-  const url = new URL(req.url, 'http://x');
-  const token = url.searchParams.get('token');
-  let userId = null;
-  if (token) {
-    try { userId = jwt.verify(token, JWT_SECRET).sub; } catch {}
-  }
-  ws.userId = userId;
-  ws.subscriptions = new Set(); // table names
-  clients.add(ws);
-  if (userId) userSockets.set(userId, ws);
-  ws.on('message', (raw) => {
-    try {
-      const msg = JSON.parse(raw.toString());
-      if (msg.type === 'subscribe' && msg.table) ws.subscriptions.add(msg.table);
-      if (msg.type === 'unsubscribe' && msg.table) ws.subscriptions.delete(msg.table);
-      // WebRTC signaling: forward to target user
-      if (msg.type === 'signal' && msg.targetUserId && msg.payload) {
-        const targetWs = userSockets.get(msg.targetUserId);
-        if (targetWs && targetWs.readyState === 1) {
-          targetWs.send(JSON.stringify({ type: 'signal', fromUserId: ws.userId, payload: msg.payload }));
-        }
-      }
-    } catch {}
-  });
-  ws.on('close', () => {
-    clients.delete(ws);
-    if (ws.userId && userSockets.get(ws.userId) === ws) userSockets.delete(ws.userId);
-  });
-  ws.send(JSON.stringify({ type: 'ready' }));
-});
 
 function broadcast(payload) {
   const data = JSON.stringify({ type: 'change', ...payload });

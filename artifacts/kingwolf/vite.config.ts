@@ -3,20 +3,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
-import basicSsl from "@vitejs/plugin-basic-ssl";
 
 const isBuild = process.argv.includes("build");
-
-const rawPort = process.env.PORT;
-if (!isBuild && !rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
-const port = rawPort ? Number(rawPort) : 3000;
-if (!isBuild && (Number.isNaN(port) || port <= 0)) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
-}
+const port = Number(process.env.PORT) || 5173;
 
 const basePath = process.env.BASE_PATH ?? "/";
 
@@ -26,7 +15,6 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
-    basicSsl(),
   ],
   resolve: {
     alias: {
@@ -45,7 +33,6 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
-    https: {},
     hmr: { overlay: false },
     proxy: {
       "/api": { target: "http://localhost:3001", changeOrigin: true },

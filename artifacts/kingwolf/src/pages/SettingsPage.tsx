@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone } from 'lucide-react';
+import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, Zap, MessageCircle, Server, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
+import { WolfLogo } from '../components/ui/WolfLogo';
 
-type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices';
+type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices' | 'about';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -148,6 +149,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444' },
     { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b' },
     { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4' },
+    { id: 'about' as Section, label: t('درباره کینگ‌ولف', 'About KingWolf'), icon: Info, color: '#f59e0b' },
   ];
 
   function Back() {
@@ -171,6 +173,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         )}
         <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>
           {section === 'main' ? t('تنظیمات', 'Settings') :
+           section === 'about' ? t('درباره اپلیکیشن', 'About App') :
             menuItems.find(m => m.id === section)?.label || ''}
         </h2>
         {section === 'profile' && (
@@ -498,6 +501,118 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('حریم خصوصی شما محافظت می‌شود', 'Your privacy is protected')}</p>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('اطلاعات شما کاملاً رمزنگاری شده و در اختیار هیچ شخص ثالثی قرار نمی‌گیرد.', 'Your data is fully encrypted and never shared with third parties.')}</p>
             </div>
+          </div>
+        )}
+
+        {/* ABOUT */}
+        {section === 'about' && (
+          <div className="p-4 space-y-4">
+            <style>{`
+              @keyframes kw-halo-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+              @keyframes kw-badge-in { from { opacity:0; transform: scale(0.5) translateY(8px); } to { opacity:1; transform: scale(1) translateY(0); } }
+              @keyframes kw-feat-in { from { opacity:0; transform: translateX(${language==='fa'?'16px':'-16px'}); } to { opacity:1; transform: translateX(0); } }
+              @keyframes kw-pulse-green { 0%,100%{ box-shadow:0 0 0 0 rgba(74,222,128,0.5); } 50%{ box-shadow:0 0 0 6px rgba(74,222,128,0); } }
+            `}</style>
+
+            {/* Hero card */}
+            <div className="relative rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 45%,#0f172a 100%)', border:'1px solid rgba(59,130,246,0.3)' }}>
+              {/* Blurred circles decoration */}
+              <div style={{ position:'absolute', top:-40, right:-40, width:160, height:160, borderRadius:'50%', background:'rgba(59,130,246,0.18)', filter:'blur(40px)', pointerEvents:'none' }} />
+              <div style={{ position:'absolute', bottom:-30, left:-20, width:120, height:120, borderRadius:'50%', background:'rgba(245,158,11,0.15)', filter:'blur(35px)', pointerEvents:'none' }} />
+
+              <div className="relative flex flex-col items-center py-8 px-4 gap-3">
+                {/* Animated halo ring */}
+                <div style={{ position:'relative', width:96, height:96 }}>
+                  <svg width="96" height="96" viewBox="0 0 96 96" style={{ position:'absolute', top:0, left:0, animation:'kw-halo-spin 6s linear infinite' }}>
+                    <defs>
+                      <linearGradient id="kw-halo-g" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0" />
+                        <stop offset="40%" stopColor="#60a5fa" />
+                        <stop offset="80%" stopColor="#f59e0b" />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="48" cy="48" r="46" stroke="url(#kw-halo-g)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="80 210" />
+                  </svg>
+                  <div style={{ position:'absolute', inset:6, borderRadius:'50%', background:'rgba(15,23,42,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <WolfLogo size={68} />
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <h1 className="text-2xl font-black tracking-wide text-white">KingWolf</h1>
+                  <div className="flex items-center justify-center gap-2 mt-1">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background:'rgba(74,222,128,0.18)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', animation:'kw-badge-in 0.4s ease both' }}>
+                      v1.0.0 — {t('پایدار', 'Stable')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Info cards */}
+            <div className="rounded-2xl overflow-hidden" style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)', backdropFilter:'blur(12px)' }}>
+              {[
+                {
+                  label: t('توسعه‌دهنده', 'Developer'),
+                  value: 'Amirreveka',
+                  icon: <User size={15} style={{ color:'#3b82f6' }} />,
+                  bg: 'rgba(59,130,246,0.1)',
+                },
+                {
+                  label: t('وضعیت سیستم', 'System Status'),
+                  value: t('رمزنگاری‌شده و امن', 'Encrypted & Secure'),
+                  icon: <ShieldCheck size={15} style={{ color:'#4ade80' }} />,
+                  bg: 'rgba(74,222,128,0.1)',
+                  badge: true,
+                },
+                {
+                  label: t('نسخه', 'Version'),
+                  value: '1.0.0 (Build 1)',
+                  icon: <Info size={15} style={{ color:'#f59e0b' }} />,
+                  bg: 'rgba(245,158,11,0.1)',
+                },
+              ].map((row, idx, arr) => (
+                <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < arr.length-1 ? '1px solid var(--border-color)' : 'none' }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: row.bg }}>
+                    {row.icon}
+                  </div>
+                  <div className="flex-1 text-right">
+                    <p className="text-xs" style={{ color:'var(--text-muted)' }}>{row.label}</p>
+                    <p className="text-sm font-semibold" style={{ color:'var(--text-primary)' }}>{row.value}</p>
+                  </div>
+                  {row.badge && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0" style={{ animation:'kw-pulse-green 2s ease-in-out infinite' }} />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Features */}
+            <div className="rounded-2xl p-4 space-y-3" style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color:'var(--text-muted)' }}>{t('ویژگی‌ها', 'Features')}</p>
+              {[
+                { icon: <MessageCircle size={16} style={{ color:'#60a5fa' }} />, title: t('پیام‌رسانی آنی', 'Real-time Messaging'), desc: t('ارتباط فوری با WebSocket', 'Instant communication via WebSocket'), delay: '0ms' },
+                { icon: <ShieldCheck size={16} style={{ color:'#4ade80' }} />, title: t('ایزولاسیون انتها-به-انتها', 'End-to-end Isolation'), desc: t('امنیت کامل داده‌های شما', 'Complete security for your data'), delay: '80ms' },
+                { icon: <Server size={16} style={{ color:'#c084fc' }} />, title: t('هسته آماده داکر', 'Docker-ready Core'), desc: t('استقرار سریع روی هر سرور', 'Fast deployment on any server'), delay: '160ms' },
+                { icon: <Zap size={16} style={{ color:'#fbbf24' }} />, title: t('عملکرد بالا', 'High Performance'), desc: t('معماری سبک و واکنش‌گرا', 'Lightweight and responsive architecture'), delay: '240ms' },
+              ].map((feat, idx) => (
+                <div key={idx} className="flex items-center gap-3" style={{ animation:`kw-feat-in 0.35s ease both`, animationDelay: feat.delay }}>
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background:'var(--bg-input)' }}>
+                    {feat.icon}
+                  </div>
+                  <div className="flex-1 text-right">
+                    <p className="text-sm font-semibold" style={{ color:'var(--text-primary)' }}>{feat.title}</p>
+                    <p className="text-xs" style={{ color:'var(--text-muted)' }}>{feat.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Copyright */}
+            <p className="text-center text-xs" style={{ color:'var(--text-muted)' }}>
+              © 2025–2026 KingWolf · {t('ساخته‌شده با ❤️ توسط Amirreveka', 'Made with ❤️ by Amirreveka')}
+            </p>
           </div>
         )}
 

@@ -278,7 +278,6 @@ export function MessengerLayout() {
     { id: 'messages' as Page, label: fa ? 'پیام‌ها' : 'Messages', icon: MessageSquare },
     { id: 'calls'   as Page, label: fa ? 'تماس‌ها' : 'Calls',    icon: Phone },
     { id: 'feed'    as Page, label: fa ? 'توییت'    : 'Tweet',    icon: null /* uses TwitterBird */ },
-    { id: 'stories' as Page, label: fa ? 'استوری'   : 'Stories',  icon: null /* uses StoriesIcon */ },
     { id: 'settings'as Page, label: fa ? 'تنظیمات'  : 'Settings', icon: Settings },
   ];
 
@@ -378,6 +377,7 @@ export function MessengerLayout() {
             onCreateGroup={handleCreateGroup}
             onCreateChannel={handleCreateChannel}
             onSavedMessages={handleSavedMessages}
+            onOpenStories={() => setPage('stories')}
           />
         </div>
       )}

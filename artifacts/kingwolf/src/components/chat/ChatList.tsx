@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck, Camera } from 'lucide-react';
 import { Conversation, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,11 +13,211 @@ interface ChatListProps {
   onCreateGroup: (name: string, desc: string, members: string[]) => Promise<void>;
   onCreateChannel: (name: string, desc: string) => Promise<void>;
   onSavedMessages: () => void;
+  onOpenStories: () => void;
+}
+
+// ─── Telegram-style Stories Bar ───────────────────────────────────────────────
+interface StoryGroup {
+  author_id: string; username: string; display_name: string; avatar_url: string;
+  stories: Array<{ id: string; viewed: boolean }>;
+}
+
+function TelegramStoriesBar({ onOpen }: { onOpen: () => void }) {
+  const { user, profile } = useAuth();
+  const { language } = useTheme();
+  const fa = language === 'fa';
+  const [groups, setGroups] = useState<StoryGroup[]>([]);
+  const [pressed, setPressed] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('kingwolf_token');
+      const res = await fetch('/api/stories', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const { data } = await res.json();
+      setGroups((data as StoryGroup[]) || []);
+    } catch {}
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (groups.length === 0 && !user) return null;
+
+  const myGroup = user ? groups.find(g => g.author_id === user.id) : null;
+  const others = groups.filter(g => g.author_id !== user?.id);
+
+  const myInit = (profile?.display_name || profile?.username || '?').charAt(0).toUpperCase();
+  const myColor = `hsl(${(myInit.charCodeAt(0) * 17 + 100) % 360},55%,48%)`;
+
+  function StoryAvatar({ src, name, size }: { src?: string; name: string; size: number }) {
+    const init = (name || '?').charAt(0).toUpperCase();
+    const color = `hsl(${(init.charCodeAt(0) * 17 + 100) % 360},55%,48%)`;
+    return src
+      ? <img src={src} style={{ width: size, height: size, objectFit: 'cover' }} alt="" />
+      : <div style={{ width: size, height: size, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: size * 0.38 }}>{init}</div>;
+  }
+
+  function StoryCircle({ group, id }: { group: StoryGroup; id: string }) {
+    const allViewed = group.stories.every(s => s.viewed);
+    const isPressed = pressed === id;
+    const gradId = `tg-grad-${id.replace(/[^a-z0-9]/gi, '')}`;
+    return (
+      <button
+        onPointerDown={() => setPressed(id)}
+        onPointerUp={() => { setPressed(null); setTimeout(onOpen, 80); }}
+        onPointerLeave={() => setPressed(null)}
+        className="flex flex-col items-center gap-1 flex-shrink-0"
+        style={{
+          touchAction: 'manipulation',
+          transform: isPressed ? 'scale(0.88)' : 'scale(1)',
+          transition: 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1)',
+          outline: 'none',
+          background: 'transparent',
+          border: 'none',
+          padding: '4px 2px',
+          cursor: 'pointer',
+          minWidth: 52,
+        }}>
+        <div style={{ position: 'relative', width: 50, height: 50 }}>
+          {/* Gradient ring SVG */}
+          <svg width={50} height={50} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {!allViewed && (
+              <defs>
+                <linearGradient id={gradId} x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f09433" />
+                  <stop offset="33%" stopColor="#dc2743" />
+                  <stop offset="66%" stopColor="#cc2366" />
+                  <stop offset="100%" stopColor="#bc1888" />
+                </linearGradient>
+              </defs>
+            )}
+            <circle cx="25" cy="25" r="23"
+              fill="none"
+              stroke={allViewed ? 'rgba(128,128,128,0.35)' : `url(#${gradId})`}
+              strokeWidth={allViewed ? '1.5' : '2'}
+              strokeLinecap="round"
+              transform="rotate(-90 25 25)"
+            />
+          </svg>
+          {/* Avatar inside ring */}
+          <div style={{
+            position: 'absolute', inset: 3,
+            borderRadius: '50%', overflow: 'hidden',
+            border: '2px solid var(--bg-secondary)',
+          }}>
+            <StoryAvatar src={group.avatar_url} name={group.display_name || group.username} size={40} />
+          </div>
+          {/* Blue dot for unseen */}
+          {!allViewed && (
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 12, height: 12, borderRadius: '50%',
+              background: '#1d9bf0',
+              border: '2px solid var(--bg-secondary)',
+              animation: 'tg-dot-pulse 2s infinite',
+            }} />
+          )}
+        </div>
+        <span style={{
+          fontSize: 10, color: 'var(--text-muted)',
+          maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap', textAlign: 'center',
+          fontWeight: allViewed ? 400 : 600,
+          color: allViewed ? 'var(--text-muted)' : 'var(--text-primary)',
+        } as any}>
+          {group.display_name || group.username}
+        </span>
+      </button>
+    );
+  }
+
+  const myPressId = 'my-story';
+  const isMyPressed = pressed === myPressId;
+
+  return (
+    <>
+      <style>{`
+        @keyframes tg-dot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(0.85); }
+        }
+        @keyframes tg-ring-spin {
+          from { stroke-dashoffset: 144; }
+          to { stroke-dashoffset: 0; }
+        }
+      `}</style>
+      <div style={{
+        display: 'flex', overflowX: 'auto', padding: '4px 8px 8px',
+        borderBottom: '1px solid var(--border-color)',
+        scrollbarWidth: 'none', gap: 4,
+      }}>
+        {/* My story button */}
+        <button
+          onPointerDown={() => setPressed(myPressId)}
+          onPointerUp={() => { setPressed(null); setTimeout(onOpen, 80); }}
+          onPointerLeave={() => setPressed(null)}
+          className="flex flex-col items-center gap-1 flex-shrink-0"
+          style={{
+            touchAction: 'manipulation',
+            transform: isMyPressed ? 'scale(0.88)' : 'scale(1)',
+            transition: 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1)',
+            outline: 'none', background: 'transparent', border: 'none',
+            padding: '4px 2px', cursor: 'pointer', minWidth: 52,
+          }}>
+          <div style={{ position: 'relative', width: 50, height: 50 }}>
+            {myGroup ? (
+              <>
+                <svg width={50} height={50} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <defs>
+                    <linearGradient id="my-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#f09433" />
+                      <stop offset="100%" stopColor="#bc1888" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="25" cy="25" r="23" fill="none" stroke="url(#my-grad)"
+                    strokeWidth="2" strokeLinecap="round" transform="rotate(-90 25 25)" />
+                </svg>
+                <div style={{ position: 'absolute', inset: 3, borderRadius: '50%', overflow: 'hidden', border: '2px solid var(--bg-secondary)' }}>
+                  {profile?.avatar_url
+                    ? <img src={profile.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                    : <div style={{ width: '100%', height: '100%', background: myColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 15 }}>{myInit}</div>}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ position: 'absolute', inset: 3, borderRadius: '50%', overflow: 'hidden', border: '2px dashed rgba(128,128,128,0.4)' }}>
+                  <div style={{ width: '100%', height: '100%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Camera size={18} style={{ color: 'var(--text-muted)' }} />
+                  </div>
+                </div>
+              </>
+            )}
+            {/* Plus badge */}
+            <div style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 16, height: 16, borderRadius: '50%',
+              background: '#1d9bf0',
+              border: '2px solid var(--bg-secondary)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, color: 'white', fontWeight: 700, lineHeight: 1,
+            }}>+</div>
+          </div>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', maxWidth: 50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
+            {fa ? 'استوری من' : 'My Story'}
+          </span>
+        </button>
+
+        {/* Others' story circles */}
+        {others.map(group => (
+          <StoryCircle key={group.author_id} group={group} id={group.author_id} />
+        ))}
+      </div>
+    </>
+  );
 }
 
 type Tab = 'direct' | 'groups' | 'channels';
 
-export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, onCreateChannel, onSavedMessages }: ChatListProps) {
+export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, onCreateChannel, onSavedMessages, onOpenStories }: ChatListProps) {
   const { user } = useAuth();
   const { language, t } = useTheme();
   const fa = language === 'fa';
@@ -239,8 +439,13 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             ))}
           </div>
         )}
-        {!globalSearch && <div className="mb-3" />}
+        {!globalSearch && <div className="mb-2" />}
+      </div>
 
+      {/* ── Telegram-style Stories Bar (between search and tabs) ── */}
+      {!globalSearch && <TelegramStoriesBar onOpen={onOpenStories} />}
+
+      <div className="px-3 pb-2 flex-shrink-0">
         {/* Tabs */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-input)' }}>
           {tabs.map((t) => (

@@ -615,7 +615,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     </div>
                   )}
                   <div
-                    className={`max-w-[72%] rounded-2xl px-3 py-2 cursor-pointer select-text ${isOwn ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
+                    className={`max-w-[72%] rounded-2xl px-3 py-2 cursor-pointer select-text kw-bubble-in ${isOwn ? 'rounded-br-sm' : 'rounded-bl-sm'}`}
                     style={{
                       background: isOwn ? 'var(--msg-own-bg)' : 'var(--msg-other-bg)',
                       color: isOwn ? 'var(--msg-own-text)' : 'var(--msg-other-text)',

@@ -86,36 +86,36 @@ function BackupTab() {
   }
 
   return (
-    <div className="p-6 space-y-4 max-w-lg">
-      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+    <div className="p-5 space-y-4 max-w-lg kw-tab-in">
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(34,197,94,0.15)', backdropFilter: 'blur(12px)' }}>
         <h2 className="text-sm font-bold text-white flex items-center gap-2"><Download size={16} className="text-green-400" />دریافت بکاپ</h2>
-        <p className="text-xs text-gray-500">یک فایل JSON شامل تمام پیام‌ها، کاربران، و محتوا دریافت کنید.</p>
+        <p className="text-xs text-gray-400">یک فایل JSON شامل تمام پیام‌ها، کاربران، و محتوا دریافت کنید.</p>
         <button onClick={downloadBackup} disabled={loading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-colors"
-          style={{ background: '#1a7f37' }}>
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-all kw-btn-press"
+          style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', boxShadow: '0 4px 16px rgba(34,197,94,0.2)' }}>
           {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Download size={16} />}
           دریافت فایل بکاپ
         </button>
       </div>
 
-      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)' }}>
         <h2 className="text-sm font-bold text-white flex items-center gap-2"><Upload size={16} className="text-blue-400" />بارگذاری بکاپ</h2>
-        <p className="text-xs text-gray-500">فایل بکاپ JSON را بارگذاری کنید. اطلاعات تکراری نادیده گرفته می‌شوند.</p>
+        <p className="text-xs text-gray-400">فایل بکاپ JSON را بارگذاری کنید. اطلاعات تکراری نادیده گرفته می‌شوند.</p>
         <input ref={fileRef} type="file" accept=".json" onChange={handleRestore} className="hidden" />
         <button onClick={() => fileRef.current?.click()} disabled={restoreLoading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
-          style={{ background: '#1d3461', color: '#60a5fa' }}>
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-blue-300 transition-all kw-btn-press"
+          style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)' }}>
           {restoreLoading ? <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /> : <Upload size={16} />}
           انتخاب فایل بکاپ
         </button>
       </div>
 
-      <div className="rounded-2xl p-5 border border-red-900/40 space-y-4" style={{ background: '#0d1117' }}>
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(239,68,68,0.2)', backdropFilter: 'blur(12px)' }}>
         <h2 className="text-sm font-bold text-red-400 flex items-center gap-2"><AlertTriangle size={16} />حذف کل داده‌ها</h2>
-        <p className="text-xs text-gray-500">تمام پیام‌ها، کاربران غیرادمین، گروه‌ها، و کانال‌ها پاک می‌شوند. حساب ادمین باقی می‌ماند.</p>
+        <p className="text-xs text-gray-400">تمام پیام‌ها، کاربران غیرادمین، گروه‌ها، و کانال‌ها پاک می‌شوند. حساب ادمین باقی می‌ماند.</p>
         <button onClick={resetAll} disabled={resetLoading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 transition-colors"
-          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 transition-all kw-btn-press"
+          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
           {resetLoading ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={16} />}
           حذف همه داده‌ها
         </button>
@@ -142,14 +142,14 @@ function BotTab() {
   }
 
   return (
-    <div className="p-6 space-y-4 max-w-lg">
-      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+    <div className="p-5 space-y-4 max-w-lg kw-tab-in">
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(192,132,252,0.15)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2">
           <Bot size={18} className="text-purple-400" />
           <h2 className="text-sm font-bold text-white">اتصال بات</h2>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">زیرساخت آماده</span>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(167,139,250,0.15)', color: '#a78bfa' }}>زیرساخت آماده</span>
         </div>
-        <p className="text-xs text-gray-500">اطلاعات بات را وارد کنید. بات در مراحل بعدی فعال می‌شود.</p>
+        <p className="text-xs text-gray-400">اطلاعات بات را وارد کنید. بات در مراحل بعدی فعال می‌شود.</p>
 
         {[
           { label: 'توکن API بات', key: 'token', placeholder: 'bot_token_here', type: 'password' },
@@ -476,32 +476,39 @@ export function AdminPanel() {
 
   if (!loggedIn) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#030712' }} dir="rtl">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-6">
-            <WolfLogo size={56} className="mx-auto mb-3" />
-            <div className="flex items-center justify-center gap-2">
-              <Shield size={16} className="text-red-400" />
-              <h1 className="text-xl font-bold text-white">پنل مدیریت</h1>
+      <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(30,10,60,0.8) 0%, #030712 60%), radial-gradient(ellipse at 70% 80%, rgba(10,20,50,0.7) 0%, transparent 60%)' }} dir="rtl">
+        {/* Ambient background blobs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, rgba(139,92,246,1), transparent)', filter: 'blur(80px)', pointerEvents: 'none' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 rounded-full opacity-8" style={{ background: 'radial-gradient(circle, rgba(59,130,246,1), transparent)', filter: 'blur(80px)', pointerEvents: 'none' }} />
+
+        <div className="w-full max-w-sm kw-modal-in">
+          <div className="text-center mb-8">
+            <div className="relative inline-block mb-4">
+              <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.3), transparent)', filter: 'blur(20px)', transform: 'scale(1.5)' }} />
+              <WolfLogo size={64} className="relative" />
             </div>
-            <p className="text-sm text-gray-500 mt-1">دسترسی محدود — مدیران مجاز</p>
+            <h1 className="text-2xl font-bold text-white mb-1">پنل مدیریت</h1>
+            <p className="text-sm" style={{ color: 'rgba(156,163,175,0.7)' }}>دسترسی محدود — فقط مدیران مجاز</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-3 bg-gray-900 rounded-2xl p-6 border border-gray-800">
+          <form onSubmit={handleLogin} className="space-y-3 rounded-2xl p-6" style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <input
               value={username} onChange={e => setUsername(e.target.value)} placeholder="نام کاربری"
-              className="w-full px-4 py-3 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+              className="w-full px-4 py-3 text-white rounded-xl text-sm kw-glass-input"
+              style={{ background: 'rgba(31,41,55,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}
             />
             <div className="relative">
               <input
                 type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="رمز عبور"
-                className="w-full px-4 py-3 pl-10 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                className="w-full px-4 py-3 pl-10 text-white rounded-xl text-sm kw-glass-input"
+                style={{ background: 'rgba(31,41,55,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}
               />
-              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+              <button type="button" onClick={() => setShowPw(!showPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
                 {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {error && <p className="text-xs text-red-400">{error}</p>}
-            <button type="submit" disabled={loading} className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+            {error && <p className="text-xs text-red-400 px-1">{error}</p>}
+            <button type="submit" disabled={loading} className="w-full py-3 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 kw-btn-press transition-all"
+              style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 4px 20px rgba(239,68,68,0.3)' }}>
               {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <LogIn size={16} />}
               ورود به پنل
             </button>
@@ -511,84 +518,165 @@ export function AdminPanel() {
     );
   }
 
+  const navItems: { id: AdminTab; label: string; icon: any; color: string; accent: string }[] = [
+    { id: 'dashboard', label: 'داشبورد',         icon: BarChart2,  color: '#60a5fa', accent: 'rgba(59,130,246,0.15)' },
+    { id: 'users',     label: 'کاربران',          icon: Users,      color: '#34d399', accent: 'rgba(52,211,153,0.15)' },
+    { id: 'content',   label: 'مدیریت محتوا',    icon: Newspaper,  color: '#a78bfa', accent: 'rgba(167,139,250,0.15)' },
+    { id: 'reports',   label: 'گزارش‌های تخلف',  icon: Flag,       color: '#f87171', accent: 'rgba(248,113,113,0.15)' },
+    { id: 'settings',  label: 'تنظیمات',          icon: Settings,   color: '#fbbf24', accent: 'rgba(251,191,36,0.15)' },
+    { id: 'status',    label: 'وضعیت سیستم',      icon: Server,     color: '#4ade80', accent: 'rgba(74,222,128,0.15)' },
+    { id: 'backup',    label: 'بکاپ',             icon: Download,   color: '#38bdf8', accent: 'rgba(56,189,248,0.15)' },
+    { id: 'bot',       label: 'بات',              icon: Bot,        color: '#c084fc', accent: 'rgba(192,132,252,0.15)' },
+  ];
+
   return (
-    <div className="min-h-screen flex" style={{ background: '#030712' }} dir="rtl">
+    <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
       {/* Sidebar */}
-      <div className="w-16 md:w-64 flex-shrink-0 flex flex-col border-r border-gray-800" style={{ background: '#0a0f1a' }}>
-        <div className="p-4 border-b border-gray-800 flex items-center gap-2">
-          <WolfLogo size={28} />
-          <span className="hidden md:block text-sm font-bold text-white">پنل مدیر</span>
+      <div className="w-16 md:w-64 flex-shrink-0 flex flex-col relative" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+        {/* Top glow line */}
+        <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)' }} />
+
+        <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
+          <div className="relative flex-shrink-0">
+            <div className="absolute inset-0 rounded-full" style={{ background: 'rgba(239,68,68,0.2)', filter: 'blur(8px)' }} />
+            <WolfLogo size={30} className="relative" />
+          </div>
+          <div className="hidden md:block">
+            <span className="text-sm font-bold text-white">KingWolf</span>
+            <p className="text-xs" style={{ color: 'rgba(99,102,241,0.9)' }}>پنل مدیریت</p>
+          </div>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {([
-            { id: 'dashboard', label: 'داشبورد', icon: BarChart2 },
-            { id: 'users',     label: 'کاربران', icon: Users },
-            { id: 'content',   label: 'مدیریت محتوا', icon: Newspaper },
-            { id: 'reports',   label: 'گزارش‌های تخلف', icon: Flag },
-            { id: 'settings',  label: 'تنظیمات', icon: Settings },
-            { id: 'status',    label: 'وضعیت سیستم', icon: Server },
-            { id: 'backup',    label: 'بکاپ', icon: Download },
-            { id: 'bot',       label: 'بات', icon: Bot },
-          ] as { id: AdminTab; label: string; icon: any }[]).map(item => (
-            <button
-              key={item.id} onClick={() => setTab(item.id)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-colors"
-              style={{ background: tab === item.id ? 'rgba(239,68,68,0.1)' : 'transparent', color: tab === item.id ? '#f87171' : '#6b7280' }}
-            >
-              <item.icon size={18} className="flex-shrink-0" />
-              <span className="hidden md:block text-sm">{item.label}</span>
-            </button>
-          ))}
+
+        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+          {navItems.map(item => {
+            const isActive = tab === item.id;
+            return (
+              <button
+                key={item.id} onClick={() => setTab(item.id)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all kw-btn-press"
+                style={{
+                  background: isActive ? item.accent : 'transparent',
+                  color: isActive ? item.color : 'rgba(107,114,128,1)',
+                  boxShadow: isActive ? `0 0 12px ${item.accent}` : 'none',
+                }}
+              >
+                <item.icon size={17} className="flex-shrink-0" style={{ color: isActive ? item.color : undefined }} />
+                <span className="hidden md:block text-sm font-medium">{item.label}</span>
+                {isActive && <div className="hidden md:block mr-auto w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />}
+              </button>
+            );
+          })}
         </nav>
-        <div className="p-2 border-t border-gray-800">
-          <button onClick={() => setLoggedIn(false)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-600 hover:text-red-400 transition-colors">
-            <LogIn size={18} className="rotate-180 flex-shrink-0" />
-            <span className="hidden md:block text-sm">خروج</span>
+
+        <div className="p-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          <button onClick={() => setLoggedIn(false)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors kw-btn-press" style={{ color: 'rgba(107,114,128,1)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'rgba(107,114,128,1)'; e.currentTarget.style.background = 'transparent'; }}>
+            <LogIn size={17} className="rotate-180 flex-shrink-0" />
+            <span className="hidden md:block text-sm font-medium">خروج</span>
           </button>
         </div>
       </div>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-800 flex items-center gap-3" style={{ background: '#0a0f1a', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
-          <h1 className="text-base font-bold text-white flex-1">{tabTitle[tab]}</h1>
-          <button
-            onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); if (tab === 'reports') { if (reportsSubTab === 'chat') loadChatReports(); else if (reportsSubTab === 'feed') loadFeedReports(); else loadLoginAttempts(); } }}
-            className="p-2 rounded-xl text-gray-500 hover:text-gray-300"
-          >
-            <RefreshCw size={16} />
-          </button>
+        {/* Header */}
+        <div className="flex-shrink-0 px-6 py-4 flex items-center gap-3" style={{ background: 'rgba(5,10,25,0.8)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
+          <div className="flex items-center gap-2 flex-1">
+            {(() => { const nav = navItems.find(n => n.id === tab); const Icon = nav?.icon; return Icon ? <Icon size={18} style={{ color: nav?.color }} /> : null; })()}
+            <h1 className="text-base font-bold text-white">{tabTitle[tab]}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs" style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              آنلاین
+            </div>
+            <button
+              onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); if (tab === 'reports') { if (reportsSubTab === 'chat') loadChatReports(); else if (reportsSubTab === 'feed') loadFeedReports(); else loadLoginAttempts(); } }}
+              className="p-2 rounded-xl transition-colors kw-btn-press" style={{ color: 'rgba(107,114,128,1)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(107,114,128,1)'; e.currentTarget.style.background = 'transparent'; }}
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
 
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="space-y-5 kw-tab-in">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 kw-stagger">
                 {[
-                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,   color: '#3b82f6', icon: '👤' },
-                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,  color: '#10b981', icon: '✅' },
-                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,             color: '#4ade80', icon: '🟢' },
-                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending, color: '#f59e0b', icon: '⏳' },
-                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,  color: '#ef4444', icon: '🚫' },
-                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#8b5cf6', icon: '📝' },
-                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,            color: '#06b6d4', icon: '💬' },
-                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,             color: '#f97316', icon: '🚨' },
+                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',   Icon: Users },
+                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', bg: 'rgba(52,211,153,0.12)',   Icon: CheckCircle2 },
+                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,                   color: '#4ade80', bg: 'rgba(74,222,128,0.12)',   Icon: Activity },
+                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending,        color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   Icon: UserPlus },
+                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,         color: '#f87171', bg: 'rgba(239,68,68,0.12)',    Icon: Ban },
+                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  Icon: Newspaper },
+                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,                  color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',   Icon: MessageSquare },
+                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', bg: 'rgba(249,115,22,0.12)',   Icon: Flag },
                 ].map(s => (
-                  <div key={s.label} className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                    <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><span>{s.icon}</span>{s.label}</p>
-                    <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                  <div key={s.label} className="rounded-2xl p-4 kw-stat-pop cursor-default" style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 32px ${s.color}25`; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs font-medium" style={{ color: 'rgba(156,163,175,0.8)' }}>{s.label}</p>
+                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: s.bg }}>
+                        <s.Icon size={14} style={{ color: s.color }} />
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold kw-count-in" style={{ color: s.color }}>{s.value}</p>
                   </div>
                 ))}
               </div>
-              <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                <h3 className="text-sm font-semibold text-white mb-3">کاربران اخیر</h3>
-                <div className="space-y-2">
+
+              {/* Live activity bar */}
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Activity size={15} className="text-green-400" />
+                  <h3 className="text-sm font-semibold text-white">فعالیت زنده</h3>
+                  <span className="mr-auto text-xs flex items-center gap-1" style={{ color: '#4ade80' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    هر ۱۵ ثانیه
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'نرخ تأیید کاربران', value: stats.total ? Math.round((stats.active / stats.total) * 100) : 0, color: '#34d399' },
+                    { label: 'نرخ اشغال', value: liveStats.onlineUsers && stats.active ? Math.min(100, Math.round((liveStats.onlineUsers / stats.active) * 100)) : 0, color: '#60a5fa' },
+                  ].map(bar => (
+                    <div key={bar.label}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-gray-400">{bar.label}</span>
+                        <span className="text-xs font-bold" style={{ color: bar.color }}>{bar.value}%</span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${bar.value}%`, background: `linear-gradient(90deg, ${bar.color}80, ${bar.color})` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+                <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <Users size={14} className="text-blue-400" />
+                  <h3 className="text-sm font-semibold text-white">کاربران اخیر</h3>
+                </div>
+                <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
                   {users.slice(0, 8).map(u => (
-                    <div key={u.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:opacity-80" onClick={() => setSelectedUser(u)}>
+                    <div key={u.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors kw-chat-item" onClick={() => setSelectedUser(u)}
+                      style={{ transition: 'background 0.15s ease' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
+                        : <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
+                      }
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${u.is_banned ? 'bg-red-500' : u.is_approved ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                      <span className="text-sm text-gray-300 flex-1">@{u.username}</span>
+                      <span className="text-sm text-gray-200 flex-1">@{u.username}</span>
                       {(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400" />}
                       <span className="text-xs text-gray-600">{new Date(u.created_at).toLocaleDateString('fa-IR')}</span>
                     </div>
@@ -600,14 +688,16 @@ export function AdminPanel() {
 
           {/* ── USERS ── */}
           {tab === 'users' && (
-            <div className="space-y-2">
-              <p className="text-xs text-gray-600 mb-3">روی هر کاربر کلیک کنید تا اطلاعات کامل ببینید</p>
+            <div className="space-y-2 kw-tab-in">
+              <p className="text-xs mb-3" style={{ color: 'rgba(107,114,128,0.8)' }}>روی هر کاربر کلیک کنید تا اطلاعات کامل ببینید</p>
               {users.map(u => (
                 <div
                   key={u.id}
                   onClick={() => setSelectedUser(u)}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-800 cursor-pointer hover:border-gray-600 transition-colors"
-                  style={{ background: '#111827' }}
+                  className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                  style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(25,35,65,0.8)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.7)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'; }}
                 >
                   {u.avatar_url
                     ? <img src={u.avatar_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
@@ -674,15 +764,15 @@ export function AdminPanel() {
 
           {/* ── CONTENT ── */}
           {tab === 'content' && (
-            <div className="space-y-4">
+            <div className="space-y-4 kw-tab-in">
               {/* Stats bar */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                  <p className="text-xs text-gray-500 mb-1">کل پست‌های فعال</p>
+                <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', backdropFilter: 'blur(12px)' }}>
+                  <p className="text-xs mb-1" style={{ color: 'rgba(167,139,250,0.7)' }}>کل پست‌های فعال</p>
                   <p className="text-2xl font-bold text-purple-400">{feedPosts.length}</p>
                 </div>
-                <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                  <p className="text-xs text-gray-500 mb-1">پست‌های سنجاق‌شده</p>
+                <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', backdropFilter: 'blur(12px)' }}>
+                  <p className="text-xs mb-1" style={{ color: 'rgba(251,191,36,0.7)' }}>پست‌های سنجاق‌شده</p>
                   <p className="text-2xl font-bold text-yellow-400">{feedPosts.filter(p => p.is_pinned === 1).length}</p>
                 </div>
               </div>
@@ -693,8 +783,8 @@ export function AdminPanel() {
                 </div>
               )}
 
-              <div className="rounded-2xl border border-gray-800 overflow-hidden" style={{ background: '#111827' }}>
-                <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div className="flex items-center gap-2">
                     <Newspaper size={15} className="text-purple-400" />
                     <h3 className="text-sm font-semibold text-white">پست‌های فید</h3>
@@ -759,8 +849,8 @@ export function AdminPanel() {
 
           {/* ── SETTINGS ── */}
           {tab === 'settings' && (
-            <div className="space-y-4">
-              <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
+            <div className="space-y-4 kw-tab-in">
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
                 <h3 className="text-sm font-semibold text-white mb-4">تنظیمات برنامه</h3>
                 <div className="space-y-3">
                   {/* App name */}
@@ -770,7 +860,7 @@ export function AdminPanel() {
                       value={appSettings.app_name || 'KingWolf'}
                       onChange={e => setAppSettings(p => ({ ...p, app_name: e.target.value }))}
                       onBlur={e => saveSetting('app_name', e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -782,7 +872,7 @@ export function AdminPanel() {
                       onChange={e => setAppSettings(p => ({ ...p, welcome_message: e.target.value }))}
                       onBlur={e => saveSetting('welcome_message', e.target.value)}
                       placeholder="به KingWolf خوش آمدید!"
-                      className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -795,7 +885,7 @@ export function AdminPanel() {
                       onChange={e => setAppSettings(p => ({ ...p, max_post_length: e.target.value }))}
                       onBlur={e => saveSetting('max_post_length', e.target.value)}
                       min={50} max={5000}
-                      className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -848,7 +938,7 @@ export function AdminPanel() {
                 </div>
               </div>
 
-              <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(239,68,68,0.15)', backdropFilter: 'blur(12px)' }}>
                 <div className="flex items-center gap-2 mb-4">
                   <Lock size={16} className="text-red-400" />
                   <h3 className="text-sm font-semibold text-white">تغییر رمز مدیر</h3>
@@ -858,7 +948,7 @@ export function AdminPanel() {
                     <input
                       type={showNewPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)}
                       placeholder="رمز جدید (حداقل ۶ کاراکتر)"
-                      className="w-full px-3 py-2.5 pl-10 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                      className="w-full px-3 py-2.5 pl-10 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                     <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                       {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -867,11 +957,12 @@ export function AdminPanel() {
                   <input
                     type={showNewPw ? 'text' : 'password'} value={newPw2} onChange={e => setNewPw2(e.target.value)}
                     placeholder="تکرار رمز جدید"
-                    className="w-full px-3 py-2.5 bg-gray-800 text-white rounded-xl text-sm outline-none border border-gray-700"
+                    className="w-full px-3 py-2.5 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                   />
                   {pwErr && <p className="text-xs text-red-400">{pwErr}</p>}
                   {pwMsg && <p className="text-xs text-green-400">{pwMsg}</p>}
-                  <button type="submit" disabled={pwLoading} className="w-full py-2.5 bg-red-700 hover:bg-red-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                  <button type="submit" disabled={pwLoading} className="w-full py-2.5 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 kw-btn-press transition-all"
+                    style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 4px 16px rgba(239,68,68,0.25)' }}>
                     {pwLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Key size={14} />}
                     تغییر رمز
                   </button>
@@ -882,7 +973,7 @@ export function AdminPanel() {
 
           {/* ── REPORTS ── */}
           {tab === 'reports' && (
-            <div className="space-y-4">
+            <div className="space-y-4 kw-tab-in">
               {/* Sub-tabs */}
               <div className="flex gap-2 flex-wrap">
                 <button onClick={() => { setReportsSubTab('chat'); if (chatReports.length === 0) loadChatReports(); }}
@@ -1092,11 +1183,11 @@ export function AdminPanel() {
 
       {/* ── USER DETAIL MODAL ── */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setSelectedUser(null)}>
-          <div className="w-full max-w-md rounded-2xl border border-gray-700 overflow-hidden" style={{ background: '#0d1117' }} onClick={e => e.stopPropagation()} dir="rtl">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }} onClick={() => setSelectedUser(null)}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden kw-modal-in" style={{ background: 'rgba(8,15,35,0.97)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>
               <h2 className="text-sm font-bold text-white">اطلاعات کاربر</h2>
-              <button onClick={() => setSelectedUser(null)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelectedUser(null)} className="text-gray-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Avatar + name */}
@@ -1214,8 +1305,8 @@ export function AdminPanel() {
 
       {/* ── RESET PASSWORD MODAL (standalone) ── */}
       {resetPwTarget && !selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setResetPwTarget(null)}>
-          <div className="w-80 rounded-2xl border border-gray-700 p-5" style={{ background: '#0d1117' }} onClick={e => e.stopPropagation()} dir="rtl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }} onClick={() => setResetPwTarget(null)}>
+          <div className="w-80 rounded-2xl p-5 kw-modal-in" style={{ background: 'rgba(8,15,35,0.97)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} dir="rtl">
             <h2 className="text-sm font-bold text-white mb-3">تغییر رمز @{resetPwTarget.username}</h2>
             <form onSubmit={handleResetPassword} className="space-y-2">
               <input type="text" value={resetPwValue} onChange={e => setResetPwValue(e.target.value)} placeholder="رمز جدید"
@@ -1267,80 +1358,96 @@ function StatusTab() {
     { name: 'admin_access',         label: 'دسترسی ادمین' },
   ];
 
+  const cpuPct = metrics?.cpu?.percent ?? 0;
+  const ramPct = metrics?.memory?.percentUsed ?? 0;
+  const cpuColor = cpuPct > 80 ? '#ef4444' : cpuPct > 50 ? '#f59e0b' : '#4ade80';
+  const ramColor = ramPct > 80 ? '#ef4444' : '#a78bfa';
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 kw-tab-in">
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {/* CPU */}
-      <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Cpu size={15} className="text-green-400" />
-          <h3 className="text-sm font-semibold text-white">پردازنده (CPU)</h3>
-          <span className="mr-auto text-xs text-gray-600 animate-pulse">● زنده</span>
+      {/* CPU + RAM side by side */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* CPU Ring */}
+        <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${cpuColor}25`, backdropFilter: 'blur(12px)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Cpu size={14} style={{ color: cpuColor }} />
+            <h3 className="text-xs font-semibold text-white">CPU</h3>
+            <span className="mr-auto text-xs animate-pulse" style={{ color: '#4ade80' }}>● زنده</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <svg width="56" height="56" viewBox="0 0 56 56" className="flex-shrink-0">
+              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke={cpuColor} strokeWidth="5"
+                strokeDasharray={`${(cpuPct / 100) * 138.2} 138.2`}
+                strokeLinecap="round"
+                transform="rotate(-90 28 28)"
+                style={{ transition: 'stroke-dasharray 0.7s ease' }} />
+              <text x="28" y="33" textAnchor="middle" fontSize="11" fontWeight="bold" fill={cpuColor}>{cpuPct}%</text>
+            </svg>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: cpuColor }}>{cpuPct}%</p>
+              <p className="text-xs text-gray-500">{metrics?.cpu?.count ?? '—'} هسته</p>
+              {metrics?.cpu?.loadAvg && <p className="text-xs text-gray-600 mt-1">بار: {metrics.cpu.loadAvg.map((v: number) => v.toFixed(1)).join(' / ')}</p>}
+            </div>
+          </div>
         </div>
-        <div className="flex items-end gap-3 mb-2">
-          <span className="text-3xl font-bold text-green-400">{metrics?.cpu?.percent ?? '—'}%</span>
-          <span className="text-xs text-gray-500 mb-1">{metrics?.cpu?.count} هسته</span>
-        </div>
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${metrics?.cpu?.percent ?? 0}%`, background: (metrics?.cpu?.percent ?? 0) > 80 ? '#ef4444' : (metrics?.cpu?.percent ?? 0) > 50 ? '#f59e0b' : '#4ade80' }} />
-        </div>
-        {metrics?.cpu?.loadAvg && (
-          <p className="text-xs text-gray-600 mt-2">بار: {metrics.cpu.loadAvg.map((v: number) => v.toFixed(2)).join(' / ')}</p>
-        )}
-      </div>
 
-      {/* Memory */}
-      <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-        <div className="flex items-center gap-2 mb-3">
-          <HardDrive size={15} className="text-purple-400" />
-          <h3 className="text-sm font-semibold text-white">حافظه (RAM)</h3>
+        {/* RAM Ring */}
+        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: 'rgba(15,23,42,0.8)', border: `1px solid ${ramColor}25`, backdropFilter: 'blur(12px)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <HardDrive size={14} style={{ color: ramColor }} />
+            <h3 className="text-xs font-semibold text-white">RAM</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <svg width="56" height="56" viewBox="0 0 56 56" className="flex-shrink-0">
+              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+              <circle cx="28" cy="28" r="22" fill="none" stroke={ramColor} strokeWidth="5"
+                strokeDasharray={`${(ramPct / 100) * 138.2} 138.2`}
+                strokeLinecap="round"
+                transform="rotate(-90 28 28)"
+                style={{ transition: 'stroke-dasharray 0.7s ease' }} />
+              <text x="28" y="33" textAnchor="middle" fontSize="11" fontWeight="bold" fill={ramColor}>{ramPct}%</text>
+            </svg>
+            <div>
+              <p className="text-2xl font-bold" style={{ color: ramColor }}>{ramPct}%</p>
+              {metrics && <p className="text-xs text-gray-500">{fmtBytes(metrics.memory.used)} / {fmtBytes(metrics.memory.total)}</p>}
+              {metrics?.process && <p className="text-xs text-gray-600 mt-1">Node RSS: {fmtBytes(metrics.process.rss)}</p>}
+            </div>
+          </div>
         </div>
-        <div className="flex items-end gap-3 mb-2">
-          <span className="text-3xl font-bold text-purple-400">{metrics?.memory?.percentUsed ?? '—'}%</span>
-          <span className="text-xs text-gray-500 mb-1">
-            {metrics ? `${fmtBytes(metrics.memory.used)} / ${fmtBytes(metrics.memory.total)}` : '—'}
-          </span>
-        </div>
-        <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${metrics?.memory?.percentUsed ?? 0}%`, background: (metrics?.memory?.percentUsed ?? 0) > 80 ? '#ef4444' : '#a78bfa' }} />
-        </div>
-        {metrics?.process && (
-          <p className="text-xs text-gray-600 mt-2">فرآیند Node: {fmtBytes(metrics.process.rss)} RSS</p>
-        )}
       </div>
 
       {/* Uptime */}
-      <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(59,130,246,0.15)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2 mb-3">
           <Activity size={15} className="text-blue-400" />
           <h3 className="text-sm font-semibold text-white">زمان کارکرد</h3>
         </div>
         <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="px-3 py-2 rounded-lg" style={{ background: '#0d1117' }}>
-            <p className="text-gray-500 mb-0.5">سرور (Node.js)</p>
-            <p className="text-blue-300 font-mono">{metrics ? fmtUptime(metrics.process.uptimeSeconds) : '—'}</p>
-          </div>
-          <div className="px-3 py-2 rounded-lg" style={{ background: '#0d1117' }}>
-            <p className="text-gray-500 mb-0.5">سیستم</p>
-            <p className="text-blue-300 font-mono">{metrics ? fmtUptime(metrics.system.uptimeSeconds) : '—'}</p>
-          </div>
-          <div className="px-3 py-2 rounded-lg" style={{ background: '#0d1117' }}>
-            <p className="text-gray-500 mb-0.5">پلتفرم</p>
-            <p className="text-gray-300">{metrics?.system?.platform ?? '—'} / {metrics?.system?.arch ?? '—'}</p>
-          </div>
+          {[
+            { label: 'سرور (Node.js)', value: metrics ? fmtUptime(metrics.process.uptimeSeconds) : '—', color: '#60a5fa' },
+            { label: 'سیستم', value: metrics ? fmtUptime(metrics.system.uptimeSeconds) : '—', color: '#60a5fa' },
+            { label: 'پلتفرم', value: metrics ? `${metrics.system.platform} / ${metrics.system.arch}` : '—', color: '#9ca3af' },
+          ].map(row => (
+            <div key={row.label} className="px-3 py-2.5 rounded-xl" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <p className="text-gray-500 mb-1">{row.label}</p>
+              <p className="font-mono font-medium" style={{ color: row.color }}>{row.value}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* DB stats */}
-      <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(251,191,36,0.15)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2 mb-3">
           <Server size={15} className="text-yellow-400" />
           <h3 className="text-sm font-semibold text-white">آمار پایگاه داده</h3>
         </div>
         <div className="grid grid-cols-2 gap-2">
           {tables.map(t => (
-            <div key={t.name} className="flex items-center justify-between py-1.5 px-3 rounded-lg" style={{ background: '#0d1117' }}>
+            <div key={t.name} className="flex items-center justify-between py-1.5 px-3 rounded-xl" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(255,255,255,0.04)' }}>
               <span className="text-xs text-gray-400">{t.label}</span>
               <span className="text-xs font-bold text-yellow-400">{metrics?.db?.[t.name] ?? '—'}</span>
             </div>
@@ -1349,24 +1456,22 @@ function StatusTab() {
       </div>
 
       {/* Admin info */}
-      <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
+      <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(239,68,68,0.12)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2 mb-3">
           <Shield size={15} className="text-red-400" />
           <h3 className="text-sm font-semibold text-white">اطلاعات پیش‌فرض</h3>
         </div>
         <div className="space-y-2 text-xs">
-          <div className="flex items-center justify-between py-1.5 px-3 rounded-lg" style={{ background: '#0d1117' }}>
-            <span className="text-gray-500">نام کاربری ادمین</span>
-            <span className="font-mono text-yellow-400">admin</span>
-          </div>
-          <div className="flex items-center justify-between py-1.5 px-3 rounded-lg" style={{ background: '#0d1117' }}>
-            <span className="text-gray-500">رمز پیش‌فرض ادمین</span>
-            <span className="font-mono text-yellow-400">admin1234</span>
-          </div>
-          <div className="flex items-center justify-between py-1.5 px-3 rounded-lg" style={{ background: '#0d1117' }}>
-            <span className="text-gray-500">رمز کاربران دمو</span>
-            <span className="font-mono text-yellow-400">wolf1234</span>
-          </div>
+          {[
+            { label: 'نام کاربری ادمین', value: 'admin' },
+            { label: 'رمز پیش‌فرض ادمین', value: 'admin1234' },
+            { label: 'رمز کاربران دمو', value: 'wolf1234' },
+          ].map(row => (
+            <div key={row.label} className="flex items-center justify-between py-1.5 px-3 rounded-xl" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(255,255,255,0.04)' }}>
+              <span className="text-gray-500">{row.label}</span>
+              <span className="font-mono text-yellow-400">{row.value}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

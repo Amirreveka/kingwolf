@@ -507,9 +507,11 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             <button
               key={c.id}
               onClick={() => onSelect(c.id)}
-              className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 transition-all text-right"
+              className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-right kw-chat-item animate-fadeIn"
               style={{
                 background: selectedId === c.id ? 'var(--bg-active)' : 'transparent',
+                transition: 'background 0.15s ease, transform 0.12s ease',
+                borderRight: selectedId === c.id ? '2px solid var(--accent)' : '2px solid transparent',
               }}
               onMouseEnter={(e) => { if (selectedId !== c.id) e.currentTarget.style.background = 'var(--bg-hover)'; }}
               onMouseLeave={(e) => { if (selectedId !== c.id) e.currentTarget.style.background = 'transparent'; }}

@@ -424,23 +424,25 @@ export function MessengerLayout() {
           </div>
         )}
 
-        {page === 'messages' ? (
-          <ChatWindow
-            conversation={selectedConv}
-            conversations={conversations}
-            onBack={() => { setShowChatOnMobile(false); setSelectedConvId(null); setActiveConversation(null); }}
-            onSelectConv={handleSelectConversation}
-            onStartCall={startCall}
-          />
-        ) : page === 'calls' ? (
-          <CallsPage />
-        ) : page === 'feed' ? (
-          <FeedPage />
-        ) : page === 'stories' ? (
-          <StoriesPage />
-        ) : (
-          <SettingsPage onClose={() => setPage('messages')} />
-        )}
+        <div key={page} className="flex-1 flex flex-col min-w-0 overflow-hidden kw-page-in">
+          {page === 'messages' ? (
+            <ChatWindow
+              conversation={selectedConv}
+              conversations={conversations}
+              onBack={() => { setShowChatOnMobile(false); setSelectedConvId(null); setActiveConversation(null); }}
+              onSelectConv={handleSelectConversation}
+              onStartCall={startCall}
+            />
+          ) : page === 'calls' ? (
+            <CallsPage />
+          ) : page === 'feed' ? (
+            <FeedPage />
+          ) : page === 'stories' ? (
+            <StoriesPage />
+          ) : (
+            <SettingsPage onClose={() => setPage('messages')} />
+          )}
+        </div>
       </div>
 
       {/* ── Incoming call overlay ────────────────────────── */}

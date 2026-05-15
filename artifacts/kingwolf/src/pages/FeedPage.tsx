@@ -513,10 +513,11 @@ function PostCard({
 
   return (
     <article
-      className="px-4 py-3 cursor-pointer transition-colors"
+      className="px-4 py-3 cursor-pointer kw-post-card animate-fadeIn"
       style={{
         borderBottom: '1px solid var(--border-color)',
-        background: hovered ? 'var(--bg-primary)' : 'transparent',
+        background: hovered ? 'var(--bg-hover)' : 'transparent',
+        transition: 'background 0.15s ease',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -1502,7 +1503,7 @@ export function FeedPage() {
       </div>
     );
     if (postList.length === 0) return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3">
+      <div className="flex flex-col items-center justify-center py-16 gap-3 animate-fadeIn">
         {emptyIcon}
         <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{emptyMsg}</p>
       </div>

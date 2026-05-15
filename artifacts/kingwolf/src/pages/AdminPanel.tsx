@@ -4,12 +4,13 @@ import {
   UserCheck, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
   BadgeCheck, Activity, ChevronDown, Newspaper, Pin, PinOff, Trash2, FileText,
   Flag, MessageSquare, CheckCheck, Download, Upload, Bot, UserPlus, AlertTriangle,
+  Clock, UserCog, Crown, Database,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { Profile } from '../types';
 
-type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status' | 'backup' | 'bot';
+type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status' | 'backup' | 'bot' | 'managers';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 async function adminFetch(path: string, opts: RequestInit = {}) {
@@ -52,6 +53,12 @@ function BackupTab() {
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Nuclear wipe state
+  const [nukeUsername, setNukeUsername] = useState('');
+  const [nukePassword, setNukePassword] = useState('');
+  const [nukeConfirmText, setNukeConfirmText] = useState('');
+  const [nukeMsg, setNukeMsg] = useState('');
+
   async function downloadBackup() {
     setLoading(true);
     const token = localStorage.getItem('kingwolf_token');
@@ -70,18 +77,23 @@ function BackupTab() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const res = await adminFetch('/admin/restore', { method: 'POST', body: JSON.stringify(parsed) });
-      setMsg(res.ok ? `✅ بازیابی موفق — ${res.added} مورد اضافه شد` : `❌ خطا: ${res.error}`);
+      setMsg(res.ok ? `✅ بازیابی موفق — ${(res.body as any)?.added ?? 0} مورد اضافه شد` : `❌ خطا: ${(res.body as any)?.error}`);
     } catch { setMsg('❌ فایل نامعتبر است'); }
     setRestoreLoading(false);
     if (fileRef.current) fileRef.current.value = '';
   }
 
-  async function resetAll() {
-    if (!window.confirm('⚠️ تمام داده‌های کاربران و پیام‌ها پاک می‌شوند. ادامه می‌دهید؟')) return;
-    if (!window.confirm('این عمل برگشت‌ناپذیر است. مطمئنید؟')) return;
+  async function nuclearWipe() {
+    if (nukeConfirmText !== 'WIPE_ALL_DATA') return;
     setResetLoading(true);
-    const res = await adminFetch('/admin/reset-data', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE_ALL' }) });
-    setMsg(res.ok ? '✅ تمام داده‌ها پاک شدند' : `❌ خطا: ${res.error}`);
+    setNukeMsg('');
+    const res = await adminFetch('/admin/nuclear-wipe', { method: 'POST', body: JSON.stringify({ username: nukeUsername, password: nukePassword, confirm: 'WIPE_ALL_DATA' }) });
+    if (res.ok) {
+      setNukeMsg('✅ پاک‌سازی هسته‌ای انجام شد — تمام داده‌ها حذف شدند');
+      setNukeUsername(''); setNukePassword(''); setNukeConfirmText('');
+    } else {
+      setNukeMsg(`❌ خطا: ${(res.body as any)?.error ?? 'عملیات ناموفق بود'}`);
+    }
     setResetLoading(false);
   }
 
@@ -110,18 +122,42 @@ function BackupTab() {
         </button>
       </div>
 
-      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(239,68,68,0.2)', backdropFilter: 'blur(12px)' }}>
-        <h2 className="text-sm font-bold text-red-400 flex items-center gap-2"><AlertTriangle size={16} />حذف کل داده‌ها</h2>
-        <p className="text-xs text-gray-400">تمام پیام‌ها، کاربران غیرادمین، گروه‌ها، و کانال‌ها پاک می‌شوند. حساب ادمین باقی می‌ماند.</p>
-        <button onClick={resetAll} disabled={resetLoading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 transition-all kw-btn-press"
-          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
-          {resetLoading ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={16} />}
-          حذف همه داده‌ها
-        </button>
-      </div>
-
       {msg && <p className="text-sm text-center rounded-xl p-3" style={{ background: msg.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: msg.startsWith('✅') ? '#4ade80' : '#f87171' }}>{msg}</p>}
+
+      {/* Nuclear wipe section */}
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '2px solid rgba(239,68,68,0.4)', backdropFilter: 'blur(12px)' }}>
+        <h2 className="text-sm font-bold text-red-400 flex items-center gap-2"><AlertTriangle size={16} />☢️ پاک‌سازی هسته‌ای — همه داده‌ها</h2>
+        <div className="rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+          <p className="text-xs text-red-300 leading-relaxed">این عمل غیرقابل بازگشت است. تمام کاربران، پیام‌ها و محتوا پاک می‌شوند. حساب‌های ادمین باقی می‌مانند.</p>
+        </div>
+        <input
+          value={nukeUsername} onChange={e => setNukeUsername(e.target.value)}
+          placeholder="نام کاربری مدیر اصلی"
+          className="w-full px-3 py-2.5 rounded-xl text-xs text-white outline-none"
+          style={{ background: '#161b22', border: '1px solid rgba(239,68,68,0.3)' }}
+        />
+        <input
+          type="password" value={nukePassword} onChange={e => setNukePassword(e.target.value)}
+          placeholder="رمز عبور مدیر اصلی"
+          className="w-full px-3 py-2.5 rounded-xl text-xs text-white outline-none"
+          style={{ background: '#161b22', border: '1px solid rgba(239,68,68,0.3)' }}
+        />
+        <input
+          value={nukeConfirmText} onChange={e => setNukeConfirmText(e.target.value)}
+          placeholder="تایپ کنید: WIPE_ALL_DATA"
+          className="w-full px-3 py-2.5 rounded-xl text-xs text-white outline-none font-mono"
+          style={{ background: '#161b22', border: '1px solid rgba(239,68,68,0.3)' }}
+        />
+        <button
+          onClick={nuclearWipe}
+          disabled={resetLoading || nukeConfirmText !== 'WIPE_ALL_DATA'}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all kw-btn-press"
+          style={{ background: nukeConfirmText === 'WIPE_ALL_DATA' ? 'linear-gradient(135deg, #dc2626, #7f1d1d)' : 'rgba(100,0,0,0.3)', boxShadow: nukeConfirmText === 'WIPE_ALL_DATA' ? '0 4px 20px rgba(239,68,68,0.4)' : 'none', opacity: nukeConfirmText !== 'WIPE_ALL_DATA' ? 0.5 : 1, cursor: nukeConfirmText !== 'WIPE_ALL_DATA' ? 'not-allowed' : 'pointer' }}>
+          {resetLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <AlertTriangle size={16} />}
+          فعال‌سازی پاک‌سازی هسته‌ای
+        </button>
+        {nukeMsg && <p className="text-xs text-center rounded-xl p-2" style={{ background: nukeMsg.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: nukeMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>{nukeMsg}</p>}
+      </div>
     </div>
   );
 }
@@ -132,7 +168,7 @@ function BotTab() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    adminFetch('/admin/bot-settings').then(r => { if (r.data) setSettings(s => ({ ...s, ...r.data })); });
+    adminFetch('/admin/bot-settings').then(r => { if (r.body?.data) setSettings(s => ({ ...s, ...r.body.data })); });
   }, []);
 
   async function save() {
@@ -143,6 +179,25 @@ function BotTab() {
 
   return (
     <div className="p-5 space-y-4 max-w-lg kw-tab-in">
+      {/* Bot status section */}
+      <div className="rounded-2xl p-4 flex items-center gap-4" style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${settings.enabled ? 'rgba(74,222,128,0.25)' : 'rgba(75,85,99,0.3)'}`, backdropFilter: 'blur(12px)' }}>
+        <div className="relative flex-shrink-0">
+          <div className={`w-3 h-3 rounded-full ${settings.enabled ? 'bg-green-400' : 'bg-gray-600'}`} style={{ boxShadow: settings.enabled ? '0 0 8px #4ade80' : 'none' }} />
+          {settings.enabled && <div className="absolute inset-0 rounded-full bg-green-400 animate-ping opacity-50" />}
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-white">وضعیت بات</p>
+          {settings.enabled
+            ? <p className="text-xs text-green-400 animate-pulse">پردازش فعال</p>
+            : <p className="text-xs text-gray-500">بات غیرفعال</p>
+          }
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500">دستورات پردازش‌شده</p>
+          <p className="text-sm font-bold text-gray-400">—</p>
+        </div>
+      </div>
+
       <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(192,132,252,0.15)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2">
           <Bot size={18} className="text-purple-400" />
@@ -192,6 +247,123 @@ function BotTab() {
   );
 }
 
+function ManagersTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
+  const [managers, setManagers] = useState<any[]>([]);
+  const [loadingMgr, setLoadingMgr] = useState(true);
+  const [promoteUsername, setPromoteUsername] = useState('');
+  const [promotedMsg, setPromotedMsg] = useState('');
+
+  async function loadManagers() {
+    setLoadingMgr(true);
+    const { body } = await adminFetch('/admin/managers');
+    if (body?.data) setManagers(body.data);
+    setLoadingMgr(false);
+  }
+
+  useEffect(() => { loadManagers(); }, []);
+
+  async function promoteManager() {
+    if (!promoteUsername.trim()) return;
+    const res = await adminFetch('/admin/managers/promote', { method: 'POST', body: JSON.stringify({ username: promoteUsername.trim() }) });
+    if (res.ok) {
+      setPromotedMsg('✅ مدیر با موفقیت اضافه شد');
+      setPromoteUsername('');
+      loadManagers();
+    } else {
+      setPromotedMsg(`❌ خطا: ${res.body?.error ?? 'عملیات ناموفق'}`);
+    }
+    setTimeout(() => setPromotedMsg(''), 3000);
+  }
+
+  async function demoteManager(mgUsername: string) {
+    await adminFetch('/admin/managers/demote', { method: 'POST', body: JSON.stringify({ username: mgUsername }) });
+    loadManagers();
+  }
+
+  return (
+    <div className="space-y-4 kw-tab-in">
+      <div className="rounded-2xl p-5" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(251,191,36,0.2)', backdropFilter: 'blur(12px)' }}>
+        <div className="flex items-center gap-3 mb-4">
+          <Crown size={20} style={{ color: '#fbbf24' }} />
+          <h2 className="text-base font-bold text-white">تیم مدیریت</h2>
+          <button onClick={loadManagers} className="mr-auto p-1.5 rounded-lg transition-colors" style={{ color: '#6b7280' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}>
+            <RefreshCw size={14} />
+          </button>
+        </div>
+
+        {loadingMgr ? (
+          <div className="flex justify-center py-10">
+            <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : managers.length === 0 ? (
+          <div className="flex flex-col items-center py-10 gap-2">
+            <UserCog size={32} className="text-gray-700" />
+            <p className="text-sm text-gray-500">هیچ مدیری ثبت نشده</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {managers.map(mgr => (
+              <div key={mgr.username} className="rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(8,12,24,0.7)', border: '1px solid rgba(251,191,36,0.12)' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
+                  <Crown size={16} style={{ color: '#fbbf24' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">@{mgr.username}</p>
+                  {mgr.permissions && <p className="text-xs text-gray-500 mt-0.5">دسترسی: {mgr.permissions}</p>}
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                    {mgr.granted_by && <span>توسط: @{mgr.granted_by}</span>}
+                    {mgr.created_at && <span>{new Date(mgr.created_at).toLocaleDateString('fa-IR')}</span>}
+                  </div>
+                </div>
+                {isMasterAdmin && (
+                  <button onClick={() => demoteManager(mgr.username)}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                    style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
+                    حذف از مدیران
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isMasterAdmin ? (
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
+          <div className="flex items-center gap-2 mb-1">
+            <UserPlus size={15} className="text-green-400" />
+            <h3 className="text-sm font-semibold text-white">افزودن مدیر جدید</h3>
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={promoteUsername} onChange={e => setPromoteUsername(e.target.value)}
+              placeholder="نام کاربری"
+              className="flex-1 px-3 py-2.5 rounded-xl text-xs text-white outline-none"
+              style={{ background: '#161b22', border: '1px solid rgba(74,222,128,0.2)' }}
+              onKeyDown={e => e.key === 'Enter' && promoteManager()}
+            />
+            <button onClick={promoteManager}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white transition-colors kw-btn-press"
+              style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', boxShadow: '0 4px 12px rgba(34,197,94,0.2)' }}>
+              افزودن
+            </button>
+          </div>
+          {promotedMsg && <p className="text-xs rounded-lg p-2 text-center" style={{ background: promotedMsg.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: promotedMsg.startsWith('✅') ? '#4ade80' : '#f87171' }}>{promotedMsg}</p>}
+        </div>
+      ) : (
+        <div className="rounded-xl p-4 flex items-center gap-2" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <Lock size={14} className="text-gray-600 flex-shrink-0" />
+          <p className="text-xs text-gray-500">فقط مدیر اصلی می‌تواند مدیران را تغییر دهد</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminPanel() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
@@ -234,10 +406,26 @@ export function AdminPanel() {
   const [resolvedReportIds, setResolvedReportIds] = useState<Set<string>>(new Set());
   const [loginAttempts, setLoginAttempts] = useState<any[]>([]);
   const [loginAttemptsLoading, setLoginAttemptsLoading] = useState(false);
-  const [reportsSubTab, setReportsSubTab] = useState<'chat' | 'feed' | 'login'>('chat');
+  const [reportsSubTab, setReportsSubTab] = useState<'chat' | 'feed' | 'login' | 'channels'>('chat');
 
   // Blue tick loading states
   const [blueTickLoadingId, setBlueTickLoadingId] = useState<string | null>(null);
+
+  // Activity feed state
+  const [activityFeed, setActivityFeed] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  // Users sub-tabs & filter state
+  const [usersSubTab, setUsersSubTab] = useState<'list' | 'chats' | 'groups' | 'channels'>('list');
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [convsLoading, setConvsLoading] = useState(false);
+  const [usersFilter, setUsersFilter] = useState<'all' | 'active' | 'pending' | 'banned' | 'online'>('all');
+
+  // Settings master save
+  const [masterSaving, setMasterSaving] = useState(false);
+  const [masterSaveMsg, setMasterSaveMsg] = useState('');
+
+  const isMasterAdmin = username === 'admin';
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -419,6 +607,9 @@ export function AdminPanel() {
 
   // Load feed posts when content tab becomes active
   useEffect(() => {
+    if (tab === 'dashboard') {
+      loadActivity();
+    }
     if (tab === 'content' && feedPosts.length === 0) {
       loadFeedPosts();
     }
@@ -432,6 +623,28 @@ export function AdminPanel() {
     const { body } = await adminFetch('/admin/reports?type=chat');
     if (body?.data) setChatReports(body.data);
     setChatReportsLoading(false);
+  }
+
+  async function loadActivity() {
+    setActivityLoading(true);
+    const { body } = await adminFetch('/admin/activity');
+    if (body?.data) setActivityFeed(body.data);
+    setActivityLoading(false);
+  }
+
+  async function loadConversations(type: string) {
+    setConvsLoading(true);
+    const { body } = await adminFetch(`/admin/conversations?type=${type}`);
+    if (body?.data) setConversations(body.data);
+    setConvsLoading(false);
+  }
+
+  async function masterSaveSettings() {
+    setMasterSaving(true);
+    await Promise.all(Object.entries(appSettings).map(([k, v]) => saveSetting(k, v)));
+    setMasterSaving(false);
+    setMasterSaveMsg('✅ تمام تنظیمات ذخیره شد');
+    setTimeout(() => setMasterSaveMsg(''), 3000);
   }
 
   async function loadFeedReports() {
@@ -472,6 +685,7 @@ export function AdminPanel() {
     status: 'وضعیت سیستم',
     backup: 'بکاپ و بازیابی',
     bot: 'تنظیمات بات',
+    managers: 'مدیریت تیم',
   };
 
   if (!loggedIn) {
@@ -521,6 +735,7 @@ export function AdminPanel() {
   const navItems: { id: AdminTab; label: string; icon: any; color: string; accent: string }[] = [
     { id: 'dashboard', label: 'داشبورد',         icon: BarChart2,  color: '#60a5fa', accent: 'rgba(59,130,246,0.15)' },
     { id: 'users',     label: 'کاربران',          icon: Users,      color: '#34d399', accent: 'rgba(52,211,153,0.15)' },
+    { id: 'managers',  label: 'مدیران',           icon: Crown,      color: '#fbbf24', accent: 'rgba(251,191,36,0.15)' },
     { id: 'content',   label: 'مدیریت محتوا',    icon: Newspaper,  color: '#a78bfa', accent: 'rgba(167,139,250,0.15)' },
     { id: 'reports',   label: 'گزارش‌های تخلف',  icon: Flag,       color: '#f87171', accent: 'rgba(248,113,113,0.15)' },
     { id: 'settings',  label: 'تنظیمات',          icon: Settings,   color: '#fbbf24', accent: 'rgba(251,191,36,0.15)' },
@@ -609,16 +824,19 @@ export function AdminPanel() {
             <div className="space-y-5 kw-tab-in">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 kw-stagger">
                 {[
-                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',   Icon: Users },
-                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', bg: 'rgba(52,211,153,0.12)',   Icon: CheckCircle2 },
-                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,                   color: '#4ade80', bg: 'rgba(74,222,128,0.12)',   Icon: Activity },
-                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending,        color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   Icon: UserPlus },
-                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,         color: '#f87171', bg: 'rgba(239,68,68,0.12)',    Icon: Ban },
-                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  Icon: Newspaper },
-                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,                  color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',   Icon: MessageSquare },
-                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', bg: 'rgba(249,115,22,0.12)',   Icon: Flag },
+                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',   Icon: Users,         filterKey: 'all' as const },
+                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', bg: 'rgba(52,211,153,0.12)',   Icon: CheckCircle2,  filterKey: 'active' as const },
+                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,                   color: '#4ade80', bg: 'rgba(74,222,128,0.12)',   Icon: Activity,      filterKey: 'online' as const },
+                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending,        color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   Icon: UserPlus,      filterKey: 'pending' as const },
+                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,         color: '#f87171', bg: 'rgba(239,68,68,0.12)',    Icon: Ban,           filterKey: 'banned' as const },
+                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  Icon: Newspaper,     filterKey: null },
+                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,                  color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',   Icon: MessageSquare, filterKey: null },
+                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', bg: 'rgba(249,115,22,0.12)',   Icon: Flag,          filterKey: null },
                 ].map(s => (
-                  <div key={s.label} className="rounded-2xl p-4 kw-stat-pop cursor-default" style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
+                  <div key={s.label}
+                    className="rounded-2xl p-4 kw-stat-pop cursor-pointer"
+                    style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
+                    onClick={() => { if (s.filterKey) { setTab('users'); setUsersFilter(s.filterKey); } else { setTab('users'); } }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 32px ${s.color}25`; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
                     <div className="flex items-center justify-between mb-3">
@@ -628,6 +846,7 @@ export function AdminPanel() {
                       </div>
                     </div>
                     <p className="text-2xl font-bold kw-count-in" style={{ color: s.color }}>{s.value}</p>
+                    <p className="text-xs mt-1" style={{ color: `${s.color}70` }}>→ مشاهده لیست</p>
                   </div>
                 ))}
               </div>
@@ -660,6 +879,35 @@ export function AdminPanel() {
                 </div>
               </div>
 
+              {/* Live activity feed */}
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.12)', backdropFilter: 'blur(12px)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Activity size={15} className="text-green-400 animate-pulse" />
+                  <h3 className="text-sm font-semibold text-white">فعالیت اخیر کاربران</h3>
+                  <button onClick={loadActivity} className="mr-auto p-1 rounded-lg transition-colors" style={{ color: '#6b7280' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}>
+                    <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+                {activityFeed.slice(0, 8).map((item, idx) => (
+                  <div key={item.id ?? idx} className="flex items-center gap-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.action === 'login' ? '#4ade80' : '#60a5fa' }} />
+                    <span className="text-xs text-gray-300">@{item.username}</span>
+                    <span className="text-xs text-gray-600">{item.action === 'login' ? 'وارد شد' : 'ثبت‌نام کرد'}</span>
+                    <span className="text-xs text-gray-700 mr-auto">{new Date(item.created_at).toLocaleTimeString('fa-IR')}</span>
+                  </div>
+                ))}
+                {activityFeed.length === 0 && !activityLoading && (
+                  <p className="text-xs text-gray-600 text-center py-4">هیچ فعالیتی ثبت نشده</p>
+                )}
+                {activityLoading && (
+                  <div className="flex justify-center py-4">
+                    <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
                 <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <Users size={14} className="text-blue-400" />
@@ -688,77 +936,155 @@ export function AdminPanel() {
 
           {/* ── USERS ── */}
           {tab === 'users' && (
-            <div className="space-y-2 kw-tab-in">
-              <p className="text-xs mb-3" style={{ color: 'rgba(107,114,128,0.8)' }}>روی هر کاربر کلیک کنید تا اطلاعات کامل ببینید</p>
-              {users.map(u => (
-                <div
-                  key={u.id}
-                  onClick={() => setSelectedUser(u)}
-                  className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                  style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(25,35,65,0.8)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.7)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'; }}
-                >
-                  {u.avatar_url
-                    ? <img src={u.avatar_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
-                    : <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
-                  }
-                  <div className="flex-1 min-w-0 text-right">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-medium text-white truncate">{u.display_name || u.username}</p>
-                      {!!(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
-                    </div>
-                    <p className="text-xs text-gray-500">@{u.username}</p>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.is_banned ? 'bg-red-500/10 text-red-400' : u.is_approved ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                      {u.is_banned ? 'مسدود' : u.is_approved ? 'فعال' : 'منتظر'}
-                    </span>
+            <div className="space-y-3 kw-tab-in">
+              {/* Sub-tabs */}
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={() => setUsersSubTab('list')}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: usersSubTab === 'list' ? 'rgba(52,211,153,0.15)' : '#161b22', color: usersSubTab === 'list' ? '#34d399' : '#6b7280' }}>
+                  <Users size={13} /> لیست کاربران
+                </button>
+                <button onClick={() => { setUsersSubTab('chats'); loadConversations('direct'); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: usersSubTab === 'chats' ? 'rgba(59,130,246,0.15)' : '#161b22', color: usersSubTab === 'chats' ? '#60a5fa' : '#6b7280' }}>
+                  <MessageSquare size={13} /> چت‌های خصوصی
+                </button>
+                <button onClick={() => { setUsersSubTab('groups'); loadConversations('group'); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: usersSubTab === 'groups' ? 'rgba(167,139,250,0.15)' : '#161b22', color: usersSubTab === 'groups' ? '#a78bfa' : '#6b7280' }}>
+                  <Users size={13} /> گروه‌ها
+                </button>
+                <button onClick={() => { setUsersSubTab('channels'); loadConversations('channel'); }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: usersSubTab === 'channels' ? 'rgba(34,211,238,0.15)' : '#161b22', color: usersSubTab === 'channels' ? '#22d3ee' : '#6b7280' }}>
+                  <Newspaper size={13} /> کانال‌ها
+                </button>
+              </div>
 
-                    {/* Blue tick button */}
-                    <button
-                      onClick={e => { e.stopPropagation(); (u as any).is_verified ? revokeBlueTick(u.id) : grantBlueTick(u.id); }}
-                      className={`p-1.5 rounded-lg transition-colors ${(u as any).is_verified ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-gray-700/50 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400'}`}
-                      title={(u as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
+              {/* Filter bar for list sub-tab */}
+              {usersSubTab === 'list' && (
+                <div className="flex gap-2 flex-wrap">
+                  {(['all', 'active', 'pending', 'banned'] as const).map(f => (
+                    <button key={f} onClick={() => setUsersFilter(f)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+                      style={{ background: usersFilter === f ? 'rgba(59,130,246,0.15)' : '#161b22', color: usersFilter === f ? '#60a5fa' : '#6b7280', border: usersFilter === f ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent' }}>
+                      {f === 'all' ? 'همه' : f === 'active' ? 'فعال' : f === 'pending' ? 'منتظر' : 'مسدود'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* List sub-tab */}
+              {usersSubTab === 'list' && (
+                <div className="space-y-2">
+                  <p className="text-xs" style={{ color: 'rgba(107,114,128,0.8)' }}>روی هر کاربر کلیک کنید تا اطلاعات کامل ببینید</p>
+                  {users.filter(u => {
+                    if (usersFilter === 'active') return u.is_approved && !u.is_banned;
+                    if (usersFilter === 'pending') return !u.is_approved && !u.is_banned;
+                    if (usersFilter === 'banned') return u.is_banned;
+                    return true;
+                  }).map(u => (
+                    <div
+                      key={u.id}
+                      onClick={() => setSelectedUser(u)}
+                      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                      style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(25,35,65,0.8)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.7)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'; }}
                     >
-                      {blueTickLoadingId === u.id
-                        ? <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
-                        : <BadgeCheck size={14} />
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
+                        : <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
                       }
-                    </button>
+                      <div className="flex-1 min-w-0 text-right">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-white truncate">{u.display_name || u.username}</p>
+                          {!!(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
+                        </div>
+                        <p className="text-xs text-gray-500">@{u.username}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${u.is_banned ? 'bg-red-500/10 text-red-400' : u.is_approved ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                          {u.is_banned ? 'مسدود' : u.is_approved ? 'فعال' : 'منتظر'}
+                        </span>
 
-                    <button
-                      onClick={e => revealPassword(u, e)}
-                      className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
-                      title={userPasswords[u.id] ? 'پنهان' : 'نمایش رمز'}
-                    >
-                      {loadingPasswordId === u.id
-                        ? <div className="w-3.5 h-3.5 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                        : userPasswords[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                    {!u.is_approved && !u.is_banned && (
-                      <button onClick={e => { e.stopPropagation(); approveUser(u.id); }} className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20" title="تأیید">
-                        <Check size={14} />
-                      </button>
-                    )}
-                    {!u.is_banned && (
-                      <button onClick={e => { e.stopPropagation(); banUser(u.id); }} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20" title="مسدود">
-                        <Ban size={14} />
-                      </button>
-                    )}
-                    {u.is_banned && (
-                      <button onClick={e => { e.stopPropagation(); unbanUser(u.id); }} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" title="رفع مسدود">
-                        <UserCheck size={14} />
-                      </button>
-                    )}
-                  </div>
-                  {userPasswords[u.id] && (
-                    <div className="w-full mt-1 col-span-full">
-                      <span className="text-xs text-yellow-400 font-mono bg-yellow-500/10 px-2 py-0.5 rounded">🔑 {userPasswords[u.id]}</span>
+                        {/* Blue tick button */}
+                        <button
+                          onClick={e => { e.stopPropagation(); (u as any).is_verified ? revokeBlueTick(u.id) : grantBlueTick(u.id); }}
+                          className={`p-1.5 rounded-lg transition-colors ${(u as any).is_verified ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-gray-700/50 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400'}`}
+                          title={(u as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
+                        >
+                          {blueTickLoadingId === u.id
+                            ? <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
+                            : <BadgeCheck size={14} />
+                          }
+                        </button>
+
+                        {isMasterAdmin && (
+                          <button
+                            onClick={e => revealPassword(u, e)}
+                            className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
+                            title={userPasswords[u.id] ? 'پنهان' : 'نمایش رمز'}
+                          >
+                            {loadingPasswordId === u.id
+                              ? <div className="w-3.5 h-3.5 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                              : userPasswords[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        )}
+                        {!u.is_approved && !u.is_banned && (
+                          <button onClick={e => { e.stopPropagation(); approveUser(u.id); }} className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20" title="تأیید">
+                            <Check size={14} />
+                          </button>
+                        )}
+                        {!u.is_banned && (
+                          <button onClick={e => { e.stopPropagation(); banUser(u.id); }} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20" title="مسدود">
+                            <Ban size={14} />
+                          </button>
+                        )}
+                        {u.is_banned && (
+                          <button onClick={e => { e.stopPropagation(); unbanUser(u.id); }} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" title="رفع مسدود">
+                            <UserCheck size={14} />
+                          </button>
+                        )}
+                      </div>
+                      {userPasswords[u.id] && (
+                        <div className="w-full mt-1 col-span-full">
+                          <span className="text-xs text-yellow-400 font-mono bg-yellow-500/10 px-2 py-0.5 rounded">🔑 {userPasswords[u.id]}</span>
+                        </div>
+                      )}
                     </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Chats / Groups / Channels sub-tabs */}
+              {(usersSubTab === 'chats' || usersSubTab === 'groups' || usersSubTab === 'channels') && (
+                <div className="space-y-2">
+                  {convsLoading ? (
+                    <div className="flex justify-center py-10">
+                      <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : conversations.length === 0 ? (
+                    <div className="flex flex-col items-center py-10 gap-2">
+                      <MessageSquare size={30} className="text-gray-700" />
+                      <p className="text-sm text-gray-500">موردی یافت نشد</p>
+                    </div>
+                  ) : (
+                    conversations.map(c => (
+                      <div key={c.id} className="rounded-xl p-3 flex items-center gap-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(59,130,246,0.2)' }}>
+                          {usersSubTab === 'groups' ? <Users size={14} className="text-blue-400" /> : usersSubTab === 'channels' ? <Newspaper size={14} className="text-cyan-400" /> : <MessageSquare size={14} className="text-blue-400" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{c.name || 'چت خصوصی'}</p>
+                          <p className="text-xs text-gray-500">{c.member_count ?? 0} عضو · {new Date(c.created_at).toLocaleDateString('fa-IR')}</p>
+                        </div>
+                        <span className="text-xs text-gray-600 font-mono">{c.message_count ?? 0} پیام</span>
+                      </div>
+                    ))
                   )}
                 </div>
-              ))}
+              )}
             </div>
           )}
 
@@ -935,6 +1261,17 @@ export function AdminPanel() {
                       <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${appSettings.allow_media_upload === 'false' ? 'left-0.5' : 'left-4'}`} />
                     </button>
                   </div>
+
+                  {/* Master save */}
+                  <div className="pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <button onClick={masterSaveSettings} disabled={masterSaving}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 kw-btn-press transition-all"
+                      style={{ background: masterSaving ? 'rgba(59,130,246,0.3)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)', boxShadow: '0 4px 20px rgba(59,130,246,0.25)' }}>
+                      {masterSaving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Check size={16} />}
+                      {masterSaving ? 'در حال ذخیره...' : 'ذخیره تمام تنظیمات'}
+                    </button>
+                    {masterSaveMsg && <p className="text-xs text-center text-green-400 mt-2">{masterSaveMsg}</p>}
+                  </div>
                 </div>
               </div>
 
@@ -990,6 +1327,11 @@ export function AdminPanel() {
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
                   style={{ background: reportsSubTab === 'login' ? 'rgba(245,158,11,0.15)' : '#161b22', color: reportsSubTab === 'login' ? '#fbbf24' : '#6b7280' }}>
                   <Shield size={13} />تلاش‌های ورود ناموفق
+                </button>
+                <button onClick={() => setReportsSubTab('channels')}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+                  style={{ background: reportsSubTab === 'channels' ? 'rgba(34,211,238,0.15)' : '#161b22', color: reportsSubTab === 'channels' ? '#22d3ee' : '#6b7280' }}>
+                  <Newspaper size={13} />گزارش‌های کانال
                 </button>
               </div>
 
@@ -1056,6 +1398,15 @@ export function AdminPanel() {
                 </div>
               )}
 
+              {/* Channels sub-tab placeholder */}
+              {reportsSubTab === 'channels' && (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Newspaper size={36} className="text-gray-700" />
+                  <p className="text-sm text-gray-500">گزارش‌های کانال</p>
+                  <p className="text-xs text-gray-600">بخش در حال توسعه</p>
+                </div>
+              )}
+
               {/* Chat reports sub-tab */}
               {(reportsSubTab === 'chat' || reportsSubTab === 'feed') && (() => {
                 const isFeed = reportsSubTab === 'feed';
@@ -1063,7 +1414,6 @@ export function AdminPanel() {
                 const loading2 = isFeed ? feedReportsLoading : chatReportsLoading;
                 const reload = isFeed ? loadFeedReports : loadChatReports;
                 const accentColor = isFeed ? '#a78bfa' : '#f87171';
-                const accentBorder = isFeed ? 'border-purple-500' : 'border-red-500';
                 return (<>
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-gray-400">
@@ -1170,6 +1520,9 @@ export function AdminPanel() {
             </div>
           )}
 
+          {/* ── MANAGERS ── */}
+          {tab === 'managers' && <ManagersTab isMasterAdmin={isMasterAdmin} />}
+
           {/* ── STATUS ── */}
           {tab === 'status' && <StatusTab />}
 
@@ -1244,44 +1597,55 @@ export function AdminPanel() {
                 ))}
               </div>
 
-              {/* Password reveal */}
-              <div className="rounded-xl p-3 border border-yellow-900/30" style={{ background: '#161b22' }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500">رمز عبور</span>
-                  <button
-                    onClick={e => revealPassword(selectedUser, e)}
-                    className="text-xs text-yellow-400 flex items-center gap-1 hover:text-yellow-300"
-                  >
-                    {loadingPasswordId === selectedUser.id
-                      ? <div className="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                      : userPasswords[selectedUser.id] ? <><EyeOff size={12} /> پنهان</> : <><Eye size={12} /> نمایش</>
-                    }
-                  </button>
-                </div>
-                {userPasswords[selectedUser.id] && (
-                  <p className="font-mono text-yellow-300 mt-2 text-sm">{userPasswords[selectedUser.id]}</p>
-                )}
-              </div>
-
-              {/* Reset password */}
-              {resetPwTarget?.id === selectedUser.id ? (
-                <form onSubmit={handleResetPassword} className="space-y-2">
-                  <input
-                    type="text" value={resetPwValue} onChange={e => setResetPwValue(e.target.value)}
-                    placeholder="رمز جدید (حداقل ۶ کاراکتر)"
-                    className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-xs outline-none border border-gray-700"
-                  />
-                  {resetPwMsg && <p className={`text-xs ${resetPwMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</p>}
-                  <div className="flex gap-2">
-                    <button type="submit" className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-xs">تغییر رمز</button>
-                    <button type="button" onClick={() => setResetPwTarget(null)} className="px-3 py-2 bg-gray-700 text-gray-300 rounded-xl text-xs">لغو</button>
+              {/* Password reveal — master admin only */}
+              {isMasterAdmin ? (
+                <>
+                  <div className="rounded-xl p-3 border border-yellow-900/30" style={{ background: '#161b22' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">رمز عبور</span>
+                      <button
+                        onClick={e => revealPassword(selectedUser, e)}
+                        className="text-xs text-yellow-400 flex items-center gap-1 hover:text-yellow-300"
+                      >
+                        {loadingPasswordId === selectedUser.id
+                          ? <div className="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                          : userPasswords[selectedUser.id] ? <><EyeOff size={12} /> پنهان</> : <><Eye size={12} /> نمایش</>
+                        }
+                      </button>
+                    </div>
+                    {userPasswords[selectedUser.id] && (
+                      <p className="font-mono text-yellow-300 mt-2 text-sm">{userPasswords[selectedUser.id]}</p>
+                    )}
                   </div>
-                </form>
+
+                  {/* Reset password */}
+                  {resetPwTarget?.id === selectedUser.id ? (
+                    <form onSubmit={handleResetPassword} className="space-y-2">
+                      <input
+                        type="text" value={resetPwValue} onChange={e => setResetPwValue(e.target.value)}
+                        placeholder="رمز جدید (حداقل ۶ کاراکتر)"
+                        className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-xs outline-none border border-gray-700"
+                      />
+                      {resetPwMsg && <p className={`text-xs ${resetPwMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</p>}
+                      <div className="flex gap-2">
+                        <button type="submit" className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-xs">تغییر رمز</button>
+                        <button type="button" onClick={() => setResetPwTarget(null)} className="px-3 py-2 bg-gray-700 text-gray-300 rounded-xl text-xs">لغو</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button onClick={() => { setResetPwTarget(selectedUser); setResetPwValue(''); setResetPwMsg(''); }}
+                      className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs flex items-center justify-center gap-2">
+                      <Key size={13} /> تغییر رمز این کاربر
+                    </button>
+                  )}
+                </>
               ) : (
-                <button onClick={() => { setResetPwTarget(selectedUser); setResetPwValue(''); setResetPwMsg(''); }}
-                  className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs flex items-center justify-center gap-2">
-                  <Key size={13} /> تغییر رمز این کاربر
-                </button>
+                <div className="rounded-xl p-3 border border-gray-800/50" style={{ background: '#161b22' }}>
+                  <p className="text-xs text-gray-600 flex items-center gap-2">
+                    <Lock size={12} />
+                    مشاهده و تغییر رمز عبور فقط برای مدیر اصلی مجاز است
+                  </p>
+                </div>
               )}
 
               {/* Actions */}
@@ -1329,6 +1693,7 @@ function StatusTab() {
   const [error, setError] = useState('');
   const [alertVisible, setAlertVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [liveSeconds, setLiveSeconds] = useState(0);
 
   async function fetchMetrics() {
     const token = localStorage.getItem('kingwolf_token');
@@ -1347,6 +1712,11 @@ function StatusTab() {
     fetchMetrics();
     timerRef.current = setInterval(fetchMetrics, 3000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setLiveSeconds(s => s + 1), 1000);
+    return () => clearInterval(t);
   }, []);
 
   const tables = [
@@ -1469,23 +1839,44 @@ function StatusTab() {
               <p className="font-mono font-medium" style={{ color: row.color }}>{row.value}</p>
             </div>
           ))}
+          <div className="px-3 py-2.5 rounded-xl col-span-2" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(74,222,128,0.12)' }}>
+            <p className="text-gray-500 mb-1">مدت مشاهده</p>
+            <p className="font-mono text-lg font-bold text-green-400">
+              {String(Math.floor(liveSeconds / 3600)).padStart(2, '0')}:{String(Math.floor((liveSeconds % 3600) / 60)).padStart(2, '0')}:{String(liveSeconds % 60).padStart(2, '0')}
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* DB stats */}
+      {/* DB stats with animated progress bars */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(251,191,36,0.15)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center gap-2 mb-3">
-          <Server size={15} className="text-yellow-400" />
+          <Database size={15} className="text-yellow-400" />
           <h3 className="text-sm font-semibold text-white">آمار پایگاه داده</h3>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {tables.map(t => (
-            <div key={t.name} className="flex items-center justify-between py-1.5 px-3 rounded-xl" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(255,255,255,0.04)' }}>
-              <span className="text-xs text-gray-400">{t.label}</span>
-              <span className="text-xs font-bold text-yellow-400">{metrics?.db?.[t.name] ?? '—'}</span>
+        {(() => {
+          const counts = tables.map(t => metrics?.db?.[t.name] ?? 0);
+          const maxCount = Math.max(...counts, 1);
+          return (
+            <div className="space-y-2">
+              {tables.map((t, i) => {
+                const count = metrics?.db?.[t.name] ?? 0;
+                const pct = Math.round((count / maxCount) * 100);
+                return (
+                  <div key={t.name} className="px-3 py-2 rounded-xl" style={{ background: 'rgba(8,12,24,0.6)', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-400">{t.label}</span>
+                      <span className="text-xs font-bold text-yellow-400">{metrics?.db?.[t.name] ?? '—'}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, rgba(251,191,36,0.5), #fbbf24)' }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
 
       {/* Admin info */}

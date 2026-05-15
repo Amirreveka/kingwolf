@@ -358,6 +358,23 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   UNIQUE(user_id, endpoint)
 );
 CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,
+  username TEXT,
+  action TEXT,
+  ip TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sub_admins (
+  user_id TEXT PRIMARY KEY,
+  username TEXT,
+  granted_by TEXT,
+  permissions TEXT DEFAULT '{}',
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // Default settings

@@ -223,6 +223,7 @@ app.post('/auth/signup', async (req, res) => {
   db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
     .run(sessionId, id, ip, ua, parseDeviceName(ua));
   const token = makeToken(id, sessionId);
+  try { db.prepare("INSERT INTO activity_log (user_id, username, action, ip) VALUES (?,?,?,?)").run(id, username, 'signup', req.ip || ''); } catch {}
   return res.json({ user: { id, email }, access_token: token });
 });
 
@@ -297,6 +298,7 @@ app.post('/auth/signin', async (req, res) => {
   db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
     .run(sessionId, user.id, ip, ua, deviceName);
   const token = makeToken(user.id, sessionId);
+  try { db.prepare("INSERT INTO activity_log (user_id, username, action, ip) VALUES (?,?,?,?)").run(user.id, profile.username, 'login', req.ip || ''); } catch {}
   return res.json({
     access_token: token,
     user: { id: user.id, email: user.email },
@@ -1133,6 +1135,107 @@ app.get('/metrics', authMiddleware, adminOnly, (req, res) => {
     },
     db: dbStats,
   });
+});
+
+// ── Admin: Activity Feed ────────────────────────────────────────────────────
+app.get('/admin/activity', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 50").all();
+    res.json({ data: rows });
+  } catch { res.json({ data: [] }); }
+});
+
+// ── Admin: Managers (sub-admin management) ─────────────────────────────────
+app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT p.id, p.username, p.display_name, p.avatar_url, p.email, p.created_at,
+             s.permissions, s.granted_by, s.created_at AS promoted_at
+      FROM profiles p
+      JOIN sub_admins s ON s.user_id = p.id
+      ORDER BY s.created_at DESC
+    `).all();
+    res.json({ data: rows });
+  } catch { res.json({ data: [] }); }
+});
+
+app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
+  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند ناظر تعیین کند' });
+  const { userId, permissions } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  try {
+    const prof = db.prepare('SELECT username FROM profiles WHERE id=?').get(userId);
+    if (!prof) return res.status(404).json({ error: 'کاربر یافت نشد' });
+    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(userId, prof.username, req.profile.username, JSON.stringify(permissions || {}));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
+  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
+  const { userId } = req.body;
+  try {
+    db.prepare('DELETE FROM sub_admins WHERE user_id=?').run(userId);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: Entity Users (users with conv counts) ───────────────────────────
+app.get('/admin/entity-users', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const users = db.prepare(`
+      SELECT p.*,
+        (SELECT COUNT(*) FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id WHERE cm.user_id=p.id AND c.type='direct') AS direct_count,
+        (SELECT COUNT(*) FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id WHERE cm.user_id=p.id AND c.type='group') AS group_count,
+        (SELECT COUNT(*) FROM conversation_members cm JOIN conversations c ON c.id=cm.conversation_id WHERE cm.user_id=p.id AND c.type='channel') AS channel_count,
+        (SELECT COUNT(*) FROM sub_admins WHERE user_id=p.id) AS is_sub_admin
+      FROM profiles p ORDER BY p.created_at DESC
+    `).all();
+    res.json({ data: users });
+  } catch (e) { res.json({ data: [] }); }
+});
+
+// ── Admin: Nuclear Wipe (requires master admin password) ──────────────────
+app.post('/admin/nuclear-wipe', authMiddleware, adminOnly, async (req, res) => {
+  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
+  const { password, confirm } = req.body;
+  if (confirm !== 'WIPE_ALL_DATA') return res.status(400).json({ error: 'کد تأیید اشتباه است' });
+  const adminUser = db.prepare("SELECT password_hash FROM users WHERE id=?").get(req.userId);
+  if (!adminUser) return res.status(400).json({ error: 'کاربر یافت نشد' });
+  const valid = await bcrypt.compare(password, adminUser.password_hash);
+  if (!valid) return res.status(401).json({ error: 'رمز عبور اشتباه است' });
+  try {
+    db.prepare("DELETE FROM messages WHERE 1=1").run();
+    db.prepare("DELETE FROM conversation_members WHERE user_id NOT IN (SELECT id FROM profiles WHERE is_admin=1)").run();
+    db.prepare("DELETE FROM conversations WHERE created_by NOT IN (SELECT id FROM profiles WHERE is_admin=1) OR created_by IS NULL").run();
+    db.prepare("DELETE FROM feed_posts WHERE author_id NOT IN (SELECT id FROM profiles WHERE is_admin=1)").run();
+    db.prepare("DELETE FROM profiles WHERE is_admin=0").run();
+    db.prepare("DELETE FROM users WHERE id NOT IN (SELECT id FROM profiles)").run();
+    db.prepare("DELETE FROM activity_log WHERE 1=1").run();
+    res.json({ ok: true, msg: 'تمام داده‌های غیر ادمین پاک شدند' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Admin: All Conversations list ──────────────────────────────────────────
+app.get('/admin/conversations', authMiddleware, adminOnly, (req, res) => {
+  const type = req.query.type || 'group';
+  try {
+    const convs = db.prepare(`
+      SELECT c.*,
+        (SELECT COUNT(*) FROM conversation_members WHERE conversation_id=c.id) AS member_count,
+        (SELECT COUNT(*) FROM messages WHERE conversation_id=c.id AND is_deleted=0) AS message_count,
+        p.username AS creator_username, p.display_name AS creator_display
+      FROM conversations c
+      LEFT JOIN profiles p ON p.id = c.created_by
+      WHERE c.type=?
+      ORDER BY c.last_message_at DESC NULLS LAST
+      LIMIT 100
+    `).all(type);
+    res.json({ data: convs });
+  } catch (e) { res.json({ data: [] }); }
 });
 
 // ===== SOCIAL FEATURES (added in update) =====

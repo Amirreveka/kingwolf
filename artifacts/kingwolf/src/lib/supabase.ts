@@ -100,13 +100,22 @@ function connectWs() {
   ws.onclose = () => {
     wsConnecting = false;
     ws = null;
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
     if (wsSubs.size > 0) {
       setTimeout(connectWs, wsReconnectDelay);
       wsReconnectDelay = Math.min(wsReconnectDelay * 2, 15000);
     }
   };
   ws.onerror = () => {};
+
+  // Send heartbeat ping every 25s to keep connection alive and update online status
+  heartbeatTimer = setInterval(() => {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'ping' }));
+  }, 25000) as any;
 }
+
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
 function subscribeTable(table: string, handler: (p: any) => void) {
   let set = wsSubs.get(table);

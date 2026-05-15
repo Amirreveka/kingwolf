@@ -204,10 +204,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
 
   async function searchToAdd(q: string) {
     setAddSearch(q);
-    if (!q.trim()) { setAddResults([]); return; }
-    const { data } = await supabase.from('profiles').select('*').ilike('username', `%${q}%`).limit(8);
+    if (!q.trim() || q.length < 3) { setAddResults([]); return; }
+    const { data } = await supabase.from('profiles').select('*').ilike('username', `${q}%`).limit(20);
     const currentIds = new Set(members.map(m => m.id));
-    setAddResults(((data as Profile[]) || []).filter(p => !currentIds.has(p.id)));
+    // Only show users where query covers at least 80% of their username (security: item 4)
+    const filtered = ((data as Profile[]) || []).filter(p =>
+      !currentIds.has(p.id) && q.length >= Math.ceil(p.username.length * 0.8)
+    );
+    setAddResults(filtered);
   }
 
   async function addMember(userId: string) {
@@ -383,11 +387,23 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
     return conversation.name;
   }
 
+  function formatLastSeen(lastSeen: string | undefined): string {
+    if (!lastSeen) return fa ? 'آفلاین' : 'Offline';
+    const diff = Math.floor((Date.now() - new Date(lastSeen).getTime()) / 1000);
+    if (diff < 60) return fa ? 'لحظاتی پیش' : 'just now';
+    if (diff < 3600) { const m = Math.floor(diff / 60); return fa ? `${m} دقیقه پیش` : `${m}m ago`; }
+    if (diff < 86400) { const h = Math.floor(diff / 3600); return fa ? `${h} ساعت پیش` : `${h}h ago`; }
+    const d = Math.floor(diff / 86400);
+    return fa ? `${d} روز پیش` : `${d}d ago`;
+  }
+
   function getStatus() {
     if (!conversation) return '';
     if (conversation.name === '__saved__') return fa ? 'پیام‌های شخصی شما' : 'Your personal messages';
     if (conversation.type === 'direct') {
-      return conversation.other_user?.online_status === 'online' ? (fa ? 'آنلاین' : 'Online') : (fa ? 'آفلاین' : 'Offline');
+      const ou = conversation.other_user;
+      if (ou?.online_status === 'online') return fa ? 'آنلاین' : 'Online';
+      return fa ? `آخرین بازدید: ${formatLastSeen(ou?.last_seen)}` : `Last seen: ${formatLastSeen(ou?.last_seen)}`;
     }
     const cnt = memberCount || members.length || (conversation as any).member_count || 0;
     if (conversation.type === 'group') return `${cnt} ${fa ? 'عضو' : 'members'}`;
@@ -831,7 +847,11 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                 <p className="text-sm" style={{ color: 'var(--text-muted)' }}>@{showUserProfile.username}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`w-2 h-2 rounded-full ${showUserProfile.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{showUserProfile.online_status === 'online' ? (fa ? 'آنلاین' : 'Online') : (fa ? 'آفلاین' : 'Offline')}</span>
+                  <span className="text-xs" style={{ color: showUserProfile.online_status === 'online' ? '#4ade80' : 'var(--text-muted)' }}>
+                    {showUserProfile.online_status === 'online'
+                      ? (fa ? 'آنلاین' : 'Online')
+                      : (fa ? `آخرین بازدید: ${formatLastSeen(showUserProfile.last_seen)}` : `Last seen: ${formatLastSeen(showUserProfile.last_seen)}`)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -870,9 +890,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
       {/* Info / Members Panel */}
       {showInfo && isGroupOrChannel && (
         <div className="fixed inset-0 z-50 md:static md:z-auto md:inset-auto md:w-72 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)' }}>
-          <div className="flex-shrink-0 px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-            <button onClick={() => setShowInfo(false)} className="p-1 rounded-lg" style={{ color: 'var(--text-secondary)' }}><ArrowRight size={18} /></button>
-            <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <div className="flex-shrink-0 px-3 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+            <button onClick={() => setShowInfo(false)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-sm transition-colors"
+              style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
+              <ArrowRight size={16} />
+              {fa ? 'بازگشت' : 'Back'}
+            </button>
+            <span className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
               {conversation.type === 'group' ? (fa ? 'اطلاعات گروه' : 'Group Info') : (fa ? 'اطلاعات کانال' : 'Channel Info')}
             </span>
           </div>

@@ -11,6 +11,7 @@ export interface Profile {
   is_active: boolean;
   is_banned: boolean;
   is_admin: boolean;
+  is_verified?: number;
   ban_reason: string;
   last_seen: string;
   online_status: string;

@@ -1131,6 +1131,18 @@ const httpsServer = tlsCreds ? https.createServer(tlsCreds, app) : null;
 const clients = new Set();
 const userSockets = new Map();
 
+function setOnlineStatus(userId, status) {
+  try {
+    const now = new Date().toISOString();
+    if (status === 'online') {
+      db.prepare("UPDATE profiles SET online_status='online', last_seen=? WHERE id=?").run(now, userId);
+    } else {
+      db.prepare("UPDATE profiles SET online_status='offline', last_seen=? WHERE id=?").run(now, userId);
+    }
+    broadcast({ event: 'UPDATE', table: 'profiles', new: { id: userId, online_status: status, last_seen: now } });
+  } catch {}
+}
+
 function onWsConnection(ws, req) {
   const url = new URL(req.url, 'http://x');
   const token = url.searchParams.get('token');
@@ -1139,12 +1151,16 @@ function onWsConnection(ws, req) {
   ws.userId = userId;
   ws.subscriptions = new Set();
   clients.add(ws);
-  if (userId) userSockets.set(userId, ws);
+  if (userId) {
+    userSockets.set(userId, ws);
+    setOnlineStatus(userId, 'online');
+  }
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
       if (msg.type === 'subscribe' && msg.table) ws.subscriptions.add(msg.table);
       if (msg.type === 'unsubscribe' && msg.table) ws.subscriptions.delete(msg.table);
+      if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
       if (msg.type === 'signal' && msg.targetUserId && msg.payload) {
         const targetWs = userSockets.get(msg.targetUserId);
         if (targetWs && targetWs.readyState === 1) {
@@ -1155,7 +1171,10 @@ function onWsConnection(ws, req) {
   });
   ws.on('close', () => {
     clients.delete(ws);
-    if (ws.userId && userSockets.get(ws.userId) === ws) userSockets.delete(ws.userId);
+    if (ws.userId && userSockets.get(ws.userId) === ws) {
+      userSockets.delete(ws.userId);
+      setOnlineStatus(ws.userId, 'offline');
+    }
   });
   ws.send(JSON.stringify({ type: 'ready' }));
 }

@@ -55,40 +55,49 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
     return matchTab && matchSearch;
   });
 
+  // Item 4: require 80% of username typed before showing results
+  function apply80pFilter(profiles: any[], q: string) {
+    return profiles.filter(p => q.length >= Math.ceil((p.username || '').length * 0.8));
+  }
+
   async function searchForUsers(q: string) {
-    if (!q.trim()) { setSearchUsers([]); return; }
+    if (!q.trim() || q.length < 3) { setSearchUsers([]); return; }
     setSearchLoading(true);
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .ilike('username', `%${q}%`)
+      .ilike('username', `${q}%`)
       .neq('id', user?.id)
-      .limit(10);
-    setSearchUsers((data as Profile[]) || []);
+      .limit(20);
+    setSearchUsers(apply80pFilter((data as Profile[]) || [], q));
     setSearchLoading(false);
   }
 
   async function searchForMembers(q: string) {
-    if (!q.trim()) { setMemberResults([]); return; }
+    if (!q.trim() || q.length < 3) { setMemberResults([]); return; }
     const { data } = await supabase
       .from('profiles')
       .select('*')
-      .ilike('username', `%${q}%`)
+      .ilike('username', `${q}%`)
       .neq('id', user?.id)
-      .limit(8);
-    setMemberResults((data as Profile[]) || []);
+      .limit(20);
+    setMemberResults(apply80pFilter((data as Profile[]) || [], q));
   }
 
   async function doGlobalSearch(q: string) {
     const raw = q.startsWith('@') ? q.slice(1) : q;
-    if (!raw.trim()) { setGlobalResults({ users: [], groups: [], channels: [] }); return; }
+    if (!raw.trim() || raw.length < 3) { setGlobalResults({ users: [], groups: [], channels: [] }); return; }
     setGlobalSearchLoading(true);
     const [{ data: users }, { data: groups }, { data: channels }] = await Promise.all([
-      supabase.from('profiles').select('*').or(`username.ilike.%${raw}%,display_name.ilike.%${raw}%`).neq('id', user?.id).limit(5),
+      supabase.from('profiles').select('*').ilike('username', `${raw}%`).neq('id', user?.id).limit(20),
       supabase.from('conversations').select('*').eq('type', 'group').ilike('name', `%${raw}%`).limit(4),
       supabase.from('conversations').select('*').eq('type', 'channel').ilike('name', `%${raw}%`).limit(4),
     ]);
-    setGlobalResults({ users: (users as any[]) || [], groups: (groups as any[]) || [], channels: (channels as any[]) || [] });
+    setGlobalResults({
+      users: apply80pFilter((users as any[]) || [], raw),
+      groups: (groups as any[]) || [],
+      channels: (channels as any[]) || [],
+    });
     setGlobalSearchLoading(false);
   }
 

@@ -269,25 +269,28 @@ const storage = {
 
 class Channel {
   name: string;
-  _table: string | null = null;
-  _handler: ((p: any) => void) | null = null;
-  _internalHandler: ((p: any) => void) | null = null;
+  _subs: Array<{ table: string; eventFilter: string; handler: (p: any) => void; internalHandler: (p: any) => void }> = [];
   constructor(name: string) { this.name = name; }
-  on(_event: string, opts: any, handler: (payload: any) => void) {
-    this._table = opts?.table || null;
-    this._handler = handler;
+  on(_eventStr: string, opts: any, handler: (payload: any) => void) {
+    const table = opts?.table || null;
+    const eventFilter = (opts?.event || '*').toUpperCase();
+    if (table) {
+      const internalHandler = (p: any) => {
+        if (eventFilter !== '*' && p.eventType !== eventFilter) return;
+        handler(p);
+      };
+      this._subs.push({ table, eventFilter, handler, internalHandler });
+    }
     return this;
   }
   subscribe(cb?: (status: string) => void) {
-    if (this._table && this._handler) {
-      this._internalHandler = (p) => this._handler!(p);
-      subscribeTable(this._table, this._internalHandler);
-    }
+    for (const sub of this._subs) subscribeTable(sub.table, sub.internalHandler);
     if (cb) setTimeout(() => cb('SUBSCRIBED'), 0);
     return this;
   }
   unsubscribe() {
-    if (this._table && this._internalHandler) unsubscribeTable(this._table, this._internalHandler);
+    for (const sub of this._subs) unsubscribeTable(sub.table, sub.internalHandler);
+    this._subs = [];
   }
 }
 

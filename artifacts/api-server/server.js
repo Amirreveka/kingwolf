@@ -620,6 +620,34 @@ app.delete('/conversations/:id/members/:userId', authMiddleware, (req, res) => {
   return res.json({ ok: true });
 });
 
+// ===== Admin real-time stats =====
+app.get('/admin/stats', authMiddleware, adminOnly, (req, res) => {
+  const totalUsers    = db.prepare('SELECT COUNT(*) AS n FROM profiles').get().n;
+  const activeUsers   = db.prepare("SELECT COUNT(*) AS n FROM profiles WHERE is_approved = 1 AND is_banned = 0").get().n;
+  const pendingUsers  = db.prepare("SELECT COUNT(*) AS n FROM profiles WHERE is_approved = 0").get().n;
+  const bannedUsers   = db.prepare("SELECT COUNT(*) AS n FROM profiles WHERE is_banned = 1").get().n;
+  const totalMessages = db.prepare("SELECT COUNT(*) AS n FROM messages WHERE is_deleted = 0").get().n;
+  const totalPosts    = db.prepare("SELECT COUNT(*) AS n FROM feed_posts WHERE is_deleted = 0").get().n;
+  const totalConvs    = db.prepare("SELECT COUNT(*) AS n FROM conversations").get().n;
+  const totalReports  = db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'pending'").get().n;
+  // Online users = profiles with online_status='online' updated in last 5 min
+  const onlineUsers   = db.prepare("SELECT COUNT(*) AS n FROM profiles WHERE online_status = 'online'").get().n;
+  const totalAdmins   = db.prepare("SELECT COUNT(*) AS n FROM profiles WHERE is_admin = 1").get().n;
+  const totalFiles    = (() => {
+    try {
+      const mediaDir = require('path').join(__dirname, 'uploads', 'media');
+      const fs = require('fs');
+      if (fs.existsSync(mediaDir)) return fs.readdirSync(mediaDir).length;
+    } catch (_) {}
+    return 0;
+  })();
+  return res.json({
+    totalUsers, activeUsers, pendingUsers, bannedUsers,
+    totalMessages, totalPosts, totalConvs, totalReports,
+    onlineUsers, totalAdmins, totalFiles,
+  });
+});
+
 // ===== Admin endpoint: check if username has admin access =====
 app.get('/admin/access/:username', (req, res) => {
   const row = db.prepare('SELECT * FROM admin_access WHERE username = ? AND is_active = 1').get(req.params.username);
@@ -676,6 +704,52 @@ app.post('/messages/forward', authMiddleware, async (req, res) => {
   db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type, forwarded_from_id) VALUES (?, ?, ?, ?, ?, ?)').run(newId, targetConversationId, req.userId, msg.content, msg.type, msg.id);
   db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?").run(msg.content.slice(0,100), targetConversationId);
   return res.json({ ok: true });
+});
+
+// Mark messages as read in a conversation
+app.post('/messages/read', authMiddleware, (req, res) => {
+  const { conversation_id } = req.body || {};
+  if (!conversation_id) return res.status(400).json({ error: 'conversation_id required' });
+  // Check membership
+  const member = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(conversation_id, req.userId);
+  if (!member && !req.profile.is_admin) return res.status(403).json({ error: 'not a member' });
+  // Get unread messages in this conversation not sent by current user
+  const unread = db.prepare(`
+    SELECT m.id FROM messages m
+    LEFT JOIN message_read_receipts r ON r.message_id = m.id AND r.user_id = ?
+    WHERE m.conversation_id = ? AND m.sender_id != ? AND m.is_deleted = 0 AND r.message_id IS NULL
+  `).all(req.userId, conversation_id, req.userId);
+  const readIds = [];
+  for (const msg of unread) {
+    try {
+      db.prepare('INSERT OR IGNORE INTO message_read_receipts (message_id, user_id) VALUES (?, ?)').run(msg.id, req.userId);
+      readIds.push(msg.id);
+      broadcast({ event: 'INSERT', table: 'message_read_receipts', new: { message_id: msg.id, user_id: req.userId } });
+    } catch (_) {}
+  }
+  return res.json({ ok: true, read_ids: readIds });
+});
+
+// Upload file/media in a message
+app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'no file' });
+  const { conversation_id, reply_to_id } = req.body || {};
+  if (!conversation_id) return res.status(400).json({ error: 'conversation_id required' });
+  const member = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(conversation_id, req.userId);
+  if (!member && !req.profile.is_admin) return res.status(403).json({ error: 'not a member' });
+  const mime = req.file.mimetype;
+  const type = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'file';
+  const mediaUrl = `/uploads/media/${req.file.filename}`;
+  const content = type === 'image' ? '📷 عکس' : type === 'video' ? '🎬 ویدیو' : `📎 ${req.file.originalname}`;
+  const { nanoid: nid } = await import('nanoid');
+  const msgId = nid();
+  db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type, media_url, reply_to_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(msgId, conversation_id, req.userId, content, type, mediaUrl, reply_to_id || null);
+  db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?")
+    .run(content, conversation_id);
+  const newMsg = db.prepare('SELECT m.*, p.username, p.display_name, p.avatar_url FROM messages m LEFT JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?').get(msgId);
+  broadcast({ event: 'INSERT', table: 'messages', new: newMsg });
+  return res.json({ ok: true, message: newMsg, content });
 });
 
 // ===== Admin: reveal user password =====

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck } from 'lucide-react';
+import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText } from 'lucide-react';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -87,7 +87,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const { user, profile } = useAuth();
   const { language } = useTheme();
   const fa = language === 'fa';
-  const { messages, loading, sendMessage, editMessage, deleteMessage } = useMessages(conversation?.id ?? null);
+  const { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, readMessageIds } = useMessages(conversation?.id ?? null);
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -114,6 +114,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [showUserProfile, setShowUserProfile] = useState<Profile | null>(null);
+
   // Call
   const [callState, setCallState] = useState<{ type: 'voice' | 'video'; status: 'calling' | 'active' } | null>(null);
   const [callDuration, setCallDuration] = useState(0);
@@ -122,6 +124,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
   const [videoOn, setVideoOn] = useState(true);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -246,6 +250,17 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }
 
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !conversation) return;
+    e.target.value = '';
+    setUploadingFile(true);
+    await sendMediaMessage(file, { replyToId: replyTo?.id });
+    setReplyTo(null);
+    setUploadingFile(false);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  }
+
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
     if (e.key === 'Escape') { setReplyTo(null); setEditingId(null); setEditText(''); setText(''); }
@@ -360,7 +375,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           <button onClick={onBack} className="md:hidden p-1 rounded-lg" style={{ color: 'var(--text-secondary)' }}>
             <ArrowRight size={20} />
           </button>
-          <button className="flex items-center gap-3 flex-1 min-w-0 text-right" onClick={() => isGroupOrChannel && setShowInfo(v => !v)}>
+          <button className="flex items-center gap-3 flex-1 min-w-0 text-right" onClick={() => {
+            if (isGroupOrChannel) { setShowInfo(v => !v); }
+            else if (conversation.other_user && conversation.name !== '__saved__') { setShowUserProfile(conversation.other_user as any); }
+          }}>
             {conversation.type === 'direct' && conversation.name !== '__saved__' ? (
               conversation.other_user?.avatar_url
                 ? <img src={conversation.other_user.avatar_url} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="" />
@@ -486,13 +504,33 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
                     {msg.forwarded_from_id && (
                       <p className="text-xs opacity-60 mb-0.5 flex items-center gap-1"><Forward size={10} />فوروارد شده</p>
                     )}
-                    {/* Content with link detection */}
-                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>
+                    {/* Media content */}
+                    {msg.media_url && msg.type === 'image' && (
+                      <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-pointer block" onClick={() => window.open(msg.media_url!, '_blank')} />
+                    )}
+                    {msg.media_url && msg.type === 'video' && (
+                      <video src={msg.media_url} controls className="rounded-xl max-w-full max-h-64 mb-1 block" />
+                    )}
+                    {msg.media_url && msg.type === 'file' && (
+                      <a href={msg.media_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1 text-sm hover:opacity-80"
+                        style={{ background: 'rgba(255,255,255,0.1)' }}>
+                        <FileText size={16} /><span className="truncate max-w-[180px]">{msg.content.replace(/^📎\s*/, '')}</span>
+                      </a>
+                    )}
+                    {/* Text content */}
+                    {(!msg.media_url || msg.type === 'text') && (
+                      <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>
+                    )}
                     {/* Footer */}
                     <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? 'justify-start flex-row-reverse' : 'justify-end'}`}>
                       {!!msg.is_edited && <span className="text-xs opacity-40">ویرایش‌شده</span>}
                       <span className="text-xs opacity-60">{formatTime(msg.created_at)}</span>
-                      {isOwn && <CheckCheck size={13} className="opacity-60" />}
+                      {isOwn && (
+                        readMessageIds.has(msg.id)
+                          ? <CheckCheck size={13} className="text-blue-400 opacity-90" />
+                          : <Check size={13} className="opacity-50" />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -557,6 +595,18 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
           <div className="flex-shrink-0 p-3" style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border-color)' }}>
             <div className="flex items-end gap-2 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
               <div className="relative flex-shrink-0">
+                <input ref={fileInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFileUpload} />
+                <button
+                  onClick={e => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"
+                  style={{ color: 'var(--text-muted)' }}
+                  disabled={uploadingFile}
+                  title={fa ? 'ارسال فایل' : 'Attach file'}
+                >
+                  {uploadingFile
+                    ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    : <Paperclip size={17} />}
+                </button>
                 <button onClick={e => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
                   className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"
                   style={{ color: 'var(--text-muted)' }}>
@@ -603,11 +653,63 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv }
         )}
       </div>
 
+      {/* Direct user profile modal */}
+      {showUserProfile && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowUserProfile(null)}>
+          <div className="w-full max-w-sm rounded-t-3xl md:rounded-2xl p-5 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-4">
+              {showUserProfile.avatar_url
+                ? <img src={showUserProfile.avatar_url} className="w-16 h-16 rounded-full object-cover flex-shrink-0" alt="" />
+                : <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-white text-2xl font-bold">{(showUserProfile.display_name || showUserProfile.username || '?').charAt(0).toUpperCase()}</span></div>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-lg truncate" style={{ color: 'var(--text-primary)' }}>{showUserProfile.display_name || showUserProfile.username}</p>
+                  {!!(showUserProfile as any).is_verified && <BadgeCheck size={16} className="text-blue-400 flex-shrink-0" />}
+                </div>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>@{showUserProfile.username}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`w-2 h-2 rounded-full ${showUserProfile.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{showUserProfile.online_status === 'online' ? (fa ? 'آنلاین' : 'Online') : (fa ? 'آفلاین' : 'Offline')}</span>
+                </div>
+              </div>
+            </div>
+            {showUserProfile.bio && <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{showUserProfile.bio}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (!window.confirm(fa ? 'این کاربر مسدود شود؟' : 'Block this user?')) return;
+                  await apiCall(`/social/block/${showUserProfile.id}`, { method: 'POST', body: JSON.stringify({ reason: 'user_block' }) });
+                  setShowUserProfile(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+                {fa ? 'مسدود کردن' : 'Block'}
+              </button>
+              <button
+                onClick={async () => {
+                  const reason = window.prompt(fa ? 'دلیل گزارش:' : 'Report reason:');
+                  if (!reason) return;
+                  await apiCall('/reports', { method: 'POST', body: JSON.stringify({ target_type: 'user', target_id: showUserProfile.id, reason }) });
+                  setShowUserProfile(null);
+                  alert(fa ? 'گزارش ارسال شد' : 'Report submitted');
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24' }}>
+                {fa ? 'گزارش' : 'Report'}
+              </button>
+            </div>
+            <button onClick={() => setShowUserProfile(null)} className="w-full py-2 rounded-xl text-sm" style={{ background: 'var(--bg-input)', color: 'var(--text-muted)' }}>
+              {fa ? 'بستن' : 'Close'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Info / Members Panel */}
       {showInfo && isGroupOrChannel && (
         <div className="fixed inset-0 z-50 md:static md:z-auto md:inset-auto md:w-72 flex-shrink-0 flex flex-col overflow-hidden" style={{ background: 'var(--bg-secondary)', borderRight: '1px solid var(--border-color)' }}>
-          <div className="flex-shrink-0 px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
-            <button onClick={() => setShowInfo(false)} style={{ color: 'var(--text-secondary)' }}><X size={18} /></button>
+          <div className="flex-shrink-0 px-4 py-3 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+            <button onClick={() => setShowInfo(false)} className="p-1 rounded-lg" style={{ color: 'var(--text-secondary)' }}><ArrowRight size={18} /></button>
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               {conversation.type === 'group' ? (fa ? 'اطلاعات گروه' : 'Group Info') : (fa ? 'اطلاعات کانال' : 'Channel Info')}
             </span>

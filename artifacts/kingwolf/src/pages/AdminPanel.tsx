@@ -57,6 +57,8 @@ export function AdminPanel() {
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, banned: 0 });
   const [appSettings, setAppSettings] = useState<Record<string, string>>({});
   const [feedPostsCount, setFeedPostsCount] = useState<number | null>(null);
+  const [liveStats, setLiveStats] = useState<Record<string, number>>({});
+  const liveStatsRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [newPw, setNewPw] = useState('');
   const [newPw2, setNewPw2] = useState('');
@@ -106,6 +108,9 @@ export function AdminPanel() {
     setLoggedIn(true);
     loadData();
     setLoading(false);
+    // Refresh live stats every 15 seconds
+    if (liveStatsRef.current) clearInterval(liveStatsRef.current);
+    liveStatsRef.current = setInterval(() => fetchLiveStats(), 15000);
   }
 
   async function handleChangePassword(e: React.FormEvent) {
@@ -122,6 +127,14 @@ export function AdminPanel() {
     setTimeout(() => setPwMsg(''), 4000);
   }
 
+  async function fetchLiveStats() {
+    const { ok, body } = await adminFetch('/admin/stats');
+    if (ok && body) {
+      setLiveStats(body);
+      setFeedPostsCount(body.totalPosts ?? 0);
+    }
+  }
+
   async function loadData() {
     const { data: profilesData } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (profilesData) {
@@ -131,11 +144,7 @@ export function AdminPanel() {
     }
     const { data: settingsData } = await supabase.from('app_settings').select('key, value');
     if (settingsData) setAppSettings(settingsData.reduce((acc: any, row: any) => ({ ...acc, [row.key]: row.value }), {}));
-
-    // Load feed post count for dashboard
-    const { data: feedCountData } = await supabase.from('feed_posts').select('id', { count: 'exact', head: true }).eq('is_deleted', 0);
-    if (feedCountData !== null) setFeedPostsCount((feedCountData as any)?.length ?? 0);
-    // Try via metrics as a fallback (count will be set when metrics load)
+    await fetchLiveStats();
   }
 
   async function loadFeedPosts() {
@@ -397,16 +406,19 @@ export function AdminPanel() {
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {[
-                  { label: 'کل کاربران',      value: stats.total,          color: '#3b82f6' },
-                  { label: 'در انتظار تأیید', value: stats.pending,        color: '#f59e0b' },
-                  { label: 'کاربران فعال',    value: stats.active,         color: '#10b981' },
-                  { label: 'مسدود شده',       value: stats.banned,         color: '#ef4444' },
-                  { label: 'پست‌های فعال',    value: feedPostsCount ?? '—', color: '#8b5cf6' },
+                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,   color: '#3b82f6', icon: '👤' },
+                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,  color: '#10b981', icon: '✅' },
+                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,             color: '#4ade80', icon: '🟢' },
+                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending, color: '#f59e0b', icon: '⏳' },
+                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,  color: '#ef4444', icon: '🚫' },
+                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#8b5cf6', icon: '📝' },
+                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,            color: '#06b6d4', icon: '💬' },
+                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,             color: '#f97316', icon: '🚨' },
                 ].map(s => (
                   <div key={s.label} className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                    <p className="text-xs text-gray-500 mb-2">{s.label}</p>
+                    <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><span>{s.icon}</span>{s.label}</p>
                     <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
                   </div>
                 ))}

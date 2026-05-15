@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, subscribePush } from '../lib/supabase';
 import { Profile } from '../types';
 
 interface User { id: string; email?: string; [key: string]: any; }
@@ -44,7 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        (async () => { await loadProfile(session.user.id); })();
+        (async () => {
+          await loadProfile(session.user.id);
+          subscribePush().catch(() => {});
+        })();
       } else {
         setProfile(null);
       }

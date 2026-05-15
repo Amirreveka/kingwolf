@@ -12,8 +12,31 @@ import { Conversation } from '../types';
 import { supabase, onSignal, offSignal, sendSignal } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { CallsPage } from './CallsPage';
+import { StoriesPage } from './StoriesPage';
 
-type Page = 'messages' | 'calls' | 'feed' | 'settings';
+type Page = 'messages' | 'calls' | 'feed' | 'stories' | 'settings';
+
+// Instagram-style Stories icon
+function StoriesIcon({ size = 22, active = false }: { size?: number; active?: boolean }) {
+  const id = `ig-grad-${size}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#f09433" />
+          <stop offset="25%" stopColor="#e6683c" />
+          <stop offset="50%" stopColor="#dc2743" />
+          <stop offset="75%" stopColor="#cc2366" />
+          <stop offset="100%" stopColor="#bc1888" />
+        </linearGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.5" stroke={active ? `url(#${id})` : 'currentColor'} strokeWidth={active ? '2' : '1.5'} fill="none" />
+      <rect x="7" y="7" width="10" height="10" rx="3" stroke={active ? `url(#${id})` : 'currentColor'} strokeWidth="1.5" fill="none" />
+      <circle cx="12" cy="12" r="2.5" fill={active ? `url(#${id})` : 'currentColor'} />
+      <circle cx="15.5" cy="8.5" r="0.8" fill={active ? `url(#${id})` : 'currentColor'} />
+    </svg>
+  );
+}
 
 // Old Twitter bird SVG
 function TwitterBird({ size = 20 }: { size?: number }) {
@@ -255,6 +278,7 @@ export function MessengerLayout() {
     { id: 'messages' as Page, label: fa ? 'پیام‌ها' : 'Messages', icon: MessageSquare },
     { id: 'calls'   as Page, label: fa ? 'تماس‌ها' : 'Calls',    icon: Phone },
     { id: 'feed'    as Page, label: fa ? 'توییت'    : 'Tweet',    icon: null /* uses TwitterBird */ },
+    { id: 'stories' as Page, label: fa ? 'استوری'   : 'Stories',  icon: null /* uses StoriesIcon */ },
     { id: 'settings'as Page, label: fa ? 'تنظیمات'  : 'Settings', icon: Settings },
   ];
 
@@ -288,7 +312,7 @@ export function MessengerLayout() {
               }}
               title={item.label}
             >
-              {item.icon ? <item.icon size={18} /> : <TwitterBird size={18} />}
+              {item.id === 'stories' ? <StoriesIcon size={18} active={page === 'stories'} /> : item.icon ? <item.icon size={18} /> : <TwitterBird size={18} />}
               <span
                 className="absolute right-full mr-2 text-xs whitespace-nowrap px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
                 style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}
@@ -380,9 +404,7 @@ export function MessengerLayout() {
           >
             <WolfLogo size={24} />
             <h1 className="font-bold flex-1" style={{ color: 'var(--text-primary)' }}>
-              {page === 'feed'
-                ? (fa ? 'توییت' : 'Tweet')
-                : (fa ? 'تنظیمات' : 'Settings')}
+              {page === 'feed' ? (fa ? 'توییت' : 'Tweet') : page === 'stories' ? (fa ? 'استوری' : 'Stories') : (fa ? 'تنظیمات' : 'Settings')}
             </h1>
             {/* Language + theme quick toggles in header */}
             <button
@@ -414,6 +436,8 @@ export function MessengerLayout() {
           <CallsPage />
         ) : page === 'feed' ? (
           <FeedPage />
+        ) : page === 'stories' ? (
+          <StoriesPage />
         ) : (
           <SettingsPage onClose={() => setPage('messages')} />
         )}
@@ -559,7 +583,9 @@ export function MessengerLayout() {
               minHeight: 44,
             }}
           >
-            {item.icon ? (
+            {item.id === 'stories' ? (
+              <StoriesIcon size={page === item.id ? 22 : 20} active={page === 'stories'} />
+            ) : item.icon ? (
               <item.icon size={page === item.id ? 22 : 20} />
             ) : (
               <TwitterBird size={page === item.id ? 22 : 20} />

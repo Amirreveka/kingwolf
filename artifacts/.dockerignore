@@ -1,0 +1,12 @@
+api-server/node_modules
+api-server/data
+api-server/uploads
+kingwolf/node_modules
+kingwolf/.vite
+kingwolf/src
+kingwolf/public
+kingwolf/vite.config.ts
+kingwolf/tsconfig*.json
+kingwolf/package*.json
+**/.git
+**/*.log

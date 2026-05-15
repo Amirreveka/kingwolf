@@ -17,6 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { db, UPLOADS_DIR } from './db.js';
+import webpush from 'web-push';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
@@ -28,6 +29,69 @@ const JWT_SECRET = process.env.JWT_SECRET || (() => {
   fs.writeFileSync(secretFile, s);
   return s;
 })();
+
+// ===== VAPID (Web Push) Setup =====
+const vapidFile = path.join(__dirname, 'data', '.vapid.json');
+let VAPID_KEYS = null;
+try {
+  if (fs.existsSync(vapidFile)) {
+    VAPID_KEYS = JSON.parse(fs.readFileSync(vapidFile, 'utf8'));
+  } else {
+    VAPID_KEYS = webpush.generateVAPIDKeys();
+    fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+    fs.writeFileSync(vapidFile, JSON.stringify(VAPID_KEYS));
+    console.log('✅ VAPID keys generated');
+  }
+  webpush.setVapidDetails('mailto:admin@kingwolf.internal', VAPID_KEYS.publicKey, VAPID_KEYS.privateKey);
+} catch (e) { console.error('VAPID setup failed:', e.message); }
+
+async function sendPushToUser(userId, payload) {
+  if (!VAPID_KEYS) return;
+  try {
+    const subs = db.prepare('SELECT * FROM push_subscriptions WHERE user_id=?').all(userId);
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: JSON.parse(sub.keys) },
+          JSON.stringify(payload),
+          { TTL: 60 }
+        );
+      } catch (e) {
+        if (e.statusCode === 410 || e.statusCode === 404) {
+          db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(sub.id);
+        }
+      }
+    }
+  } catch {}
+}
+
+// ===== Admin Rate Limiting =====
+const adminAttempts = new Map();
+function adminRlCheck(req) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  const now = Date.now();
+  const rec = adminAttempts.get(ip);
+  if (!rec) return { allowed: true };
+  if (rec.lockedUntil && now < rec.lockedUntil) return { allowed: false, retryAfter: Math.ceil((rec.lockedUntil - now) / 1000) };
+  if (rec.lastFailAt && now - rec.lastFailAt > 10 * 60 * 1000) { adminAttempts.delete(ip); }
+  return { allowed: true };
+}
+function adminRlFail(req) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  const now = Date.now();
+  const rec = adminAttempts.get(ip) || { fails: 0, locks: 0 };
+  rec.fails = (rec.fails || 0) + 1;
+  rec.lastFailAt = now;
+  if (rec.fails % 5 === 0) {
+    rec.locks = (rec.locks || 0) + 1;
+    rec.lockedUntil = now + 30000 * Math.pow(2, rec.locks - 1);
+  }
+  adminAttempts.set(ip, rec);
+}
+function adminRlSuccess(req) {
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
+  adminAttempts.delete(ip);
+}
 
 const app = express();
 app.use(cors());
@@ -428,7 +492,24 @@ app.post('/db/:table/insert', authMiddleware, (req, res) => {
   }
   // Broadcast realtime for relevant tables
   if (table === 'messages') {
-    inserted.forEach((m) => broadcast({ event: 'INSERT', table, new: m }));
+    inserted.forEach((m) => {
+      broadcast({ event: 'INSERT', table, new: m });
+      // Push notification to offline members of conversation
+      if (m.conversation_id && m.sender_id) {
+        try {
+          const members = db.prepare('SELECT user_id FROM conversation_members WHERE conversation_id=?').all(m.conversation_id);
+          const senderProfile = db.prepare('SELECT display_name, username FROM profiles WHERE id=?').get(m.sender_id);
+          const senderName = senderProfile?.display_name || senderProfile?.username || 'Someone';
+          for (const mem of members) {
+            if (mem.user_id === m.sender_id) continue;
+            const isOnline = userSockets.has(mem.user_id);
+            if (!isOnline) {
+              sendPushToUser(mem.user_id, { title: senderName, body: m.content?.slice(0, 80) || '📎 media', tag: `msg-${m.conversation_id}`, url: '/' });
+            }
+          }
+        } catch (_) {}
+      }
+    });
   } else if (table === 'conversations' || table === 'conversation_members' || table === 'feed_posts') {
     inserted.forEach((m) => broadcast({ event: 'INSERT', table, new: m }));
   }
@@ -741,6 +822,8 @@ app.get('/admin/list', authMiddleware, adminOnly, (req, res) => {
 
 // ===== Admin: create new admin user =====
 app.post('/admin/create-admin', authMiddleware, adminOnly, async (req, res) => {
+  const rl = adminRlCheck(req);
+  if (!rl.allowed) return res.status(429).json({ error: `Too many attempts. Retry in ${rl.retryAfter}s`, retryAfter: rl.retryAfter });
   const { username, password } = req.body || {};
   if (!username || !password || password.length < 6) return res.status(400).json({ error: 'username and password (min 6 chars) required' });
   const existing = db.prepare('SELECT 1 FROM profiles WHERE username = ?').get(username);
@@ -1036,6 +1119,8 @@ app.post('/social/like/:postId', authMiddleware, (req, res) => {
   if (post && post.author_id !== userId) {
     db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, target_id, target_type) VALUES (?, ?, ?, ?, ?, ?)')
       .run(nanoid(), post.author_id, 'like', userId, postId, 'post');
+    const actor = db.prepare('SELECT display_name, username FROM profiles WHERE id=?').get(userId);
+    sendPushToUser(post.author_id, { title: '❤️ ' + (actor?.display_name || actor?.username || 'Someone'), body: 'پست شما را لایک کرد', tag: 'like', url: '/' });
   }
   return res.json({ liked: true });
 });
@@ -1066,6 +1151,8 @@ app.post('/social/follow/:userId', authMiddleware, (req, res) => {
   db.prepare('INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)').run(me, target);
   db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, target_id, target_type) VALUES (?, ?, ?, ?, ?, ?)')
     .run(nanoid(), target, 'follow', me, me, 'profile');
+  const followerP = db.prepare('SELECT display_name, username FROM profiles WHERE id=?').get(me);
+  sendPushToUser(target, { title: '👤 ' + (followerP?.display_name || followerP?.username || 'Someone'), body: 'شما را دنبال کرد', tag: 'follow', url: '/' });
   return res.json({ following: true });
 });
 
@@ -1306,6 +1393,30 @@ app.get('/notifications', authMiddleware, (req, res) => {
 // Mark all notifications read
 app.post('/notifications/read', authMiddleware, (req, res) => {
   db.prepare('UPDATE notifications SET is_read=1 WHERE user_id=?').run(req.userId);
+  return res.json({ ok: true });
+});
+
+// ===== PUSH NOTIFICATIONS =====
+app.get('/push/vapid-key', (req, res) => {
+  if (!VAPID_KEYS) return res.status(503).json({ error: 'push not configured' });
+  return res.json({ publicKey: VAPID_KEYS.publicKey });
+});
+
+app.post('/push/subscribe', authMiddleware, (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (!endpoint || !keys) return res.status(400).json({ error: 'endpoint and keys required' });
+  const id = nanoid();
+  db.prepare('INSERT OR REPLACE INTO push_subscriptions (id, user_id, endpoint, keys) VALUES (?, ?, ?, ?)').run(id, req.userId, endpoint, JSON.stringify(keys));
+  return res.json({ ok: true });
+});
+
+app.delete('/push/subscribe', authMiddleware, (req, res) => {
+  const { endpoint } = req.body || {};
+  if (endpoint) {
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id=? AND endpoint=?').run(req.userId, endpoint);
+  } else {
+    db.prepare('DELETE FROM push_subscriptions WHERE user_id=?').run(req.userId);
+  }
   return res.json({ ok: true });
 });
 

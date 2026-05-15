@@ -606,7 +606,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                 )}
                 <div className={`flex items-end gap-2 mb-0.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isOwn && (
-                    <div className={`w-7 h-7 flex-shrink-0 ${showAvatar ? '' : 'invisible'}`}>
+                    <div className={`w-7 h-7 flex-shrink-0 ${showAvatar ? 'cursor-pointer' : 'invisible'}`}
+                      onClick={e => { e.stopPropagation(); if (showAvatar && msg.sender) setShowUserProfile(msg.sender as any); }}>
                       {msg.sender?.avatar_url
                         ? <img src={msg.sender.avatar_url} className="w-7 h-7 rounded-full object-cover" alt="" />
                         : <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center"><span className="text-white text-xs font-bold">{(msg.sender?.display_name || msg.sender?.username || '?').charAt(0).toUpperCase()}</span></div>
@@ -624,7 +625,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                   >
                     {/* Group sender name */}
                     {!isOwn && conversation.type === 'group' && showAvatar && (
-                      <p className="text-xs font-semibold mb-1" style={{ color: '#93c5fd' }}>{msg.sender?.display_name || msg.sender?.username}</p>
+                      <p className="text-xs font-semibold mb-1 cursor-pointer" style={{ color: '#93c5fd' }}
+                        onClick={e => { e.stopPropagation(); if (msg.sender) setShowUserProfile(msg.sender as any); }}>
+                        {msg.sender?.display_name || msg.sender?.username}
+                      </p>
                     )}
                     {/* Reply preview */}
                     {repliedMsg && (

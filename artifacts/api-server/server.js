@@ -1063,19 +1063,48 @@ function getCpuPercent() {
 }
 setInterval(getCpuPercent, 1000);
 
+// ── Disk stats helper ────────────────────────────────────────────────────────
+const fsSync = require('fs');
+function getDiskStats(path) {
+  try {
+    const s = fsSync.statfsSync(path);
+    const total = s.blocks * s.bsize;
+    const free = s.bfree * s.bsize;
+    const used = total - free;
+    return { total, free, used, percentUsed: total > 0 ? Math.round((used / total) * 100) : 0, path };
+  } catch {
+    return { total: 0, free: 0, used: 0, percentUsed: 0, path };
+  }
+}
+
+// ── High-usage alert log ─────────────────────────────────────────────────────
+const alertLog = [];
+function maybeLogAlert(cpu, ram, disk) {
+  const ts = new Date().toISOString();
+  if (cpu > 90)  alertLog.push({ ts, type: 'cpu',  value: cpu,  msg: `CPU بحرانی: ${cpu}%` });
+  if (ram > 90)  alertLog.push({ ts, type: 'ram',  value: ram,  msg: `RAM بحرانی: ${ram}%` });
+  if (disk > 90) alertLog.push({ ts, type: 'disk', value: disk, msg: `Disk بحرانی: ${disk}%` });
+  // keep only last 100 alerts
+  if (alertLog.length > 100) alertLog.splice(0, alertLog.length - 100);
+}
+
 app.get('/metrics', authMiddleware, adminOnly, (req, res) => {
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
   const usedMem = totalMem - freeMem;
   const procMem = process.memoryUsage();
+  const cpuPct = getCpuPercent();
+  const ramPct = Math.round((usedMem / totalMem) * 100);
+  const disk = getDiskStats('/');
   const tables = ['users','profiles','conversations','conversation_members','messages','feed_posts','app_settings','admin_access'];
   const dbStats = {};
   for (const t of tables) {
     try { dbStats[t] = db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n; } catch { dbStats[t] = 0; }
   }
+  maybeLogAlert(cpuPct, ramPct, disk.percentUsed);
   return res.json({
     cpu: {
-      percent: getCpuPercent(),
+      percent: cpuPct,
       count: os.cpus().length,
       model: os.cpus()[0]?.model || 'unknown',
       loadAvg: os.loadavg(),
@@ -1084,7 +1113,12 @@ app.get('/metrics', authMiddleware, adminOnly, (req, res) => {
       total: totalMem,
       free: freeMem,
       used: usedMem,
-      percentUsed: Math.round((usedMem / totalMem) * 100),
+      percentUsed: ramPct,
+    },
+    disk: disk,
+    alerts: {
+      critical: cpuPct > 90 || ramPct > 90 || disk.percentUsed > 90,
+      recent: alertLog.slice(-10),
     },
     process: {
       heapUsed: procMem.heapUsed,

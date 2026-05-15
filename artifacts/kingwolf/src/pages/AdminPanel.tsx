@@ -1327,6 +1327,7 @@ export function AdminPanel() {
 function StatusTab() {
   const [metrics, setMetrics] = useState<any>(null);
   const [error, setError] = useState('');
+  const [alertVisible, setAlertVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchMetrics() {
@@ -1337,6 +1338,7 @@ function StatusTab() {
       if (!res.ok) { setError('خطا در دریافت اطلاعات'); return; }
       const data = await res.json();
       setMetrics(data);
+      setAlertVisible(!!data.alerts?.critical);
       setError('');
     } catch { setError('سرور در دسترس نیست'); }
   }
@@ -1360,62 +1362,93 @@ function StatusTab() {
 
   const cpuPct = metrics?.cpu?.percent ?? 0;
   const ramPct = metrics?.memory?.percentUsed ?? 0;
-  const cpuColor = cpuPct > 80 ? '#ef4444' : cpuPct > 50 ? '#f59e0b' : '#4ade80';
-  const ramColor = ramPct > 80 ? '#ef4444' : '#a78bfa';
+  const diskPct = metrics?.disk?.percentUsed ?? 0;
+  const cpuCrit = cpuPct > 90;
+  const ramCrit = ramPct > 90;
+  const diskCrit = diskPct > 90;
+  const cpuColor = cpuPct > 90 ? '#ef4444' : cpuPct > 75 ? '#f97316' : cpuPct > 50 ? '#f59e0b' : '#4ade80';
+  const ramColor = ramPct > 90 ? '#ef4444' : ramPct > 75 ? '#f97316' : '#a78bfa';
+  const diskColor = diskPct > 90 ? '#ef4444' : diskPct > 75 ? '#f97316' : '#38bdf8';
+
+  const MiniRing = ({ pct, color, label }: { pct: number; color: string; label: string }) => (
+    <div className="flex items-center gap-3">
+      <svg width="56" height="56" viewBox="0 0 56 56" className="flex-shrink-0">
+        <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+        <circle cx="28" cy="28" r="22" fill="none" stroke={color} strokeWidth="5"
+          strokeDasharray={`${(pct / 100) * 138.2} 138.2`} strokeLinecap="round"
+          transform="rotate(-90 28 28)" style={{ transition: 'stroke-dasharray 0.7s ease' }} />
+        <text x="28" y="33" textAnchor="middle" fontSize="11" fontWeight="bold" fill={color}>{pct}%</text>
+      </svg>
+      <div>
+        <p className="text-2xl font-bold" style={{ color }}>{pct}%</p>
+        <p className="text-xs text-gray-500">{label}</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4 kw-tab-in">
       {error && <p className="text-xs text-red-400">{error}</p>}
 
-      {/* CPU + RAM side by side */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* 🚨 HIGH USAGE ALERT BANNER */}
+      {alertVisible && (
+        <div className="rounded-2xl p-4 kw-modal-in flex items-start gap-3" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)', backdropFilter: 'blur(12px)' }}>
+          <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.2)' }}>
+            <AlertTriangle size={16} className="text-red-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-red-300 mb-1">⚠️ هشدار بحرانی — مصرف بالا</p>
+            <div className="flex flex-wrap gap-2">
+              {cpuCrit && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">CPU: {cpuPct}% (بحرانی)</span>}
+              {ramCrit && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">RAM: {ramPct}% (بحرانی)</span>}
+              {diskCrit && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">Disk: {diskPct}% (بحرانی)</span>}
+            </div>
+            {metrics?.alerts?.recent?.length > 0 && (
+              <div className="mt-2 space-y-0.5">
+                {metrics.alerts.recent.slice(-3).reverse().map((a: any, i: number) => (
+                  <p key={i} className="text-xs text-red-400/70 font-mono">{new Date(a.ts).toLocaleTimeString('fa-IR')} — {a.msg}</p>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => setAlertVisible(false)} className="text-red-400 hover:text-red-200 flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
+
+      {/* CPU + RAM + Disk — three rings */}
+      <div className="grid grid-cols-3 gap-3">
         {/* CPU Ring */}
-        <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${cpuColor}25`, backdropFilter: 'blur(12px)' }}>
+        <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: cpuCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${cpuColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
           <div className="flex items-center gap-2 mb-3">
             <Cpu size={14} style={{ color: cpuColor }} />
             <h3 className="text-xs font-semibold text-white">CPU</h3>
             <span className="mr-auto text-xs animate-pulse" style={{ color: '#4ade80' }}>● زنده</span>
           </div>
-          <div className="flex items-center gap-3">
-            <svg width="56" height="56" viewBox="0 0 56 56" className="flex-shrink-0">
-              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke={cpuColor} strokeWidth="5"
-                strokeDasharray={`${(cpuPct / 100) * 138.2} 138.2`}
-                strokeLinecap="round"
-                transform="rotate(-90 28 28)"
-                style={{ transition: 'stroke-dasharray 0.7s ease' }} />
-              <text x="28" y="33" textAnchor="middle" fontSize="11" fontWeight="bold" fill={cpuColor}>{cpuPct}%</text>
-            </svg>
-            <div>
-              <p className="text-2xl font-bold" style={{ color: cpuColor }}>{cpuPct}%</p>
-              <p className="text-xs text-gray-500">{metrics?.cpu?.count ?? '—'} هسته</p>
-              {metrics?.cpu?.loadAvg && <p className="text-xs text-gray-600 mt-1">بار: {metrics.cpu.loadAvg.map((v: number) => v.toFixed(1)).join(' / ')}</p>}
-            </div>
-          </div>
+          <MiniRing pct={cpuPct} color={cpuColor} label={`${metrics?.cpu?.count ?? '—'} هسته`} />
+          {metrics?.cpu?.loadAvg && <p className="text-xs text-gray-600 mt-2">بار: {metrics.cpu.loadAvg.map((v: number) => v.toFixed(1)).join(' / ')}</p>}
+          {cpuCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
         </div>
 
         {/* RAM Ring */}
-        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: 'rgba(15,23,42,0.8)', border: `1px solid ${ramColor}25`, backdropFilter: 'blur(12px)' }}>
+        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: ramCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${ramColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
           <div className="flex items-center gap-2 mb-3">
             <HardDrive size={14} style={{ color: ramColor }} />
             <h3 className="text-xs font-semibold text-white">RAM</h3>
           </div>
-          <div className="flex items-center gap-3">
-            <svg width="56" height="56" viewBox="0 0 56 56" className="flex-shrink-0">
-              <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
-              <circle cx="28" cy="28" r="22" fill="none" stroke={ramColor} strokeWidth="5"
-                strokeDasharray={`${(ramPct / 100) * 138.2} 138.2`}
-                strokeLinecap="round"
-                transform="rotate(-90 28 28)"
-                style={{ transition: 'stroke-dasharray 0.7s ease' }} />
-              <text x="28" y="33" textAnchor="middle" fontSize="11" fontWeight="bold" fill={ramColor}>{ramPct}%</text>
-            </svg>
-            <div>
-              <p className="text-2xl font-bold" style={{ color: ramColor }}>{ramPct}%</p>
-              {metrics && <p className="text-xs text-gray-500">{fmtBytes(metrics.memory.used)} / {fmtBytes(metrics.memory.total)}</p>}
-              {metrics?.process && <p className="text-xs text-gray-600 mt-1">Node RSS: {fmtBytes(metrics.process.rss)}</p>}
-            </div>
+          <MiniRing pct={ramPct} color={ramColor} label={metrics ? `${fmtBytes(metrics.memory.used)} / ${fmtBytes(metrics.memory.total)}` : '—'} />
+          {metrics?.process && <p className="text-xs text-gray-600 mt-2">Node RSS: {fmtBytes(metrics.process.rss)}</p>}
+          {ramCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
+        </div>
+
+        {/* Disk Ring */}
+        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '120ms', background: diskCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${diskColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Server size={14} style={{ color: diskColor }} />
+            <h3 className="text-xs font-semibold text-white">Disk</h3>
           </div>
+          <MiniRing pct={diskPct} color={diskColor} label={metrics?.disk ? `${fmtBytes(metrics.disk.used)} / ${fmtBytes(metrics.disk.total)}` : '—'} />
+          {metrics?.disk && <p className="text-xs text-gray-600 mt-2">آزاد: {fmtBytes(metrics.disk.free)}</p>}
+          {diskCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
         </div>
       </div>
 

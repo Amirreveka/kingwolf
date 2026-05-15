@@ -73,5 +73,8 @@
     "vite": "^6.0.7",
     "wouter": "^3.3.5",
     "zod": "^3.24.1"
+  },
+  "dependencies": {
+    "@fontsource/vazirmatn": "^5.2.8"
   }
 }

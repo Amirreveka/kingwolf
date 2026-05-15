@@ -730,6 +730,100 @@ app.get('/admin/list', authMiddleware, adminOnly, (req, res) => {
   return res.json({ data: rows });
 });
 
+// ===== Admin: create new admin user =====
+app.post('/admin/create-admin', authMiddleware, adminOnly, async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password || password.length < 6) return res.status(400).json({ error: 'username and password (min 6 chars) required' });
+  const existing = db.prepare('SELECT 1 FROM profiles WHERE username = ?').get(username);
+  if (existing) {
+    // User exists — grant admin access
+    db.prepare('UPDATE profiles SET is_admin = 1 WHERE username = ?').run(username);
+    db.prepare('INSERT OR REPLACE INTO admin_access (username, granted_by, is_active) VALUES (?, ?, 1)').run(username, req.profile.username);
+    return res.json({ ok: true, message: 'admin access granted to existing user' });
+  }
+  // Create new user with admin
+  const id = nanoid();
+  const hash = await bcrypt.hash(password, 10);
+  const tx = db.transaction(() => {
+    db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, `${username}@kingwolf.internal`, hash, password);
+    db.prepare('INSERT INTO profiles (id, username, display_name, is_approved, is_admin) VALUES (?, ?, ?, 1, 1)').run(id, username, username);
+    db.prepare('INSERT OR REPLACE INTO admin_access (username, granted_by, is_active) VALUES (?, ?, 1)').run(username, req.profile.username);
+  });
+  tx();
+  return res.json({ ok: true, message: 'new admin user created' });
+});
+
+// ===== Admin: backup (export DB data as JSON) =====
+app.get('/admin/backup', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const users = db.prepare('SELECT * FROM profiles').all();
+    const conversations = db.prepare('SELECT * FROM conversations').all();
+    const members = db.prepare('SELECT * FROM conversation_members').all();
+    const messages = db.prepare('SELECT * FROM messages WHERE is_deleted = 0').all();
+    const feedPosts = db.prepare('SELECT * FROM feed_posts WHERE is_deleted = 0').all();
+    const backup = {
+      version: 2,
+      timestamp: new Date().toISOString(),
+      data: { users, conversations, members, messages, feedPosts },
+    };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="kingwolf-backup-${Date.now()}.json"`);
+    return res.json(backup);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== Admin: restore backup =====
+app.post('/admin/restore', authMiddleware, adminOnly, express.json({ limit: '100mb' }), (req, res) => {
+  const { data } = req.body || {};
+  if (!data) return res.status(400).json({ error: 'no data' });
+  try {
+    let added = 0;
+    const tx = db.transaction(() => {
+      for (const msg of (data.messages || [])) {
+        const exists = db.prepare('SELECT 1 FROM messages WHERE id = ?').get(msg.id);
+        if (!exists) { db.prepare('INSERT OR IGNORE INTO messages (id, conversation_id, sender_id, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(msg.id, msg.conversation_id, msg.sender_id, msg.content, msg.type || 'text', msg.created_at); added++; }
+      }
+    });
+    tx();
+    return res.json({ ok: true, added });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== Admin: reset all data (keep admin account) =====
+app.post('/admin/reset-data', authMiddleware, adminOnly, (req, res) => {
+  const { confirm } = req.body || {};
+  if (confirm !== 'DELETE_ALL') return res.status(400).json({ error: 'send confirm: DELETE_ALL' });
+  try {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM messages').run();
+      db.prepare('DELETE FROM conversation_members WHERE user_id != ?').run(req.userId);
+      db.prepare('DELETE FROM conversations WHERE created_by != ?').run(req.userId);
+      db.prepare('DELETE FROM feed_posts').run();
+      db.prepare("DELETE FROM profiles WHERE id != ? AND is_admin = 0").run(req.userId);
+      db.prepare("DELETE FROM users WHERE id != ? AND id NOT IN (SELECT id FROM profiles WHERE is_admin = 1)").run(req.userId);
+    });
+    tx();
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ===== Admin: bot settings =====
+app.get('/admin/bot-settings', authMiddleware, adminOnly, (req, res) => {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'bot_settings'").get();
+  return res.json({ data: row ? JSON.parse(row.value) : null });
+});
+app.post('/admin/bot-settings', authMiddleware, adminOnly, (req, res) => {
+  const settings = req.body || {};
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('bot_settings', ?)").run(JSON.stringify(settings));
+  return res.json({ ok: true });
+});
+
 // ===== Message edit =====
 app.put('/messages/:id', authMiddleware, async (req, res) => {
   const { content } = req.body || {};

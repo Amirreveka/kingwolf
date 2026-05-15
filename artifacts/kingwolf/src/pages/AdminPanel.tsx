@@ -3,13 +3,13 @@ import {
   Users, Settings, BarChart2, Shield, LogIn, Check, Ban, Eye, EyeOff, RefreshCw,
   UserCheck, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
   BadgeCheck, Activity, ChevronDown, Newspaper, Pin, PinOff, Trash2, FileText,
-  Flag, MessageSquare, CheckCheck,
+  Flag, MessageSquare, CheckCheck, Download, Upload, Bot, UserPlus, AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { Profile } from '../types';
 
-type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status';
+type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status' | 'backup' | 'bot';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 async function adminFetch(path: string, opts: RequestInit = {}) {
@@ -43,6 +43,153 @@ interface FeedPost {
   is_pinned: number;
   authorUsername?: string;
   authorDisplay?: string;
+}
+
+function BackupTab() {
+  const [loading, setLoading] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [msg, setMsg] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function downloadBackup() {
+    setLoading(true);
+    const token = localStorage.getItem('kingwolf_token');
+    const res = await fetch(`${API_BASE}/admin/backup`, { headers: { Authorization: `Bearer ${token}` } });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `kingwolf-backup-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+    setLoading(false);
+  }
+
+  async function handleRestore(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setRestoreLoading(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const res = await adminFetch('/admin/restore', { method: 'POST', body: JSON.stringify(parsed) });
+      setMsg(res.ok ? `✅ بازیابی موفق — ${res.added} مورد اضافه شد` : `❌ خطا: ${res.error}`);
+    } catch { setMsg('❌ فایل نامعتبر است'); }
+    setRestoreLoading(false);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  async function resetAll() {
+    if (!window.confirm('⚠️ تمام داده‌های کاربران و پیام‌ها پاک می‌شوند. ادامه می‌دهید؟')) return;
+    if (!window.confirm('این عمل برگشت‌ناپذیر است. مطمئنید؟')) return;
+    setResetLoading(true);
+    const res = await adminFetch('/admin/reset-data', { method: 'POST', body: JSON.stringify({ confirm: 'DELETE_ALL' }) });
+    setMsg(res.ok ? '✅ تمام داده‌ها پاک شدند' : `❌ خطا: ${res.error}`);
+    setResetLoading(false);
+  }
+
+  return (
+    <div className="p-6 space-y-4 max-w-lg">
+      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+        <h2 className="text-sm font-bold text-white flex items-center gap-2"><Download size={16} className="text-green-400" />دریافت بکاپ</h2>
+        <p className="text-xs text-gray-500">یک فایل JSON شامل تمام پیام‌ها، کاربران، و محتوا دریافت کنید.</p>
+        <button onClick={downloadBackup} disabled={loading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white transition-colors"
+          style={{ background: '#1a7f37' }}>
+          {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Download size={16} />}
+          دریافت فایل بکاپ
+        </button>
+      </div>
+
+      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+        <h2 className="text-sm font-bold text-white flex items-center gap-2"><Upload size={16} className="text-blue-400" />بارگذاری بکاپ</h2>
+        <p className="text-xs text-gray-500">فایل بکاپ JSON را بارگذاری کنید. اطلاعات تکراری نادیده گرفته می‌شوند.</p>
+        <input ref={fileRef} type="file" accept=".json" onChange={handleRestore} className="hidden" />
+        <button onClick={() => fileRef.current?.click()} disabled={restoreLoading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          style={{ background: '#1d3461', color: '#60a5fa' }}>
+          {restoreLoading ? <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" /> : <Upload size={16} />}
+          انتخاب فایل بکاپ
+        </button>
+      </div>
+
+      <div className="rounded-2xl p-5 border border-red-900/40 space-y-4" style={{ background: '#0d1117' }}>
+        <h2 className="text-sm font-bold text-red-400 flex items-center gap-2"><AlertTriangle size={16} />حذف کل داده‌ها</h2>
+        <p className="text-xs text-gray-500">تمام پیام‌ها، کاربران غیرادمین، گروه‌ها، و کانال‌ها پاک می‌شوند. حساب ادمین باقی می‌ماند.</p>
+        <button onClick={resetAll} disabled={resetLoading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-400 transition-colors"
+          style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+          {resetLoading ? <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={16} />}
+          حذف همه داده‌ها
+        </button>
+      </div>
+
+      {msg && <p className="text-sm text-center rounded-xl p-3" style={{ background: msg.startsWith('✅') ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: msg.startsWith('✅') ? '#4ade80' : '#f87171' }}>{msg}</p>}
+    </div>
+  );
+}
+
+function BotTab() {
+  const [settings, setSettings] = useState({ token: '', username: '', sources: '', interval: '10', enabled: false });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    adminFetch('/admin/bot-settings').then(r => { if (r.data) setSettings(s => ({ ...s, ...r.data })); });
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    await adminFetch('/admin/bot-settings', { method: 'POST', body: JSON.stringify(settings) });
+    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <div className="p-6 space-y-4 max-w-lg">
+      <div className="rounded-2xl p-5 border border-gray-800 space-y-4" style={{ background: '#0d1117' }}>
+        <div className="flex items-center gap-2">
+          <Bot size={18} className="text-purple-400" />
+          <h2 className="text-sm font-bold text-white">اتصال بات</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">زیرساخت آماده</span>
+        </div>
+        <p className="text-xs text-gray-500">اطلاعات بات را وارد کنید. بات در مراحل بعدی فعال می‌شود.</p>
+
+        {[
+          { label: 'توکن API بات', key: 'token', placeholder: 'bot_token_here', type: 'password' },
+          { label: 'نام کاربری بات', key: 'username', placeholder: '@mybot', type: 'text' },
+          { label: 'آدرس‌های منبع توییتر (هر خط یک آدرس)', key: 'sources', placeholder: '@user1\n@user2', type: 'textarea' },
+          { label: 'فاصله زمانی بررسی (دقیقه)', key: 'interval', placeholder: '10', type: 'number' },
+        ].map(field => (
+          <div key={field.key}>
+            <label className="text-xs text-gray-400 mb-1 block">{field.label}</label>
+            {field.type === 'textarea'
+              ? <textarea value={(settings as any)[field.key]} onChange={e => setSettings(s => ({ ...s, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder} rows={3}
+                  className="w-full px-3 py-2 rounded-xl text-xs text-white outline-none resize-none" style={{ background: '#161b22', border: '1px solid #30363d' }} />
+              : <input type={field.type} value={(settings as any)[field.key]} onChange={e => setSettings(s => ({ ...s, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  className="w-full px-3 py-2 rounded-xl text-xs text-white outline-none" style={{ background: '#161b22', border: '1px solid #30363d' }} />
+            }
+          </div>
+        ))}
+
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSettings(s => ({ ...s, enabled: !s.enabled }))}
+            className="relative w-10 h-5 rounded-full transition-colors"
+            style={{ background: settings.enabled ? '#7c3aed' : '#374151' }}>
+            <span className="absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow"
+              style={{ transform: settings.enabled ? 'translateX(-1.25rem)' : 'translateX(0.125rem)' }} />
+          </button>
+          <span className="text-xs text-gray-400">{settings.enabled ? 'بات فعال است' : 'بات غیرفعال است'}</span>
+        </div>
+
+        <button onClick={save} disabled={saving}
+          className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+          style={{ background: saved ? '#1a7f37' : '#7c3aed' }}>
+          {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}
+          {saved ? '✅ ذخیره شد' : 'ذخیره تنظیمات'}
+        </button>
+        <p className="text-xs text-center text-gray-600">بات در نسخه‌های بعدی فعال می‌شود — اطلاعات الان ذخیره می‌شوند</p>
+      </div>
+    </div>
+  );
 }
 
 export function AdminPanel() {
@@ -322,8 +469,9 @@ export function AdminPanel() {
     content: 'مدیریت محتوا',
     reports: 'گزارش‌های تخلف',
     settings: 'تنظیمات',
-    database: 'پایگاه داده',
     status: 'وضعیت سیستم',
+    backup: 'بکاپ و بازیابی',
+    bot: 'تنظیمات بات',
   };
 
   if (!loggedIn) {
@@ -379,6 +527,8 @@ export function AdminPanel() {
             { id: 'reports',   label: 'گزارش‌های تخلف', icon: Flag },
             { id: 'settings',  label: 'تنظیمات', icon: Settings },
             { id: 'status',    label: 'وضعیت سیستم', icon: Server },
+            { id: 'backup',    label: 'بکاپ', icon: Download },
+            { id: 'bot',       label: 'بات', icon: Bot },
           ] as { id: AdminTab; label: string; icon: any }[]).map(item => (
             <button
               key={item.id} onClick={() => setTab(item.id)}
@@ -931,6 +1081,12 @@ export function AdminPanel() {
 
           {/* ── STATUS ── */}
           {tab === 'status' && <StatusTab />}
+
+          {/* ── BACKUP TAB ── */}
+          {tab === 'backup' && <BackupTab />}
+
+          {/* ── BOT TAB ── */}
+          {tab === 'bot' && <BotTab />}
         </div>
       </div>
 

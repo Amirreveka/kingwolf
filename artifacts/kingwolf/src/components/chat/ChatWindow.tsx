@@ -15,7 +15,20 @@ interface ChatWindowProps {
   onStartCall?: (type: 'voice' | 'video', targetUserId: string) => void;
 }
 
-const EMOJI_LIST = ['😀','😂','❤️','👍','🔥','✅','🎉','💯','🙏','😍','🤔','😎','👏','🥳','💪','🌟','😊','🤣','😭','🙄'];
+const EMOJI_CATEGORIES = {
+  '😀': ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','😶‍🌫️','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','💫','🤯','🤠','🥸','😎','🧐','🤓','😭','😢','😥','😓','🤗','😤','😠','😡','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'],
+  '👋': ['👋','🤚','🖐','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🫀','🫁','🧠','🦷','🦴','👀','👁','👅','👄','🫦'],
+  '❤️': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉','☸️','🪯','✡️','🔯','🕎','☯️','☦️','🛐','⛎','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚕️'],
+  '🐶': ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐒','🦆','🐦','🦅','🦉','🦇','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪲','🦟','🦗','🕷','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐟','🐠','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🫏','🦍','🦧','🦣','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🦙','🐐','🦌','🐕','🐩','🦮','🐕‍🦺','🐈','🐈‍⬛','🪶','🐓','🦃','🦤','🦚','🦜','🦢','🦩','🕊','🐇','🦝','🦨','🦡','🦫','🦦','🦥','🐁','🐀','🐿','🦔'],
+  '🍎': ['🍎','🍐','🍊','🍋','🍋‍🟩','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝','🍅','🍆','🥑','🫛','🥦','🥬','🥒','🌶','🫑','🧄','🧅','🥔','🌽','🍠','🫚','🥐','🥯','🍞','🥖','🥨','🧀','🥚','🍳','🧈','🥞','🧇','🥓','🥩','🍗','🍖','🦴','🌭','🍔','🍟','🍕','🫓','🥪','🥙','🧆','🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥮','🍢','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍿','🍩','🍪','🌰','🥜','🍯','🧃','🥤','🧋','☕','🍵','🫖','🍺','🍻','🥂','🍷','🫗','🥃','🍸','🍹','🧉','🍾','🧊'],
+  '⚽': ['⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🏑','🥍','🏏','🪃','🥅','⛳','🪁','🎣','🤿','🎽','🎿','🛷','🥌','🎯','🪃','🎱','🔫','🎮','🕹','🎰','🎲','♟','🧩','🪅','🎭','🎨','🖼','🎪','🎤','🎧','🎼','🎹','🥁','🪘','🎷','🎺','🪗','🎸','🪕','🎻','🎬','🎥','📽','🎞','📞','☎️','📟','📠','📺','📻','🧭','⏱','⏰','🕰','⌛','📡','🔋','🔌','💡','🔦','🕯','🪔','🧱','💰','💴','💵','💶','💷','💸','💳','🪙','💹'],
+  '🚗': ['🚗','🚕','🚙','🚌','🚎','🏎','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🏍','🛵','🚲','🛴','🛹','🛼','🚏','🛣','🛤','⛽','🚨','🚥','🚦','🛑','🚧','⚓','🛟','⛵','🚤','🛥','🛳','⛴','🚢','✈️','🛩','🛫','🛬','💺','🚁','🚟','🚠','🚡','🛰','🚀','🛸','🪂','🪐','🌍','🌎','🌏','🌐','🗺','🧭','🏔','⛰','🌋','🗻','🏕','🏖','🏜','🏝','🏞','🏟','🏛','🏗','🧱','🏘','🏚','🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','💒','🗼','🗽','⛪','🕌','🛕','🕍','⛩','🕋','⛲','⛺','🏕','🌁','🌃','🏙','🌄','🌅','🌆','🌇','🌉','♨️','🌌','🌠','🎇','🎆','🗾'],
+  '💯': ['💯','🔥','✨','🌟','⭐','🌈','☀️','🌤','⛅','🌥','☁️','🌦','🌧','⛈','🌩','🌨','❄️','☃️','⛄','🌬','💨','💧','💦','☔','☂️','🌊','🌀','🌪','🌫','🌈','🌂','🔑','🗝','🔒','🔓','🔏','🔐','🔔','🔕','🔇','🔈','🔉','🔊','📢','📣','📯','🔔','🔕','🎵','🎶','🎼','🎹','🥁','🎷','🎺','🎸','🎻','🎤','🎧','📻','🎙','🎚','🎛','📱','📲','💻','⌨️','🖥','🖨','🖱','🖲','💾','💿','📀','📷','📸','📹','🎥','📽','🎞','📞','☎️','📟','📠','📺','📻','🧭','⏱','⏲','⏰','🕰','⌛','⏳'],
+};
+
+const EMOJI_CAT_LABELS: Record<string, string> = {
+  '😀': 'چهره', '👋': 'دست', '❤️': 'احساس', '🐶': 'حیوانات', '🍎': 'غذا', '⚽': 'ورزش', '🚗': 'سفر', '💯': 'متفرقه'
+};
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 
 async function apiCall(path: string, opts: RequestInit = {}) {
@@ -93,6 +106,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [emojiCat, setEmojiCat] = useState('😀');
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
@@ -776,15 +790,28 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                   <Smile size={18} />
                 </button>
                 {showEmoji && (
-                  <div className="absolute bottom-10 right-0 p-2 rounded-2xl grid grid-cols-5 gap-1 shadow-xl z-10"
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
+                  <div className="absolute bottom-12 right-0 rounded-2xl shadow-2xl z-20 flex flex-col overflow-hidden"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', width: '300px', maxHeight: '320px' }}
                     onClick={e => e.stopPropagation()}>
-                    {EMOJI_LIST.map(em => (
-                      <button key={em} onClick={() => { setText(t => t + em); setShowEmoji(false); textareaRef.current?.focus(); }}
-                        className="w-8 h-8 rounded-lg text-lg flex items-center justify-center hover:bg-blue-500/10">
-                        {em}
-                      </button>
-                    ))}
+                    {/* Category tabs */}
+                    <div className="flex border-b overflow-x-auto flex-shrink-0 scrollbar-none" style={{ borderColor: 'var(--border-color)' }}>
+                      {Object.keys(EMOJI_CATEGORIES).map(cat => (
+                        <button key={cat} onClick={() => setEmojiCat(cat)}
+                          className="flex-shrink-0 px-2 py-2 text-base transition-colors"
+                          style={{ borderBottom: emojiCat === cat ? '2px solid var(--accent)' : '2px solid transparent', opacity: emojiCat === cat ? 1 : 0.5 }}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Emoji grid */}
+                    <div className="overflow-y-auto p-2 grid grid-cols-8 gap-0.5 flex-1">
+                      {(EMOJI_CATEGORIES as any)[emojiCat]?.map((em: string) => (
+                        <button key={em} onClick={() => { setText(t => t + em); textareaRef.current?.focus(); }}
+                          className="w-8 h-8 rounded-lg text-lg flex items-center justify-center transition-colors hover:bg-blue-500/15">
+                          {em}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

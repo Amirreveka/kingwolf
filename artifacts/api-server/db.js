@@ -375,6 +375,27 @@ CREATE TABLE IF NOT EXISTS sub_admins (
   permissions TEXT DEFAULT '{}',
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS device_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  device_name TEXT DEFAULT 'Unknown',
+  device_type TEXT DEFAULT 'unknown',
+  ip TEXT DEFAULT '',
+  last_seen TEXT DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now')),
+  is_active INTEGER DEFAULT 1,
+  FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_device_sessions_user ON device_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_device_sessions_token ON device_sessions(token);
+
+CREATE TABLE IF NOT EXISTS token_blacklist (
+  token TEXT PRIMARY KEY,
+  user_id TEXT,
+  blacklisted_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // Default settings
@@ -419,6 +440,9 @@ const colMigrations = [
   ['conversation_members', 'title', "TEXT DEFAULT ''"],
   ['users', 'current_session_id', "TEXT DEFAULT ''"],
   ['profiles', 'is_verified', 'INTEGER DEFAULT 0'],
+  ['feed_posts', 'is_shadowbanned', 'INTEGER DEFAULT 0'],
+  ['feed_posts', 'shadowbanned_by', "TEXT DEFAULT ''"],
+  ['profiles', 'is_shadowbanned', 'INTEGER DEFAULT 0'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

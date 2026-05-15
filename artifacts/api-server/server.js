@@ -130,9 +130,13 @@ function authMiddleware(req, res, next) {
     if (req.sessionId && user.current_session_id && user.current_session_id !== req.sessionId) {
       return res.status(401).json({ error: 'session_expired' });
     }
+    // Token blacklist check (for force-logout)
+    const blacklisted = db.prepare('SELECT 1 FROM token_blacklist WHERE token = ?').get(token);
+    if (blacklisted) return res.status(401).json({ error: 'session_terminated' });
     const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.userId);
     if (!profile) return res.status(401).json({ error: 'user not found' });
     req.profile = profile;
+    req._rawToken = token;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'invalid token' });
@@ -298,6 +302,11 @@ app.post('/auth/signin', async (req, res) => {
   db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
     .run(sessionId, user.id, ip, ua, deviceName);
   const token = makeToken(user.id, sessionId);
+  // Save device session for force-logout support
+  try {
+    db.prepare(`INSERT OR REPLACE INTO device_sessions (id, user_id, token, device_name, device_type, ip, last_seen, is_active) VALUES (?, ?, ?, ?, ?, ?, datetime('now'), 1)`)
+      .run(sessionId, user.id, token, deviceName, /iPhone|iPad|Android/i.test(ua) ? 'mobile' : 'desktop', ip);
+  } catch {}
   try { db.prepare("INSERT INTO activity_log (user_id, username, action, ip) VALUES (?,?,?,?)").run(user.id, profile.username, 'login', req.ip || ''); } catch {}
   return res.json({
     access_token: token,
@@ -306,7 +315,13 @@ app.post('/auth/signin', async (req, res) => {
 });
 
 app.post('/auth/signout', authMiddleware, (req, res) => {
-  // JWT is stateless; client just drops it
+  // Blacklist token so it can't be reused
+  try {
+    if (req._rawToken) {
+      db.prepare('INSERT OR IGNORE INTO token_blacklist (token, user_id) VALUES (?, ?)').run(req._rawToken, req.userId);
+      db.prepare('UPDATE device_sessions SET is_active = 0 WHERE token = ?').run(req._rawToken);
+    }
+  } catch {}
   return res.json({ ok: true });
 });
 
@@ -1236,6 +1251,76 @@ app.get('/admin/conversations', authMiddleware, adminOnly, (req, res) => {
     `).all(type);
     res.json({ data: convs });
   } catch (e) { res.json({ data: [] }); }
+});
+
+// ── Admin: Device Sessions (Force Logout) ────────────────────────────────────
+app.get('/admin/sessions/:userId', authMiddleware, adminOnly, (req, res) => {
+  const isMaster = req.profile.username === (process.env.KW_ADMIN_USER || 'admin');
+  if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
+  const sessions = db.prepare(`SELECT id, device_name, device_type, ip, last_seen, created_at, is_active FROM device_sessions WHERE user_id = ? AND is_active = 1 ORDER BY last_seen DESC`).all(req.params.userId);
+  res.json({ data: sessions });
+});
+
+app.post('/admin/sessions/:sessionId/logout', authMiddleware, adminOnly, (req, res) => {
+  const isMaster = req.profile.username === (process.env.KW_ADMIN_USER || 'admin');
+  if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
+  const session = db.prepare('SELECT * FROM device_sessions WHERE id = ?').get(req.params.sessionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  db.prepare('INSERT OR IGNORE INTO token_blacklist (token, user_id) VALUES (?, ?)').run(session.token, session.user_id);
+  db.prepare('UPDATE device_sessions SET is_active = 0 WHERE id = ?').run(req.params.sessionId);
+  res.json({ ok: true });
+});
+
+// ── Admin: Evidence Preview ──────────────────────────────────────────────────
+app.get('/admin/reports/:id/evidence', authMiddleware, adminOnly, (req, res) => {
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(req.params.id);
+  if (!report) return res.status(404).json({ error: 'Not found' });
+  let evidence = null;
+  try {
+    if (report.target_type === 'post') {
+      evidence = db.prepare('SELECT fp.*, p.username, p.display_name, p.avatar_url FROM feed_posts fp LEFT JOIN profiles p ON fp.author_id = p.id WHERE fp.id = ?').get(report.target_id);
+    } else if (report.target_type === 'message') {
+      evidence = db.prepare('SELECT m.*, p.username, p.display_name FROM messages m LEFT JOIN profiles p ON m.sender_id = p.id WHERE m.id = ?').get(report.target_id);
+    } else if (report.target_type === 'user') {
+      evidence = db.prepare('SELECT id, username, display_name, avatar_url, bio FROM profiles WHERE id = ?').get(report.target_id);
+    } else if (report.target_type === 'channel' || report.target_type === 'group') {
+      evidence = db.prepare('SELECT id, name, description, avatar_url, type FROM conversations WHERE id = ?').get(report.target_id);
+    }
+  } catch {}
+  res.json({ report, evidence });
+});
+
+// ── Admin: Channel Reports ───────────────────────────────────────────────────
+app.get('/admin/reports/channels', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT r.*, p.username AS reporter_username, p.display_name AS reporter_display_name
+      FROM reports r
+      LEFT JOIN profiles p ON p.id = r.reporter_id
+      WHERE r.target_type IN ('channel','group')
+      ORDER BY r.created_at DESC LIMIT 100
+    `).all();
+    res.json({ data: rows });
+  } catch { res.json({ data: [] }); }
+});
+
+// ── Admin: Post Supreme Actions ──────────────────────────────────────────────
+app.post('/admin/posts/:postId/shadowban', authMiddleware, adminOnly, (req, res) => {
+  const post = db.prepare('SELECT author_id FROM feed_posts WHERE id = ?').get(req.params.postId);
+  if (!post) return res.status(404).json({ error: 'Not found' });
+  try {
+    db.prepare('UPDATE profiles SET is_shadowbanned = 1 WHERE id = ?').run(post.author_id);
+    db.prepare('UPDATE feed_posts SET is_shadowbanned = 1, shadowbanned_by = ? WHERE author_id = ?').run(req.profile.username, post.author_id);
+  } catch {}
+  res.json({ ok: true });
+});
+
+app.post('/admin/posts/:postId/pin-global', authMiddleware, adminOnly, (req, res) => {
+  try {
+    db.prepare('UPDATE feed_posts SET is_pinned = 0').run();
+    db.prepare('UPDATE feed_posts SET is_pinned = 1 WHERE id = ?').run(req.params.postId);
+  } catch {}
+  res.json({ ok: true });
 });
 
 // ===== SOCIAL FEATURES (added in update) =====

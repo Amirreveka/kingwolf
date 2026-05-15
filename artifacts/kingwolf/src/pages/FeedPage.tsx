@@ -103,15 +103,19 @@ async function fetchPosts(filters: any[] = [], limit = 30): Promise<Post[]> {
 }
 
 // ─── ComingSoon ────────────────────────────────────────────────────────────────
-function ComingSoon({ children }: { children: React.ReactNode }) {
+function ComingSoon({ children, block }: { children: React.ReactNode; block?: boolean }) {
+  const { language } = useTheme();
   const [show, setShow] = useState(false);
   return (
-    <div className="relative inline-flex" onClick={() => { setShow(true); setTimeout(() => setShow(false), 1800); }}>
+    <div
+      className="relative"
+      style={{ display: block ? 'block' : 'inline-flex' }}
+      onClick={() => { setShow(true); setTimeout(() => setShow(false), 1800); }}>
       {children}
       {show && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-white z-50 pointer-events-none whitespace-nowrap"
           style={{ background: 'rgba(0,0,0,0.88)' }}>
-          ⏳ به زودی
+          ⏳ {language === 'fa' ? 'به زودی' : 'Coming soon'}
         </div>
       )}
     </div>
@@ -947,7 +951,7 @@ function NotificationsTab({ language, t }: { language: string; t: (fa: string, e
 }
 
 // ─── ExploreTab ────────────────────────────────────────────────────────────────
-function ExploreTab({ language, t }: { language: string; t: (fa: string, en?: string) => string }) {
+function ExploreTab({ language, t, following, onFollow }: { language: string; t: (fa: string, en?: string) => string; following: Set<string>; onFollow: (id: string) => void }) {
   const [query, setQuery] = useState('');
   const [trending, setTrending] = useState<Array<{ tag: string; use_count: number }>>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
@@ -1084,17 +1088,19 @@ function ExploreTab({ language, t }: { language: string; t: (fa: string, en?: st
                       <p style={{ fontSize: 13, color: 'var(--text-muted)' }}
                         className="truncate">@{u.username}{u.bio ? ` · ${u.bio.slice(0, 30)}` : ''}</p>
                     </div>
-                    <ComingSoon>
-                      <button className="rounded-full font-bold text-white flex-shrink-0"
-                        style={{
-                          background: '#1d9bf0',
-                          fontSize: 13,
-                          padding: '5px 14px',
-                          touchAction: 'manipulation',
-                        }}>
-                        {t('دنبال کن', 'Follow')}
-                      </button>
-                    </ComingSoon>
+                    <button
+                      onClick={() => onFollow(u.id)}
+                      className="rounded-full font-bold flex-shrink-0 transition-all"
+                      style={{
+                        background: following.has(u.id) ? 'transparent' : '#1d9bf0',
+                        border: `1px solid ${following.has(u.id) ? 'var(--border-color)' : '#1d9bf0'}`,
+                        color: following.has(u.id) ? 'var(--text-muted)' : 'white',
+                        fontSize: 13,
+                        padding: '5px 14px',
+                        touchAction: 'manipulation',
+                      }}>
+                      {following.has(u.id) ? t('دنبال‌شده', 'Following') : t('دنبال کن', 'Follow')}
+                    </button>
                   </div>
                 );
               })}
@@ -1112,7 +1118,7 @@ function ExploreTab({ language, t }: { language: string; t: (fa: string, en?: st
                 { icon: DollarSign, label: t('کسب درآمد', 'Monetize') },
                 { icon: BadgeCheck, label: t('تیک آبی', 'Verification') },
               ].map(item => (
-                <ComingSoon key={item.label}>
+                <ComingSoon key={item.label} block>
                   <button className="w-full flex items-center gap-2.5 p-3 rounded-2xl transition-colors"
                     style={{
                       background: 'var(--bg-card)',
@@ -1227,7 +1233,7 @@ function LeftSidebar({
 }
 
 // ─── RightSidebar ──────────────────────────────────────────────────────────────
-function RightSidebar({ language, t }: { language: string; t: (fa: string, en?: string) => string }) {
+function RightSidebar({ language, t, following, onFollow }: { language: string; t: (fa: string, en?: string) => string; following: Set<string>; onFollow: (id: string) => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [trending, setTrending] = useState<Array<{ tag: string; use_count: number }>>([]);
   const [suggested, setSuggested] = useState<any[]>([]);
@@ -1325,18 +1331,19 @@ function RightSidebar({ language, t }: { language: string; t: (fa: string, en?: 
                     @{u.username}
                   </p>
                 </div>
-                <ComingSoon>
-                  <button className="rounded-full font-bold flex-shrink-0"
-                    style={{
-                      border: '1px solid var(--text-primary)',
-                      color: 'var(--text-primary)',
-                      fontSize: 12,
-                      padding: '4px 12px',
-                      touchAction: 'manipulation',
-                    }}>
-                    {t('دنبال', 'Follow')}
-                  </button>
-                </ComingSoon>
+                <button
+                  onClick={() => onFollow(u.id)}
+                  className="rounded-full font-bold flex-shrink-0 transition-all"
+                  style={{
+                    border: `1px solid ${following.has(u.id) ? 'var(--border-color)' : 'var(--text-primary)'}`,
+                    background: following.has(u.id) ? 'transparent' : 'var(--text-primary)',
+                    color: following.has(u.id) ? 'var(--text-muted)' : 'var(--bg-primary)',
+                    fontSize: 12,
+                    padding: '4px 12px',
+                    touchAction: 'manipulation',
+                  }}>
+                  {following.has(u.id) ? t('دنبال‌شده', 'Following') : t('دنبال', 'Follow')}
+                </button>
               </div>
             );
           })}
@@ -1646,7 +1653,7 @@ export function FeedPage() {
               : t('هیچ پستی وجود ندارد', 'No posts yet'),
           )}
 
-          {tab === 'explore' && <ExploreTab language={language} t={t} />}
+          {tab === 'explore' && <ExploreTab language={language} t={t} following={following} onFollow={id => { apiPost(`/social/follow/${id}`); setFollowing(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); }} />}
           {tab === 'notifications' && <NotificationsTab language={language} t={t} />}
 
           {tab === 'bookmarks' && renderPostList(
@@ -1740,7 +1747,7 @@ export function FeedPage() {
               : t('هیچ پستی وجود ندارد', 'No posts yet'),
           )}
 
-          {tab === 'explore' && <ExploreTab language={language} t={t} />}
+          {tab === 'explore' && <ExploreTab language={language} t={t} following={following} onFollow={id => { apiPost(`/social/follow/${id}`); setFollowing(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); }} />}
           {tab === 'notifications' && <NotificationsTab language={language} t={t} />}
 
           {tab === 'bookmarks' && renderPostList(
@@ -1754,7 +1761,7 @@ export function FeedPage() {
       {/* Right sidebar — 300px */}
       <div className="flex-shrink-0 overflow-y-auto hidden lg:block"
         style={{ width: 300 }}>
-        <RightSidebar language={language} t={t} />
+        <RightSidebar language={language} t={t} following={following} onFollow={id => { apiPost(`/social/follow/${id}`); setFollowing(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); }} />
       </div>
 
       {/* Modals */}

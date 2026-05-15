@@ -5,20 +5,34 @@ import { AuthPage } from './pages/AuthPage';
 import { MessengerLayout } from './pages/MessengerLayout';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { AdminPanel } from './pages/AdminPanel';
+import { WolfLogo } from './components/ui/WolfLogo';
+
+function SplashScreen() {
+  return (
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center gap-5"
+      style={{ background: '#0d1117', zIndex: 9999 }}
+    >
+      <div style={{ animation: 'wolfPulse 1.6s ease-in-out infinite' }}>
+        <WolfLogo size={88} />
+      </div>
+      <p className="text-sm font-medium" style={{ color: '#4B72D8', letterSpacing: '0.08em' }}>
+        KingWolf
+      </p>
+      <style>{`
+        @keyframes wolfPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.07); opacity: 0.85; }
+        }
+      `}</style>
+    </div>
+  );
+}
 
 function AppRouter() {
   const { user, profile, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p style={{ color: 'var(--text-muted)' }} className="text-sm">در حال بارگذاری...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <SplashScreen />;
 
   if (!user) return <AuthPage />;
 

@@ -88,19 +88,18 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
       media_urls: typeof p.media_urls === 'string' ? JSON.parse(p.media_urls || '[]') : (p.media_urls || []),
     })));
 
-    const { count: followers } = await supabase
-      .from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', userId);
-    setFollowerCount(followers || 0);
+    const { data: followersData } = await supabase
+      .from('follows').select('*').eq('followed_id', userId);
+    setFollowerCount(followersData?.length || 0);
 
-    const { count: following } = await supabase
-      .from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId);
-    setFollowingCount(following || 0);
+    const { data: followingData } = await supabase
+      .from('follows').select('*').eq('follower_id', userId);
+    setFollowingCount(followingData?.length || 0);
 
     if (me?.id && me.id !== userId) {
-      const { count } = await supabase
-        .from('follows').select('*', { count: 'exact', head: true })
-        .eq('follower_id', me.id).eq('followed_id', userId);
-      setIsFollowing((count || 0) > 0);
+      const { data: followCheckData } = await supabase
+        .from('follows').select('*').eq('follower_id', me.id).eq('followed_id', userId);
+      setIsFollowing((followCheckData?.length || 0) > 0);
     }
     setLoading(false);
   }
@@ -108,11 +107,8 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
   async function toggleFollow() {
     if (!me?.id) return;
     setFollowLoading(true);
-    await apiPost(`/social/follow/${userId}`);
-    const { count } = await supabase
-      .from('follows').select('*', { count: 'exact', head: true })
-      .eq('follower_id', me.id).eq('followed_id', userId);
-    const nowFollowing = (count || 0) > 0;
+    const result = await apiPost(`/social/follow/${userId}`);
+    const nowFollowing = result?.following === true;
     setIsFollowing(nowFollowing);
     setFollowerCount(c => nowFollowing ? c + 1 : Math.max(0, c - 1));
     setFollowLoading(false);

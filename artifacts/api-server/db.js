@@ -315,6 +315,18 @@ CREATE TABLE IF NOT EXISTS calls (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_calls_user ON calls(caller_id, created_at);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  ip TEXT DEFAULT '',
+  user_agent TEXT DEFAULT '',
+  device_name TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  last_seen_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 `);
 
 // Default settings
@@ -357,6 +369,7 @@ const colMigrations = [
   ['conversations', 'invite_link', "TEXT DEFAULT ''"],
   ['conversation_members', 'admin_permissions', "TEXT DEFAULT '[]'"],
   ['conversation_members', 'title', "TEXT DEFAULT ''"],
+  ['users', 'current_session_id', "TEXT DEFAULT ''"],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

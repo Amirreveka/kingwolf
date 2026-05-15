@@ -33,6 +33,12 @@ async function api(path: string, opts: RequestInit = {}): Promise<any> {
   try { body = await res.json(); } catch {}
   if (!res.ok) {
     const errMsg = body?.message || body?.error || `HTTP ${res.status}`;
+    // Auto-signout when server says this session was replaced by a new device login
+    if (res.status === 401 && body?.error === 'session_expired') {
+      setToken(null);
+      _session = null;
+      emitAuth('SIGNED_OUT');
+    }
     return { error: { message: errMsg, status: res.status, code: body?.error, retryAfter: body?.retryAfter }, data: null };
   }
   return { data: body, error: null };

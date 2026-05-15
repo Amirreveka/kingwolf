@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut } from 'lucide-react';
+import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
 
-type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security';
+type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices';
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -38,6 +38,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   // Notification state
   const [notifSound, setNotifSound] = useState(profile?.settings?.notification_sound ?? true);
   const [msgPreview, setMsgPreview] = useState(profile?.settings?.message_preview ?? true);
+
+  // Devices state
+  const [sessionInfo, setSessionInfo] = useState<{ ip: string; device_name: string; user_agent: string; created_at: string | null } | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -120,6 +124,22 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     await refreshProfile();
   }
 
+  useEffect(() => {
+    if (section === 'devices' && !sessionInfo && !sessionLoading) loadSessionInfo();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  async function loadSessionInfo() {
+    setSessionLoading(true);
+    const token = localStorage.getItem('kingwolf_token');
+    if (!token) { setSessionLoading(false); return; }
+    try {
+      const res = await fetch('/api/auth/session-info', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setSessionInfo(await res.json());
+    } catch {}
+    setSessionLoading(false);
+  }
+
   const menuItems = [
     { id: 'profile' as Section, label: t('ویرایش پروفایل', 'Edit Profile'), icon: User, color: '#3b82f6' },
     { id: 'appearance' as Section, label: t('ظاهر', 'Appearance'), icon: Palette, color: '#8b5cf6' },
@@ -127,6 +147,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     { id: 'notifications' as Section, label: t('اعلان‌ها', 'Notifications'), icon: Bell, color: '#f59e0b' },
     { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444' },
     { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b' },
+    { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4' },
   ];
 
   function Back() {
@@ -474,8 +495,60 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           <div className="p-4 space-y-3">
             <div className="rounded-2xl p-4 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <Shield size={32} className="mx-auto mb-3 text-blue-400" />
-              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>حریم خصوصی شما محافظت می‌شود</p>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>اطلاعات شما کاملاً رمزنگاری شده و در اختیار هیچ شخص ثالثی قرار نمی‌گیرد.</p>
+              <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('حریم خصوصی شما محافظت می‌شود', 'Your privacy is protected')}</p>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('اطلاعات شما کاملاً رمزنگاری شده و در اختیار هیچ شخص ثالثی قرار نمی‌گیرد.', 'Your data is fully encrypted and never shared with third parties.')}</p>
+            </div>
+          </div>
+        )}
+
+        {/* DEVICES */}
+        {section === 'devices' && (
+          <div className="p-4 space-y-3">
+            {!sessionInfo && !sessionLoading && (
+              <button
+                onClick={loadSessionInfo}
+                className="w-full py-3 rounded-xl text-sm font-medium text-white"
+                style={{ background: 'var(--accent)' }}
+              >
+                {t('نمایش اطلاعات دستگاه', 'Show Device Info')}
+              </button>
+            )}
+            {sessionLoading && (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {sessionInfo && (
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.12)' }}>
+                    <Smartphone size={20} className="text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{sessionInfo.device_name}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('دستگاه فعلی', 'Current device')} ✓</p>
+                  </div>
+                  <div className="ms-auto w-2 h-2 rounded-full bg-green-400" />
+                </div>
+                <div className="px-4 py-3 space-y-2.5">
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: 'var(--text-secondary)' }}>IP</span>
+                    <span className="font-mono text-xs" style={{ color: 'var(--text-primary)' }}>{sessionInfo.ip}</span>
+                  </div>
+                  {sessionInfo.created_at && (
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: 'var(--text-secondary)' }}>{t('ورود', 'Signed in')}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{new Date(sessionInfo.created_at).toLocaleDateString(language === 'fa' ? 'fa-IR' : 'en-GB', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  )}
+                  <div className="pt-1 text-xs break-all" style={{ color: 'var(--text-muted)' }}>{sessionInfo.user_agent}</div>
+                </div>
+              </div>
+            )}
+            <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {t('هر بار که با دستگاه جدیدی وارد شوید، دستگاه قبلی به صورت خودکار از حساب خارج می‌شود.', 'Logging in from a new device automatically signs out the previous one.')}
+              </p>
             </div>
           </div>
         )}

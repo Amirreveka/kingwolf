@@ -87,7 +87,7 @@ export function MessengerLayout() {
   return (
     <div
       className="flex overflow-hidden"
-      style={{ background: 'var(--bg-primary)', height: '100dvh' }}
+      style={{ background: 'var(--bg-primary)', height: '100dvh', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box' }}
       dir={fa ? 'rtl' : 'ltr'}
     >
       {/* ── Desktop sidebar ─────────────────────────────── */}

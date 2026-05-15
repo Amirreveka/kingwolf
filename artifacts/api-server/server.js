@@ -40,8 +40,8 @@ app.use((req, _res, next) => {
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // ===== Auth helpers =====
-function makeToken(userId) {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: '30d' });
+function makeToken(userId, sessionId) {
+  return jwt.sign({ sub: userId, sid: sessionId }, JWT_SECRET, { expiresIn: '30d' });
 }
 function authMiddleware(req, res, next) {
   const h = req.headers.authorization || '';
@@ -50,6 +50,13 @@ function authMiddleware(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     req.userId = payload.sub;
+    req.sessionId = payload.sid || null;
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+    if (!user) return res.status(401).json({ error: 'user not found' });
+    // Single-device enforcement: reject tokens whose session_id doesn't match current
+    if (req.sessionId && user.current_session_id && user.current_session_id !== req.sessionId) {
+      return res.status(401).json({ error: 'session_expired' });
+    }
     const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.userId);
     if (!profile) return res.status(401).json({ error: 'user not found' });
     req.profile = profile;
@@ -57,6 +64,23 @@ function authMiddleware(req, res, next) {
   } catch (e) {
     return res.status(401).json({ error: 'invalid token' });
   }
+}
+
+function getClientIp(req) {
+  return (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
+}
+function parseDeviceName(ua) {
+  if (!ua) return 'Unknown device';
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad/.test(ua)) return 'iPad';
+  if (/Android/.test(ua)) {
+    const m = ua.match(/Android [^;]+; ([^)]+)\)/);
+    return m ? m[1].trim() : 'Android';
+  }
+  if (/Windows NT/.test(ua)) return 'Windows PC';
+  if (/Macintosh/.test(ua)) return 'Mac';
+  if (/Linux/.test(ua)) return 'Linux PC';
+  return 'Browser';
 }
 function adminOnly(req, res, next) {
   if (!req.profile || !req.profile.is_admin) return res.status(403).json({ error: 'admin only' });
@@ -110,7 +134,13 @@ app.post('/auth/signup', async (req, res) => {
   tx();
 
   // Auto-issue token so subsequent client calls (profile upsert) work without a second round-trip.
-  const token = makeToken(id);
+  const sessionId = nanoid();
+  const ip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, id);
+  db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
+    .run(sessionId, id, ip, ua, parseDeviceName(ua));
+  const token = makeToken(id, sessionId);
   return res.json({ user: { id, email }, access_token: token });
 });
 
@@ -177,7 +207,14 @@ app.post('/auth/signin', async (req, res) => {
   }
 
   rlRecordSuccess(req, email);
-  const token = makeToken(user.id);
+  const sessionId = nanoid();
+  const ip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  const deviceName = parseDeviceName(ua);
+  db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, user.id);
+  db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
+    .run(sessionId, user.id, ip, ua, deviceName);
+  const token = makeToken(user.id, sessionId);
   return res.json({
     access_token: token,
     user: { id: user.id, email: user.email },
@@ -193,6 +230,20 @@ app.get('/auth/session', authMiddleware, (req, res) => {
   return res.json({
     user: { id: req.userId, email: req.profile.email },
     profile: profileToClient(req.profile),
+  });
+});
+
+app.get('/auth/session-info', authMiddleware, (req, res) => {
+  const session = req.sessionId
+    ? db.prepare('SELECT * FROM user_sessions WHERE id = ?').get(req.sessionId)
+    : null;
+  return res.json({
+    session_id: req.sessionId || null,
+    ip: session?.ip || getClientIp(req),
+    device_name: session?.device_name || parseDeviceName(req.headers['user-agent'] || ''),
+    user_agent: session?.user_agent || (req.headers['user-agent'] || ''),
+    created_at: session?.created_at || null,
+    last_seen_at: session?.last_seen_at || null,
   });
 });
 

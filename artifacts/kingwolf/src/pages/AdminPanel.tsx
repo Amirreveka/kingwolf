@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Users, Settings, BarChart2, Shield, LogIn, Check, Ban, Eye, EyeOff, RefreshCw,
-  UserCheck, Database, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
+  UserCheck, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
   BadgeCheck, Activity, ChevronDown, Newspaper, Pin, PinOff, Trash2, FileText,
   Flag, MessageSquare, CheckCheck,
 } from 'lucide-react';
@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { Profile } from '../types';
 
-type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'database' | 'status';
+type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 async function adminFetch(path: string, opts: RequestInit = {}) {
@@ -72,11 +72,6 @@ export function AdminPanel() {
   const [resetPwValue, setResetPwValue] = useState('');
   const [resetPwMsg, setResetPwMsg] = useState('');
 
-  const [fakeUsersLoading, setFakeUsersLoading] = useState(false);
-  const [fakeUsersMsg, setFakeUsersMsg] = useState('');
-  const [testDataLoading, setTestDataLoading] = useState(false);
-  const [testDataMsg, setTestDataMsg] = useState('');
-
   // Content tab state
   const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
   const [feedLoading, setFeedLoading] = useState(false);
@@ -125,73 +120,6 @@ export function AdminPanel() {
     setPwMsg('رمز عبور تغییر کرد ✅');
     setNewPw(''); setNewPw2('');
     setTimeout(() => setPwMsg(''), 4000);
-  }
-
-  const FAKE_FEMALES = [
-    { username: 'ayda_r',    display: 'آیدا رضایی',    bio: 'طراح گرافیک و عکاس',       phone: '09121000001', birthday: '1998-03-15' },
-    { username: 'nilufar_m', display: 'نیلوفر موسوی',  bio: 'دانشجوی معماری',           phone: '09121000002', birthday: '2000-07-22' },
-    { username: 'parisa_a',  display: 'پریسا احمدی',   bio: 'مشاور بازاریابی دیجیتال', phone: '09121000003', birthday: '1997-11-05' },
-    { username: 'mahsa_k',   display: 'مهسا کریمی',    bio: 'نویسنده و مترجم',          phone: '09121000004', birthday: '1995-01-30' },
-    { username: 'sara_t',    display: 'سارا تهرانی',   bio: 'دکترای روانشناسی',         phone: '09121000005', birthday: '1993-09-12' },
-    { username: 'zahra_n',   display: 'زهرا نوری',     bio: 'پزشک عمومی',               phone: '09121000006', birthday: '1990-05-20' },
-    { username: 'maryam_h',  display: 'مریم حسینی',    bio: 'معلم ریاضی',               phone: '09121000007', birthday: '1992-12-08' },
-    { username: 'sheyda_s',  display: 'شیدا صادقی',    bio: 'مدیر محصول',               phone: '09121000008', birthday: '1996-04-17' },
-    { username: 'leila_j',   display: 'لیلا جعفری',    bio: 'هنرمند و مجسمه‌ساز',      phone: '09121000009', birthday: '1994-08-25' },
-    { username: 'fateme_a',  display: 'فاطمه اکبری',   bio: 'کارشناس حقوق',             phone: '09121000010', birthday: '1999-02-14' },
-  ];
-
-  async function createFakeUsers() {
-    setFakeUsersLoading(true); setFakeUsersMsg('');
-    let created = 0, skipped = 0;
-    for (const u of FAKE_FEMALES) {
-      const email = `${u.username}@kingwolf.internal`;
-      const { data, error } = await supabase.auth.signUp({ email, password: 'wolf1234' });
-      if (error) { skipped++; continue; }
-      if (data.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id, username: u.username, display_name: u.display,
-          bio: u.bio, phone: u.phone, birthday: u.birthday, email, is_approved: true,
-        });
-        created++;
-      } else { skipped++; }
-    }
-    setFakeUsersMsg(`✅ ${created} کاربر ساخته شد${skipped > 0 ? ` (${skipped} تکراری/خطا)` : ''} — پسورد: wolf1234`);
-    setFakeUsersLoading(false);
-    await loadData();
-  }
-
-  async function createTestGroupAndChannel() {
-    setTestDataLoading(true); setTestDataMsg('');
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const myId = session?.session?.user?.id;
-      if (!myId) { setTestDataMsg('❌ ابتدا وارد شوید'); setTestDataLoading(false); return; }
-      const usernames = FAKE_FEMALES.map(u => u.username);
-      const { data: fakeProfiles } = await supabase.from('profiles').select('id,username').in('username', usernames);
-      const memberIds = (fakeProfiles || []).map((p: any) => p.id);
-      const { data: grp } = await supabase.from('conversations')
-        .insert({ type: 'group', name: 'گروه تست KingWolf 🐺', description: 'گروه آزمایشی', created_by: myId })
-        .select('id').single();
-      if (grp) {
-        await supabase.from('conversation_members').insert([
-          { conversation_id: grp.id, user_id: myId, role: 'admin' },
-          ...memberIds.map((uid: string) => ({ conversation_id: grp.id, user_id: uid, role: 'member' }))
-        ]);
-        await supabase.from('messages').insert({ conversation_id: grp.id, sender_id: myId, content: 'خوش آمدید! 👋', type: 'text' });
-      }
-      const { data: ch } = await supabase.from('conversations')
-        .insert({ type: 'channel', name: 'کانال KingWolf 📢', description: 'کانال رسمی', created_by: myId })
-        .select('id').single();
-      if (ch) {
-        await supabase.from('conversation_members').insert([
-          { conversation_id: ch.id, user_id: myId, role: 'admin' },
-          ...memberIds.map((uid: string) => ({ conversation_id: ch.id, user_id: uid, role: 'member' }))
-        ]);
-        await supabase.from('messages').insert({ conversation_id: ch.id, sender_id: myId, content: '📢 کانال راه‌اندازی شد!', type: 'text' });
-      }
-      setTestDataMsg(`✅ گروه و کانال با ${memberIds.length} عضو ساخته شد`);
-    } catch (err: any) { setTestDataMsg('❌ خطا: ' + err.message); }
-    setTestDataLoading(false);
   }
 
   async function loadData() {
@@ -432,7 +360,6 @@ export function AdminPanel() {
             { id: 'content',   label: 'مدیریت محتوا', icon: Newspaper },
             { id: 'reports',   label: 'گزارش‌های تخلف', icon: Flag },
             { id: 'settings',  label: 'تنظیمات', icon: Settings },
-            { id: 'database',  label: 'پایگاه داده', icon: Database },
             { id: 'status',    label: 'وضعیت سیستم', icon: Server },
           ] as { id: AdminTab; label: string; icon: any }[]).map(item => (
             <button
@@ -778,40 +705,6 @@ export function AdminPanel() {
                     تغییر رمز
                   </button>
                 </form>
-              </div>
-            </div>
-          )}
-
-          {/* ── DATABASE ── */}
-          {tab === 'database' && (
-            <div className="space-y-4">
-              <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                <h3 className="text-sm font-semibold text-white mb-1">ساخت کاربران نمونه</h3>
-                <p className="text-xs text-gray-500 mb-3">پسورد همه: <span className="text-yellow-400 font-mono">wolf1234</span></p>
-                <div className="space-y-1 mb-3">
-                  {FAKE_FEMALES.map(u => (
-                    <div key={u.username} className="flex items-center gap-2 text-xs text-gray-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" />
-                      <span className="font-bold text-gray-300">@{u.username}</span>
-                      <span className="text-gray-600">— {u.display}</span>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={createFakeUsers} disabled={fakeUsersLoading}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2"
-                  style={{ background: fakeUsersLoading ? '#374151' : '#4f46e5' }}>
-                  {fakeUsersLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> در حال ساخت...</> : '👤 ساخت کاربران نمونه'}
-                </button>
-                {fakeUsersMsg && <p className="text-xs text-green-400 mt-2">{fakeUsersMsg}</p>}
-              </div>
-              <div className="rounded-2xl p-4 border border-gray-800" style={{ background: '#111827' }}>
-                <h3 className="text-sm font-semibold text-white mb-1">ساخت گروه و کانال تست</h3>
-                <button onClick={createTestGroupAndChannel} disabled={testDataLoading}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 mt-3"
-                  style={{ background: testDataLoading ? '#374151' : '#0ea5e9' }}>
-                  {testDataLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> در حال ساخت...</> : '🏗️ ساخت گروه و کانال'}
-                </button>
-                {testDataMsg && <p className="text-xs text-green-400 mt-2">{testDataMsg}</p>}
               </div>
             </div>
           )}

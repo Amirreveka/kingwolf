@@ -704,6 +704,23 @@ app.post('/admin/revoke', authMiddleware, adminOnly, (req, res) => {
   return res.json({ ok: true });
 });
 
+// Grant / revoke blue verified tick for a user
+app.post('/admin/verify/:userId', authMiddleware, adminOnly, (req, res) => {
+  const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'user not found' });
+  db.prepare('UPDATE profiles SET is_verified = 1 WHERE id = ?').run(req.params.userId);
+  broadcast({ event: 'UPDATE', table: 'profiles', new: { id: req.params.userId, is_verified: 1 } });
+  return res.json({ ok: true });
+});
+
+app.post('/admin/unverify/:userId', authMiddleware, adminOnly, (req, res) => {
+  const user = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.userId);
+  if (!user) return res.status(404).json({ error: 'user not found' });
+  db.prepare('UPDATE profiles SET is_verified = 0 WHERE id = ?').run(req.params.userId);
+  broadcast({ event: 'UPDATE', table: 'profiles', new: { id: req.params.userId, is_verified: 0 } });
+  return res.json({ ok: true });
+});
+
 app.get('/admin/list', authMiddleware, adminOnly, (req, res) => {
   const rows = db.prepare(`
     SELECT a.username, a.granted_by, a.granted_at, a.is_active, p.display_name

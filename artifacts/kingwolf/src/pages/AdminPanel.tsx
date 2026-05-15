@@ -204,21 +204,21 @@ export function AdminPanel() {
 
   async function grantBlueTick(userId: string) {
     setBlueTickLoadingId(userId);
-    const { ok } = await adminFetch('/admin/grant', { method: 'POST', body: JSON.stringify({ userId }) });
+    const res = await adminFetch(`/admin/verify/${userId}`, { method: 'POST' });
     setBlueTickLoadingId(null);
-    if (ok) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_admin: true } : u));
-      setSelectedUser(prev => prev?.id === userId ? { ...prev, is_admin: true } : prev);
+    if (res.ok) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified: true } : u));
+      setSelectedUser(prev => prev?.id === userId ? { ...prev, is_verified: true } : prev);
     }
   }
 
   async function revokeBlueTick(userId: string) {
     setBlueTickLoadingId(userId);
-    const { ok } = await adminFetch('/admin/revoke', { method: 'POST', body: JSON.stringify({ userId }) });
+    const res = await adminFetch(`/admin/unverify/${userId}`, { method: 'POST' });
     setBlueTickLoadingId(null);
-    if (ok) {
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_admin: false } : u));
-      setSelectedUser(prev => prev?.id === userId ? { ...prev, is_admin: false } : prev);
+    if (res.ok) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_verified: false } : u));
+      setSelectedUser(prev => prev?.id === userId ? { ...prev, is_verified: false } : prev);
     }
   }
 
@@ -439,7 +439,7 @@ export function AdminPanel() {
                     <div key={u.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:opacity-80" onClick={() => setSelectedUser(u)}>
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${u.is_banned ? 'bg-red-500' : u.is_approved ? 'bg-green-500' : 'bg-yellow-500'}`} />
                       <span className="text-sm text-gray-300 flex-1">@{u.username}</span>
-                      {u.is_admin && <BadgeCheck size={14} className="text-blue-400" />}
+                      {(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400" />}
                       <span className="text-xs text-gray-600">{new Date(u.created_at).toLocaleDateString('fa-IR')}</span>
                     </div>
                   ))}
@@ -466,7 +466,7 @@ export function AdminPanel() {
                   <div className="flex-1 min-w-0 text-right">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-white truncate">{u.display_name || u.username}</p>
-                      {u.is_admin && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
+                      {!!(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
                     </div>
                     <p className="text-xs text-gray-500">@{u.username}</p>
                   </div>
@@ -477,9 +477,9 @@ export function AdminPanel() {
 
                     {/* Blue tick button */}
                     <button
-                      onClick={e => { e.stopPropagation(); u.is_admin ? revokeBlueTick(u.id) : grantBlueTick(u.id); }}
-                      className={`p-1.5 rounded-lg transition-colors ${u.is_admin ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-gray-700/50 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400'}`}
-                      title={u.is_admin ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
+                      onClick={e => { e.stopPropagation(); (u as any).is_verified ? revokeBlueTick(u.id) : grantBlueTick(u.id); }}
+                      className={`p-1.5 rounded-lg transition-colors ${(u as any).is_verified ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-gray-700/50 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400'}`}
+                      title={(u as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
                     >
                       {blueTickLoadingId === u.id
                         ? <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -952,7 +952,7 @@ export function AdminPanel() {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <p className="font-bold text-white">{selectedUser.display_name || selectedUser.username}</p>
-                    {selectedUser.is_admin && <BadgeCheck size={16} className="text-blue-400" />}
+                    {!!(selectedUser as any).is_verified && <BadgeCheck size={16} className="text-blue-400" />}
                   </div>
                   <p className="text-sm text-gray-500">@{selectedUser.username}</p>
                   <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${selectedUser.is_banned ? 'bg-red-500/10 text-red-400' : selectedUser.is_approved ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
@@ -964,19 +964,19 @@ export function AdminPanel() {
               {/* Blue tick control */}
               <div className="rounded-xl p-3 border border-blue-900/30 flex items-center justify-between" style={{ background: '#161b22' }}>
                 <div>
-                  <p className="text-xs text-gray-400 font-medium">تیک آبی</p>
-                  <p className="text-xs text-gray-600 mt-0.5">{selectedUser.is_admin ? 'این کاربر تیک آبی دارد' : 'این کاربر تیک آبی ندارد'}</p>
+                  <p className="text-xs text-gray-400 font-medium">تیک آبی تأیید شده</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{(selectedUser as any).is_verified ? 'این کاربر تیک آبی دارد' : 'این کاربر تیک آبی ندارد'}</p>
                 </div>
                 <button
-                  onClick={() => selectedUser.is_admin ? revokeBlueTick(selectedUser.id) : grantBlueTick(selectedUser.id)}
+                  onClick={() => (selectedUser as any).is_verified ? revokeBlueTick(selectedUser.id) : grantBlueTick(selectedUser.id)}
                   disabled={blueTickLoadingId === selectedUser.id}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedUser.is_admin ? 'bg-blue-500/20 text-blue-400 hover:bg-red-500/20 hover:text-red-400' : 'bg-gray-700 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400'}`}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${(selectedUser as any).is_verified ? 'bg-blue-500/20 text-blue-400 hover:bg-red-500/20 hover:text-red-400' : 'bg-gray-700 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400'}`}
                 >
                   {blueTickLoadingId === selectedUser.id
                     ? <div className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin" />
                     : <BadgeCheck size={14} />
                   }
-                  {selectedUser.is_admin ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
+                  {(selectedUser as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
                 </button>
               </div>
 

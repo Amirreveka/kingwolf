@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   is_active INTEGER DEFAULT 1,
   is_banned INTEGER DEFAULT 0,
   is_admin INTEGER DEFAULT 0,
+  is_verified INTEGER DEFAULT 0,
   ban_reason TEXT DEFAULT '',
   last_seen TEXT DEFAULT '',
   online_status TEXT DEFAULT 'offline',
@@ -370,6 +371,7 @@ const colMigrations = [
   ['conversation_members', 'admin_permissions', "TEXT DEFAULT '[]'"],
   ['conversation_members', 'title', "TEXT DEFAULT ''"],
   ['users', 'current_session_id', "TEXT DEFAULT ''"],
+  ['profiles', 'is_verified', 'INTEGER DEFAULT 0'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

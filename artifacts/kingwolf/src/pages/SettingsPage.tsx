@@ -149,7 +149,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444' },
     { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b' },
     { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4' },
-    { id: 'about' as Section, label: t('درباره کینگ‌ولف', 'About KingWolf'), icon: Info, color: '#f59e0b' },
+    { id: 'about' as Section, label: t('درباره ما', 'About Us'), icon: Info, color: '#f59e0b' },
   ];
 
   function Back() {
@@ -173,7 +173,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         )}
         <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>
           {section === 'main' ? t('تنظیمات', 'Settings') :
-           section === 'about' ? t('درباره اپلیکیشن', 'About App') :
+           section === 'about' ? t('درباره ما', 'About Us') :
             menuItems.find(m => m.id === section)?.label || ''}
         </h2>
         {section === 'profile' && (
@@ -543,7 +543,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   <h1 className="text-2xl font-black tracking-wide text-white">KingWolf</h1>
                   <div className="flex items-center justify-center gap-2 mt-1">
                     <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background:'rgba(74,222,128,0.18)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', animation:'kw-badge-in 0.4s ease both' }}>
-                      v1.0.0 — {t('پایدار', 'Stable')}
+                      v2.8.1.4 — {t('پایدار', 'Stable')}
                     </span>
                   </div>
                 </div>
@@ -568,7 +568,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 },
                 {
                   label: t('نسخه', 'Version'),
-                  value: '1.0.0 (Build 1)',
+                  value: '2.8.1.4 (Build 28)',
                   icon: <Info size={15} style={{ color:'#f59e0b' }} />,
                   bg: 'rgba(245,158,11,0.1)',
                 },
@@ -611,7 +611,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
             {/* Copyright */}
             <p className="text-center text-xs" style={{ color:'var(--text-muted)' }}>
-              © 2025–2026 KingWolf · {t('ساخته‌شده با ❤️ توسط Amirreveka', 'Made with ❤️ by Amirreveka')}
+              © 2025–2026 KingWolf v2.8.1.4 · {t('ساخته‌شده با ❤️ توسط Amirreveka', 'Made with ❤️ by Amirreveka')}
             </p>
           </div>
         )}

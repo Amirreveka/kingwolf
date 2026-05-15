@@ -349,9 +349,9 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
 
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-secondary)' }}>
-      {/* Header */}
-      <div className="p-3 pb-2 flex-shrink-0" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
-        <div className="flex items-center gap-2 mb-3">
+      {/* Header — title only */}
+      <div className="px-3 pb-2 flex-shrink-0" style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+        <div className="flex items-center gap-2 py-1">
           <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>{t('پیام‌ها', 'Messages')}</h2>
           <button
             onClick={() => setModal('newChat')}
@@ -361,7 +361,13 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             <Plus size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
         </div>
+      </div>
 
+      {/* ── Telegram-style Stories Bar (above search, below title) ── */}
+      {!globalSearch && <TelegramStoriesBar onOpen={onOpenStories} />}
+
+      {/* Search section */}
+      <div className="px-3 pt-2 pb-1 flex-shrink-0">
         {/* Search */}
         <div className="relative mb-1">
           <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
@@ -441,9 +447,6 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
         )}
         {!globalSearch && <div className="mb-2" />}
       </div>
-
-      {/* ── Telegram-style Stories Bar (between search and tabs) ── */}
-      {!globalSearch && <TelegramStoriesBar onOpen={onOpenStories} />}
 
       <div className="px-3 pb-2 flex-shrink-0">
         {/* Tabs */}

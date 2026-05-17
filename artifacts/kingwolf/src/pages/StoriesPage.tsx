@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, Plus, X, Eye, ChevronLeft, ChevronRight, Trash2,
-  Send, Volume2, VolumeX, Smile, Type, Music2, MapPin, AtSign,
-  Image as ImageIcon, Video, Mic2, MoreHorizontal,
+  Send, Volume2, VolumeX, Smile, Type, Music2,
+  Image as ImageIcon, Video,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -87,15 +87,9 @@ const TEXT_BACKGROUNDS = [
 ];
 
 const REACTION_EMOJIS = ['❤️', '😂', '😮', '😢', '👏', '🔥'];
+const QUICK_REACT_EMOJIS = ['❤️', '🔥', '😂', '😮', '😢', '👏', '🎉', '✨'];
+const STICKER_EMOJIS = ['😂', '❤️', '🔥', '👏', '😍', '🎉', '😭', '🤣', '✨', '💯', '🙏', '😊', '😎', '💪', '🥳', '🤩', '😢', '😡', '👀', '💀', '🫶', '🤯', '🫡', '🤝'];
 
-const EMOJI_LIST = [
-  '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😉','😊','😇','🥰','😍','🤩','😘','😋',
-  '😛','😜','🤪','😝','🤑','🤗','🤔','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔',
-  '😪','🤤','😴','😷','🤒','🤕','🤧','🥵','🥶','😵','🤯','🤠','🥸','😎','🤓','😭','😢',
-  '😥','😤','😠','😡','🤬','😈','👿','💀','☠️','💩','🤡','👻','👽','👾','🤖','❤️','🧡',
-  '💛','💚','💙','💜','🖤','🤍','🤎','💔','🔥','✨','🌟','⭐','👍','👎','👋','🙌','👏',
-  '🤝','🙏','✌️','🤞','🤟','🤘','🤙','💪','🦾','🎉','🎊','🎁','🎈','🎂','🍕','🍔','🍟',
-];
 
 export function StoriesPage() {
   const { user, profile } = useAuth();
@@ -120,6 +114,12 @@ export function StoriesPage() {
   const [uploading, setUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMusicInput, setShowMusicInput] = useState(false);
+  const [placedEmojis, setPlacedEmojis] = useState<Array<{ id: string; emoji: string; x: number; y: number }>>([]);
+  const [showEmojiStickers, setShowEmojiStickers] = useState(false);
+  const [dragEmoji, setDragEmoji] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
 
   // Viewer reactions
   const [showReactions, setShowReactions] = useState(false);
@@ -243,9 +243,12 @@ export function StoriesPage() {
     const lineH = 90;
     const startY = canvas.height / 2 - (lines.length * lineH) / 2;
     lines.forEach((line, i) => ctx.fillText(line, xPos, startY + i * lineH));
-    // Add emoji overlays
+    // Add overlay emojis (legacy strip)
     ctx.font = '80px serif';
     overlayEmojis.forEach((em, i) => ctx.fillText(em, 100 + i * 120, canvas.height - 200));
+    // Add placed (draggable) emojis at their positioned locations
+    ctx.font = '96px serif';
+    placedEmojis.forEach(pe => ctx.fillText(pe.emoji, (pe.x / 100) * canvas.width, (pe.y / 100) * canvas.height));
     // Convert to blob
     canvas.toBlob(async (blob) => {
       if (!blob) { setUploading(false); return; }
@@ -264,7 +267,8 @@ export function StoriesPage() {
     setUploading(true);
     const fd = new FormData();
     fd.append('file', mediaPreview.file);
-    const cap = [overlay, musicInfo ? `🎵 ${musicInfo}` : '', overlayEmojis.join(' ')].filter(Boolean).join(' · ');
+    const allEmojis = [...overlayEmojis, ...placedEmojis.map(pe => pe.emoji)];
+    const cap = [overlay, musicInfo ? `🎵 ${musicInfo}` : '', allEmojis.join(' ')].filter(Boolean).join(' · ');
     if (cap) fd.append('caption', cap);
     await apiFetch('/stories', { method: 'POST', body: fd });
     resetCreator();
@@ -281,6 +285,8 @@ export function StoriesPage() {
     setUploading(false);
     setShowEmojiPicker(false);
     setShowMusicInput(false);
+    setPlacedEmojis([]);
+    setShowEmojiStickers(false);
   }
 
   async function deleteStory(storyId: string) {
@@ -289,19 +295,56 @@ export function StoriesPage() {
     load();
   }
 
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function sendStoryReplyMessage(text: string, story: Story) {
+    if (!text.trim() || !user) return;
+    // Step 1: find or create DM with story author
+    const convRes = await apiFetch('/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'direct', participant_id: story.author_id }),
+    });
+    if (!convRes.ok) throw new Error('conv failed');
+    const convData = await convRes.json() as { id: string };
+    const convId = convData.id;
+    if (!convId) throw new Error('no convId');
+    // Step 2: send story_reply message
+    const storyPreview = JSON.stringify({
+      text: text.trim(),
+      story_id: story.id,
+      story_media_url: story.media_url,
+      story_author: story.author_id,
+    });
+    await apiFetch(`/conversations/${convId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: storyPreview, type: 'story_reply' }),
+    });
+  }
+
   async function sendReaction(emoji: string) {
     if (!currentStory || !user) return;
     setShowReactions(false);
-    // Send as DM reply to story author (best-effort)
-    apiFetch('/reactions', { method: 'POST', body: JSON.stringify({ story_id: currentStory.id, emoji }), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+    try {
+      await sendStoryReplyMessage(emoji, currentStory);
+      showToast(fa ? 'واکنش ارسال شد' : 'Reaction sent');
+    } catch {}
   }
 
   async function sendStoryReply() {
     if (!replyText.trim() || !currentStory) return;
     setSendingReply(true);
-    // best-effort: send as DM
-    apiFetch('/story-reply', { method: 'POST', body: JSON.stringify({ story_id: currentStory.id, content: replyText }), headers: { 'Content-Type': 'application/json' } }).catch(() => {});
-    setReplyText('');
+    try {
+      await sendStoryReplyMessage(replyText, currentStory);
+      setReplyText('');
+      showToast(fa ? 'پاسخ ارسال شد ✓' : 'Reply sent ✓');
+    } catch {
+      showToast(fa ? 'خطا در ارسال' : 'Send failed');
+    }
     setSendingReply(false);
   }
 
@@ -466,7 +509,17 @@ export function StoriesPage() {
           </div>
 
           {/* Creator content area */}
-          <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden"
+            onPointerMove={e => {
+              if (!dragEmoji) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width) * 100;
+              const y = ((e.clientY - rect.top) / rect.height) * 100;
+              setPlacedEmojis(prev => prev.map(p => p.id === dragEmoji.id ? { ...p, x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) } : p));
+            }}
+            onPointerUp={() => setDragEmoji(null)}
+            onPointerLeave={() => setDragEmoji(null)}
+          >
             {creatorMode === 'text' ? (
               <div className="w-full h-full flex items-center justify-center"
                 style={{ background: TEXT_BACKGROUNDS[textBgIdx] }}>
@@ -540,6 +593,31 @@ export function StoriesPage() {
                 </div>
               </div>
             )}
+
+            {/* Draggable placed emojis */}
+            {placedEmojis.map(pe => (
+              <div
+                key={pe.id}
+                className="absolute select-none cursor-grab active:cursor-grabbing"
+                style={{
+                  left: `${pe.x}%`,
+                  top: `${pe.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  fontSize: 48,
+                  touchAction: 'none',
+                  userSelect: 'none',
+                  filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
+                  zIndex: 15,
+                }}
+                onPointerDown={e => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  setDragEmoji({ id: pe.id, startX: e.clientX, startY: e.clientY, origX: pe.x, origY: pe.y });
+                }}
+                onDoubleClick={() => setPlacedEmojis(prev => prev.filter(p => p.id !== pe.id))}
+              >
+                {pe.emoji}
+              </div>
+            ))}
           </div>
 
           {/* Creator bottom tools */}
@@ -582,12 +660,12 @@ export function StoriesPage() {
             {/* Tool bar */}
             <div className="flex items-center justify-around px-6 py-3"
               style={{ paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom) + 12px))' }}>
-              {/* Emoji picker toggle */}
-              <button onClick={() => setShowEmojiPicker(p => !p)}
+              {/* Emoji sticker toggle */}
+              <button onClick={() => { setShowEmojiStickers(p => !p); setShowEmojiPicker(false); }}
                 className="flex flex-col items-center gap-1"
-                style={{ color: 'rgba(255,255,255,0.8)', touchAction: 'manipulation' }}>
+                style={{ color: showEmojiStickers ? '#f09433' : 'rgba(255,255,255,0.8)', touchAction: 'manipulation' }}>
                 <Smile size={26} />
-                <span className="text-xs">{fa ? 'ایموجی' : 'Emoji'}</span>
+                <span className="text-xs">{fa ? 'استیکر' : 'Sticker'}</span>
               </button>
               {/* Music */}
               <button onClick={() => setShowMusicInput(p => !p)}
@@ -617,14 +695,19 @@ export function StoriesPage() {
             </div>
           </div>
 
-          {/* Emoji picker panel */}
-          {showEmojiPicker && (
+          {/* Emoji sticker panel */}
+          {showEmojiStickers && (
             <div className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl p-4"
-              style={{ background: 'rgba(15,15,15,0.97)', maxHeight: '52vh', overflowY: 'auto', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+              style={{ background: 'rgba(15,15,15,0.97)', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+              <p className="text-white/60 text-xs text-center mb-3">{fa ? 'روی ایموجی بزن تا روی استوری بیاد' : 'Tap to place on story'}</p>
               <div className="flex flex-wrap gap-3 justify-center">
-                {EMOJI_LIST.map(em => (
-                  <button key={em} onClick={() => { setOverlayEmojis(prev => [...prev.slice(-5), em]); }}
-                    className="text-3xl hover:scale-125 transition-transform" style={{ touchAction: 'manipulation' }}>
+                {STICKER_EMOJIS.map((em, idx) => (
+                  <button key={idx} onClick={() => {
+                    const id = `em-${Date.now()}-${Math.random()}`;
+                    setPlacedEmojis(prev => [...prev, { id, emoji: em, x: 50, y: 50 }]);
+                    setShowEmojiStickers(false);
+                  }}
+                    className="text-4xl hover:scale-125 active:scale-110 transition-transform" style={{ touchAction: 'manipulation' }}>
                     {em}
                   </button>
                 ))}
@@ -635,10 +718,11 @@ export function StoriesPage() {
       )}
 
       {/* ─────────────────── Story Viewer ─────────────────── */}
+      {/* Feature 3: modal overlay — fixed inset-0 z-[999], opens/closes via local state */}
       {viewing && currentGroup && currentStory && (
         <div
           className="fixed inset-0 z-[999] flex flex-col"
-          style={{ background: '#000', touchAction: 'none' }}
+          style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(12px)', touchAction: 'none' }}
           onTouchStart={e => { viewerSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
           onTouchEnd={e => {
             const s = viewerSwipe.current;
@@ -733,13 +817,23 @@ export function StoriesPage() {
           )}
 
           {/* Bottom action bar: reactions + reply */}
-          <div className="absolute bottom-0 inset-x-0 z-20 px-4 pb-6"
+          <div className="absolute bottom-0 inset-x-0 z-20 px-4"
             style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
             {!isOwnStory ? (
               <div>
-                {/* Reaction emojis */}
+                {/* Quick react emoji bar */}
+                <div className="flex justify-center gap-2 mb-2">
+                  {QUICK_REACT_EMOJIS.map(em => (
+                    <button key={em} onClick={() => sendReaction(em)}
+                      className="text-2xl hover:scale-125 active:scale-110 transition-transform"
+                      style={{ touchAction: 'manipulation', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+                {/* Reaction emoji panel (expanded) */}
                 {showReactions && (
-                  <div className="flex justify-center gap-3 mb-3">
+                  <div className="flex justify-center gap-3 mb-2">
                     {REACTION_EMOJIS.map(em => (
                       <button key={em} onClick={() => sendReaction(em)}
                         className="text-3xl hover:scale-125 transition-transform"
@@ -764,6 +858,7 @@ export function StoriesPage() {
                       style={{ direction: 'auto' }}
                       onFocus={() => setPaused(true)}
                       onBlur={() => setPaused(false)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendStoryReply(); } }}
                     />
                   </div>
                   {replyText.trim() && (
@@ -776,12 +871,22 @@ export function StoriesPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2 text-white/60 text-sm">
+              <div className="flex items-center justify-center gap-2 text-white/60 text-sm pb-2">
                 <Eye size={16} />
                 <span>{currentStory.views_count} {fa ? 'نفر دیده‌اند' : 'views'}</span>
               </div>
             )}
           </div>
+
+          {/* Toast inside viewer */}
+          {toast && (
+            <div className="absolute top-20 inset-x-0 z-30 flex justify-center pointer-events-none">
+              <div className="px-5 py-2 rounded-full text-white text-sm font-semibold shadow-lg"
+                style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)' }}>
+                {toast}
+              </div>
+            </div>
+          )}
 
           {/* Tap zones */}
           <div className="absolute inset-0 z-10 flex" style={{ bottom: 80 }}>

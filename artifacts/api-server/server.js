@@ -659,6 +659,44 @@ app.post('/storage/:bucket/upload', authMiddleware, upload.single('file'), async
   return res.json({ path: filename, publicUrl });
 });
 
+// ===== Find or create a DM conversation =====
+app.post('/conversations', authMiddleware, (req, res) => {
+  const { type, participant_id } = req.body || {};
+  if (type !== 'direct' || !participant_id) return res.status(400).json({ error: 'type=direct and participant_id required' });
+  // Find existing DM between the two users
+  const existing = db.prepare(`
+    SELECT c.id FROM conversations c
+    JOIN conversation_members m1 ON m1.conversation_id = c.id AND m1.user_id = ?
+    JOIN conversation_members m2 ON m2.conversation_id = c.id AND m2.user_id = ?
+    WHERE c.type = 'direct'
+    LIMIT 1
+  `).get(req.userId, participant_id);
+  if (existing) return res.json({ id: existing.id });
+  // Create new DM
+  const convId = nanoid();
+  db.prepare(`INSERT INTO conversations (id, type, created_by) VALUES (?, 'direct', ?)`).run(convId, req.userId);
+  db.prepare(`INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role) VALUES (?, ?, 'member')`).run(convId, req.userId);
+  db.prepare(`INSERT OR IGNORE INTO conversation_members (conversation_id, user_id, role) VALUES (?, ?, 'member')`).run(convId, participant_id);
+  broadcast({ event: 'INSERT', table: 'conversations', new: { id: convId, type: 'direct', created_by: req.userId } });
+  return res.json({ id: convId });
+});
+
+// ===== Send message to a conversation =====
+app.post('/conversations/:id/messages', authMiddleware, (req, res) => {
+  const { content, type: msgType = 'text', reply_to_id } = req.body || {};
+  if (!content) return res.status(400).json({ error: 'content required' });
+  const conv = db.prepare('SELECT id FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'conversation not found' });
+  const isMember = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!isMember) return res.status(403).json({ error: 'not a member' });
+  const msgId = nanoid();
+  db.prepare('INSERT INTO messages (id, conversation_id, sender_id, content, type, reply_to_id) VALUES (?, ?, ?, ?, ?, ?)').run(msgId, req.params.id, req.userId, content, msgType, reply_to_id || null);
+  db.prepare("UPDATE conversations SET last_message_at = datetime('now'), last_message_preview = ? WHERE id = ?").run(content.slice(0, 100), req.params.id);
+  const msg = db.prepare(`SELECT m.*, p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name, p.avatar_url AS _s_avatar_url FROM messages m JOIN profiles p ON p.id = m.sender_id WHERE m.id = ?`).get(msgId);
+  if (msg) broadcast({ event: 'INSERT', table: 'messages', new: msg });
+  return res.json({ ok: true, id: msgId });
+});
+
 // ===== Conversation Member Management =====
 app.get('/conversations/:id/members', authMiddleware, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);

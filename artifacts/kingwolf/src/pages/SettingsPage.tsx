@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, MessageCircle, Video, ShieldCheck, Users, Move } from 'lucide-react';
 import { THEMES } from '../contexts/ThemeContext';
@@ -370,18 +370,31 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
             {/* Settings Menu */}
             <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              {menuItems.map((item, idx) => (
+              {[
+                { id: 'profile' as Section, icon: User, label: t('ویرایش پروفایل', 'Edit Profile'), sub: t('نام، بیو، عکس', 'Name, bio, photo'), grad: 'linear-gradient(135deg,#7c3aed,#a855f7)', shadow: 'rgba(124,58,237,0.4)' },
+                { id: 'appearance' as Section, icon: Palette, label: t('ظاهر', 'Appearance'), sub: t('تم رنگی و نمایش', 'Theme & display'), grad: 'linear-gradient(135deg,#f59e0b,#f97316)', shadow: 'rgba(245,158,11,0.4)' },
+                { id: 'language' as Section, icon: Globe, label: t('زبان', 'Language'), sub: t('فارسی / انگلیسی', 'Persian / English'), grad: 'linear-gradient(135deg,#3b82f6,#6366f1)', shadow: 'rgba(59,130,246,0.4)' },
+                { id: 'notifications' as Section, icon: Bell, label: t('اعلان‌ها', 'Notifications'), sub: t('صدا، لرزش، پیش‌نمایش', 'Sound, vibration, preview'), grad: 'linear-gradient(135deg,#ef4444,#f97316)', shadow: 'rgba(239,68,68,0.4)' },
+                { id: 'privacy' as Section, icon: Shield, label: t('حریم خصوصی', 'Privacy'), sub: t('مشاهده و دسترسی', 'Visibility & access'), grad: 'linear-gradient(135deg,#10b981,#059669)', shadow: 'rgba(16,185,129,0.4)' },
+                { id: 'security' as Section, icon: Lock, label: t('امنیت', 'Security'), sub: t('رمز عبور و تأیید هویت', 'Password & authentication'), grad: 'linear-gradient(135deg,#eab308,#ca8a04)', shadow: 'rgba(234,179,8,0.4)' },
+                { id: 'devices' as Section, icon: Smartphone, label: t('دستگاه‌های من', 'My Devices'), sub: t('دستگاه‌های فعال', 'Active sessions'), grad: 'linear-gradient(135deg,#06b6d4,#0284c7)', shadow: 'rgba(6,182,212,0.4)' },
+                { id: 'about' as Section, icon: Info, label: t('درباره ما', 'About Us'), sub: t('ویژگی‌ها و نسخه', 'Features & version'), grad: 'linear-gradient(135deg,#ec4899,#db2777)', shadow: 'rgba(236,72,153,0.4)' },
+              ].map((item, idx, arr) => (
                 <button
                   key={item.id}
                   onClick={() => setSection(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-right transition-colors hover:bg-white/5 active:bg-white/10"
-                  style={{ borderBottom: idx < menuItems.length - 1 ? '1px solid var(--border-color)' : 'none' }}
+                  className="flex items-center gap-4 w-full px-4 py-3.5 transition-all hover:bg-white/5 active:bg-white/10"
+                  style={{ borderBottom: idx < arr.length - 1 ? '1px solid var(--border-color)' : 'none' }}
                 >
-                  <ChevronLeft size={16} style={{ color: 'var(--text-muted)' }} />
-                  <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
-                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: item.grad }}>
-                    <item.icon size={17} color="white" />
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: item.grad, boxShadow: `0 4px 12px ${item.shadow}` }}>
+                    <item.icon size={20} className="text-white" />
                   </div>
+                  <div className="flex-1 text-right">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.sub}</p>
+                  </div>
+                  <ChevronLeft size={16} style={{ color: 'var(--text-muted)' }} />
                 </button>
               ))}
             </div>
@@ -553,60 +566,312 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         )}
 
         {/* NOTIFICATIONS */}
-        {section === 'notifications' && (() => {
-          const notifRows = [
-            {
-              group: t('پیام‌ها', 'Messages'),
-              items: [
-                { label: t('اعلان پیام', 'Message Notifications'), sublabel: t('دریافت اعلان برای پیام‌های جدید', 'Get notified for new messages'), value: notifSound, onChange: (v: boolean) => { setNotifSound(v); setTimeout(saveNotifications, 100); } },
-                { label: t('اعلان گروه‌ها', 'Group Notifications'), sublabel: t('اعلان برای پیام‌های گروهی', 'Notifications for group messages'), value: notifGroups, onChange: (v: boolean) => { setNotifGroups(v); setTimeout(saveNotifications, 100); } },
-              ],
-            },
-            {
-              group: t('تماس', 'Calls'),
-              items: [
-                { label: t('اعلان تماس ورودی', 'Incoming Call Alerts'), sublabel: t('صدا و اعلان هنگام تماس', 'Sound & notification on call'), value: notifCalls, onChange: (v: boolean) => { setNotifCalls(v); setTimeout(saveNotifications, 100); } },
-              ],
-            },
-            {
-              group: t('محتوای اعلان', 'Notification Content'),
-              items: [
-                { label: t('نمایش نام فرستنده', 'Show Sender Name'), sublabel: t('نام فرستنده در اعلان قفل‌صفحه', 'Sender name on lock screen notification'), value: notifShowName, onChange: (v: boolean) => { setNotifShowName(v); setTimeout(saveNotifications, 100); } },
-                { label: t('پیش‌نمایش پیام', 'Message Preview'), sublabel: t('نمایش متن پیام در اعلان', 'Show message text in notification'), value: msgPreview, onChange: (v: boolean) => { setMsgPreview(v); setTimeout(saveNotifications, 100); } },
-                { label: t('لرزش', 'Vibration'), sublabel: t('لرزش هنگام دریافت اعلان', 'Vibrate on notification'), value: notifVibrate, onChange: (v: boolean) => { setNotifVibrate(v); setTimeout(saveNotifications, 100); } },
-              ],
-            },
-          ];
-          return (
-            <div className="p-4 space-y-4">
-              {notifRows.map((group) => (
-                <div key={group.group}>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: 'var(--text-muted)' }}>{group.group}</p>
-                  <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-                    {group.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < group.items.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
-                        <button
-                          onClick={() => item.onChange(!item.value)}
-                          className="w-12 h-6 rounded-full transition-all flex-shrink-0 relative"
-                          style={{ background: item.value ? '#2563eb' : 'var(--bg-input)' }}
-                        >
-                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${item.value ? 'left-6' : 'left-0.5'}`} />
-                        </button>
-                        <div className="flex-1 text-right">
-                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</p>
-                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.sublabel}</p>
-                        </div>
-                      </div>
-                    ))}
+        {section === 'notifications' && (
+          <div className="space-y-0">
+            {/* Section header */}
+            <div className="px-4 pt-5 pb-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', boxShadow: '0 4px 14px rgba(239,68,68,0.45)' }}>
+                <Bell size={18} className="text-white" />
+              </div>
+              <div>
+                <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>{t('اعلان‌ها', 'Notifications')}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('تنظیمات اطلاع‌رسانی', 'Notification preferences')}</p>
+              </div>
+            </div>
+
+            {/* Global toggles */}
+            <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              {/* پیش‌نمایش پیام */}
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.15)' }}>
+                    <Eye size={15} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-white">{t('پیش‌نمایش پیام', 'Message Preview')}</span>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('نمایش متن در اعلان', 'Show text in notification')}</p>
                   </div>
                 </div>
-              ))}
-              <p className="text-xs text-center px-4" style={{ color: 'var(--text-muted)' }}>
-                {t('برای دریافت اعلان روی صفحه قفل، مطمئن شوید مرورگر اجازه اعلان دارد.', 'To receive lock screen notifications, ensure the browser has notification permission.')}
-              </p>
+                <button
+                  onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: msgPreview ? '26px' : '2px' }} />
+                </button>
+              </div>
+              {/* نام فرستنده */}
+              <div className="flex items-center justify-between py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
+                    <User size={15} className="text-purple-400" />
+                  </div>
+                  <div>
+                    <span className="text-sm text-white">{t('نام فرستنده', 'Sender Name')}</span>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('نمایش نام در صفحه قفل', 'Show name on lock screen')}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setNotifShowName(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifShowName ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifShowName ? '26px' : '2px' }} />
+                </button>
+              </div>
             </div>
-          );
-        })()}
+
+            {/* پیام‌های خصوصی */}
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('پیام‌های خصوصی', 'Private Messages')}</p>
+            <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(59,130,246,0.15)' }}>
+                    <Bell size={15} className="text-blue-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('اعلان‌ها', 'Notifications')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifSound ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.15)' }}>
+                    <MessageCircle size={15} className="text-orange-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('صدا', 'Sound')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifSound ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.15)' }}>
+                    <Smartphone size={15} className="text-emerald-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('لرزش', 'Vibration')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifVibrate ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.15)' }}>
+                    <Eye size={15} className="text-blue-300" />
+                  </div>
+                  <span className="text-sm text-white">{t('پیش‌نمایش', 'Preview')}</span>
+                </div>
+                <button
+                  onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: msgPreview ? '26px' : '2px' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* گروه‌ها */}
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('گروه‌ها', 'Groups')}</p>
+            <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(244,114,182,0.15)' }}>
+                    <Bell size={15} className="text-pink-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('اعلان‌ها', 'Notifications')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifGroups ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.15)' }}>
+                    <MessageCircle size={15} className="text-orange-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('صدا', 'Sound')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifGroups ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.15)' }}>
+                    <Smartphone size={15} className="text-emerald-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('لرزش', 'Vibration')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifVibrate ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.15)' }}>
+                    <Eye size={15} className="text-blue-300" />
+                  </div>
+                  <span className="text-sm text-white">{t('پیش‌نمایش', 'Preview')}</span>
+                </div>
+                <button
+                  onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: msgPreview ? '26px' : '2px' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* کانال‌ها */}
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('کانال‌ها', 'Channels')}</p>
+            <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.15)' }}>
+                    <Bell size={15} className="text-violet-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('اعلان‌ها', 'Notifications')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifGroups ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.15)' }}>
+                    <MessageCircle size={15} className="text-orange-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('صدا', 'Sound')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifSound ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(96,165,250,0.15)' }}>
+                    <Eye size={15} className="text-blue-300" />
+                  </div>
+                  <span className="text-sm text-white">{t('پیش‌نمایش', 'Preview')}</span>
+                </div>
+                <button
+                  onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: msgPreview ? '26px' : '2px' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* تماس‌ها */}
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('تماس‌ها', 'Calls')}</p>
+            <div className="mx-4 rounded-2xl overflow-hidden mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.15)' }}>
+                    <Bell size={15} className="text-emerald-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('اعلان تماس ورودی', 'Incoming Call Alerts')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifCalls(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifCalls ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifCalls ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.15)' }}>
+                    <MessageCircle size={15} className="text-orange-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('صدا', 'Sound')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifSound ? '26px' : '2px' }} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(52,211,153,0.15)' }}>
+                    <Smartphone size={15} className="text-emerald-400" />
+                  </div>
+                  <span className="text-sm text-white">{t('لرزش', 'Vibration')}</span>
+                </div>
+                <button
+                  onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: notifVibrate ? '26px' : '2px' }} />
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-center px-4 pb-4" style={{ color: 'var(--text-muted)' }}>
+              {t('برای دریافت اعلان روی صفحه قفل، مطمئن شوید مرورگر اجازه اعلان دارد.', 'To receive lock screen notifications, ensure the browser has notification permission.')}
+            </p>
+          </div>
+        )}
 
         {/* SECURITY */}
         {section === 'security' && (
@@ -662,115 +927,42 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
 
         {/* ABOUT */}
         {section === 'about' && (
-          <div className="p-4 space-y-4">
-            <style>{`
-              @keyframes kw-halo-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-              @keyframes kw-badge-in { from { opacity:0; transform: scale(0.5) translateY(8px); } to { opacity:1; transform: scale(1) translateY(0); } }
-              @keyframes kw-feat-in { from { opacity:0; transform: translateX(${language==='fa'?'16px':'-16px'}); } to { opacity:1; transform: translateX(0); } }
-              @keyframes kw-pulse-green { 0%,100%{ box-shadow:0 0 0 0 rgba(74,222,128,0.5); } 50%{ box-shadow:0 0 0 6px rgba(74,222,128,0); } }
-            `}</style>
-
-            {/* Hero card */}
-            <div className="relative rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 45%,#0f172a 100%)', border:'1px solid rgba(59,130,246,0.3)' }}>
-              {/* Blurred circles decoration */}
-              <div style={{ position:'absolute', top:-40, right:-40, width:160, height:160, borderRadius:'50%', background:'rgba(59,130,246,0.18)', filter:'blur(40px)', pointerEvents:'none' }} />
-              <div style={{ position:'absolute', bottom:-30, left:-20, width:120, height:120, borderRadius:'50%', background:'rgba(245,158,11,0.15)', filter:'blur(35px)', pointerEvents:'none' }} />
-
-              <div className="relative flex flex-col items-center py-8 px-4 gap-3">
-                {/* Animated halo ring */}
-                <div style={{ position:'relative', width:96, height:96 }}>
-                  <svg width="96" height="96" viewBox="0 0 96 96" style={{ position:'absolute', top:0, left:0, animation:'kw-halo-spin 6s linear infinite' }}>
-                    <defs>
-                      <linearGradient id="kw-halo-g" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0" />
-                        <stop offset="40%" stopColor="#60a5fa" />
-                        <stop offset="80%" stopColor="#f59e0b" />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="48" cy="48" r="46" stroke="url(#kw-halo-g)" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="80 210" />
-                  </svg>
-                  <div style={{ position:'absolute', inset:6, borderRadius:'50%', background:'rgba(15,23,42,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    <WolfLogo size={68} />
-                  </div>
-                </div>
-
-                <div className="text-center">
-                  <h1 className="text-2xl font-black tracking-wide text-white">KingWolf</h1>
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold" style={{ background:'rgba(74,222,128,0.18)', color:'#4ade80', border:'1px solid rgba(74,222,128,0.3)', animation:'kw-badge-in 0.4s ease both' }}>
-                      v2.8.1.4 — {t('پایدار', 'Stable')}
-                    </span>
-                  </div>
-                </div>
+          <div className="kw-tab-in">
+            {/* Hero */}
+            <div className="relative overflow-hidden px-6 py-10 text-center" style={{ background: 'linear-gradient(135deg, #0d0033, #1a0066, #000d1a)' }}>
+              <div className="absolute inset-0 opacity-20" style={{ background: 'radial-gradient(circle at 30% 50%, #7c3aed 0%, transparent 50%), radial-gradient(circle at 70% 50%, #2563eb 0%, transparent 50%)' }} />
+              <div className="relative">
+                <WolfLogo size={64} className="mx-auto mb-4" />
+                <h1 className="text-2xl font-bold text-white mb-2">KingWolf Messenger</h1>
+                <p className="text-sm text-purple-300">{t('نسل جدید پیام‌رسان', 'Next-gen messenger')}</p>
               </div>
             </div>
-
-            {/* Info cards */}
-            <div className="rounded-2xl overflow-hidden" style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)', backdropFilter:'blur(12px)' }}>
-              {[
-                {
-                  label: t('توسعه‌دهنده', 'Developer'),
-                  value: 'Amirreveka',
-                  icon: <User size={15} style={{ color:'#3b82f6' }} />,
-                  bg: 'rgba(59,130,246,0.1)',
-                },
-                {
-                  label: t('وضعیت سیستم', 'System Status'),
-                  value: t('رمزنگاری‌شده و امن', 'Encrypted & Secure'),
-                  icon: <ShieldCheck size={15} style={{ color:'#4ade80' }} />,
-                  bg: 'rgba(74,222,128,0.1)',
-                  badge: true,
-                },
-                {
-                  label: t('نسخه', 'Version'),
-                  value: '2.8.1.4 (Build 28)',
-                  icon: <Info size={15} style={{ color:'#f59e0b' }} />,
-                  bg: 'rgba(245,158,11,0.1)',
-                },
-              ].map((row, idx, arr) => (
-                <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < arr.length-1 ? '1px solid var(--border-color)' : 'none' }}>
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: row.bg }}>
-                    {row.icon}
+            {/* Feature cards */}
+            <div className="p-4 space-y-3">
+              {([
+                { icon: Shield, title: t('رمزنگاری سرتاسری', 'End-to-End Encryption'), desc: t('تمام پیام‌ها با پروتکل E2E رمزنگاری می‌شوند', 'All messages encrypted with E2E protocol'), color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
+                { icon: Video, title: t('تماس تصویری HD', 'HD Video Calls'), desc: t('تماس تصویری با کیفیت بالا با WebRTC', 'High-quality video calls via WebRTC'), color: '#60a5fa', bg: 'rgba(96,165,250,0.1)' },
+                { icon: Users, title: t('گروه‌های بزرگ', 'Large Groups'), desc: t('ایجاد گروه تا ۱۰۰۰ عضو', 'Create groups up to 1000 members'), color: '#f472b6', bg: 'rgba(244,114,182,0.1)' },
+                { icon: Bell, title: t('اعلان‌های فوری', 'Instant Notifications'), desc: t('اطلاع‌رسانی لحظه‌ای روی صفحه قفل', 'Real-time alerts on lock screen'), color: '#fb923c', bg: 'rgba(251,146,60,0.1)' },
+                { icon: Palette, title: t('۹ تم رنگی', '9 Color Themes'), desc: t('شخصی‌سازی کامل ظاهر برنامه', 'Fully customise the app appearance'), color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' },
+                { icon: Smartphone, title: t('نصب روی موبایل', 'Install on Mobile'), desc: t('به عنوان اپ نیتیو نصب کنید', 'Install as a native app'), color: '#34d399', bg: 'rgba(52,211,153,0.1)' },
+              ] as { icon: React.ElementType; title: string; desc: string; color: string; bg: string }[]).map(f => (
+                <div key={f.title} className="flex items-center gap-4 p-4 rounded-2xl" style={{ background: f.bg, border: `1px solid ${f.color}25` }}>
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: `${f.color}20` }}>
+                    <f.icon size={22} style={{ color: f.color }} />
                   </div>
-                  <div className="flex-1 text-right">
-                    <p className="text-xs" style={{ color:'var(--text-muted)' }}>{row.label}</p>
-                    <p className="text-sm font-semibold" style={{ color:'var(--text-primary)' }}>{row.value}</p>
-                  </div>
-                  {row.badge && (
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-400 flex-shrink-0" style={{ animation:'kw-pulse-green 2s ease-in-out infinite' }} />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Features */}
-            <div className="rounded-2xl p-4 space-y-3" style={{ background:'var(--bg-card)', border:'1px solid var(--border-color)' }}>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color:'var(--text-muted)' }}>{t('ویژگی‌ها', 'Features')}</p>
-              {[
-                { icon: <MessageCircle size={16} style={{ color:'#60a5fa' }} />, title: t('پیام‌رسانی آنی', 'Real-time Messaging'), desc: t('ارتباط فوری با WebSocket', 'Instant communication via WebSocket'), delay: '0ms' },
-                { icon: <Video size={16} style={{ color:'#c084fc' }} />, title: t('تماس صوتی و تصویری', 'Voice & Video Calls'), desc: t('تماس با کیفیت بالا از هر مکان', 'High-quality calls from anywhere'), delay: '80ms' },
-                { icon: <BookImage size={16} style={{ color:'#f472b6' }} />, title: t('استوری', 'Stories'), desc: t('اشتراک لحظات با دنبال‌کنندگان', 'Share moments with followers'), delay: '160ms' },
-                { icon: <Newspaper size={16} style={{ color:'#34d399' }} />, title: t('فید و شبکه اجتماعی', 'Feed & Social'), desc: t('پست، لایک، کامنت و دنبال‌کردن', 'Posts, likes, comments & follow'), delay: '240ms' },
-                { icon: <ShieldCheck size={16} style={{ color:'#4ade80' }} />, title: t('حریم خصوصی کامل', 'Full Privacy'), desc: t('امنیت کامل داده‌های شما', 'Complete security for your data'), delay: '320ms' },
-                { icon: <Zap size={16} style={{ color:'#fbbf24' }} />, title: t('عملکرد بالا', 'High Performance'), desc: t('معماری سبک و واکنش‌گرا', 'Lightweight and responsive architecture'), delay: '400ms' },
-              ].map((feat, idx) => (
-                <div key={idx} className="flex items-center gap-3" style={{ animation:`kw-feat-in 0.35s ease both`, animationDelay: feat.delay }}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background:'var(--bg-input)' }}>
-                    {feat.icon}
-                  </div>
-                  <div className="flex-1 text-right">
-                    <p className="text-sm font-semibold" style={{ color:'var(--text-primary)' }}>{feat.title}</p>
-                    <p className="text-xs" style={{ color:'var(--text-muted)' }}>{feat.desc}</p>
+                  <div>
+                    <p className="text-sm font-bold text-white">{f.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'rgba(156,163,175,0.8)' }}>{f.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Copyright */}
-            <p className="text-center text-xs" style={{ color:'var(--text-muted)' }}>
-              © 2025–2026 KingWolf v2.8.1.4 · {t('ساخته‌شده با ❤️ توسط Amirreveka', 'Made with ❤️ by Amirreveka')}
-            </p>
+            {/* Version footer */}
+            <div className="p-6 text-center space-y-1">
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('نسخه ۱.۰.۰ · KingWolf Messenger', 'Version 1.0.0 · KingWolf Messenger')}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{t('ساخته‌شده با ❤️ برای کاربران ایرانی', 'Made with ❤️ for Iranian users')}</p>
+            </div>
           </div>
         )}
 

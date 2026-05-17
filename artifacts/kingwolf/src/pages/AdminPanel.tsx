@@ -1730,6 +1730,40 @@ export function AdminPanel() {
                 </div>
               )}
 
+              {/* Storage Quota Control — owner only */}
+              {isOwner && (
+                <div className="p-3 rounded-xl mt-3" style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
+                  <div className="text-xs font-bold mb-2" style={{ color: '#fbbf24' }}>💾 سهمیه ذخیره‌سازی</div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0.1" max="100" step="0.5"
+                      defaultValue={2}
+                      className="w-20 rounded-lg px-2 py-1 text-sm text-center outline-none"
+                      style={{ background: 'var(--bg-secondary, #161b22)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
+                      id={`quota-${selectedUser?.id}`}
+                    />
+                    <span className="text-sm" style={{ color: 'var(--text-secondary, #6b7280)' }}>GB</span>
+                    <button
+                      onClick={async () => {
+                        const input = document.getElementById(`quota-${selectedUser?.id}`) as HTMLInputElement;
+                        const gb = parseFloat(input.value) || 2;
+                        const token = localStorage.getItem('kingwolf_token');
+                        await fetch(`${API_BASE}/admin/users/${selectedUser?.id}/quota`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ quota_gb: gb }),
+                        });
+                      }}
+                      className="px-3 py-1 rounded-lg text-xs font-medium text-white"
+                      style={{ background: 'linear-gradient(135deg, #92400e, #f59e0b)' }}
+                    >
+                      تنظیم
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex gap-2 pt-1">
                 {!selectedUser.is_approved && !selectedUser.is_banned && (

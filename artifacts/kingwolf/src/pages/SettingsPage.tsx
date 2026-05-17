@@ -180,6 +180,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   // Privacy state
   const [stealthMode, setStealthMode] = useState(false);
 
+  // Storage quota state
+  const [storageInfo, setStorageInfo] = useState<{ quota: number; used: number; percent: number } | null>(null);
+
   // Devices state
   const [sessionInfo, setSessionInfo] = useState<{ ip: string; device_name: string; user_agent: string; created_at: string | null } | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -201,6 +204,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       .then(r => r.json())
       .then(d => setStealthMode(!!d?.stealth_mode))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('kingwolf_token');
+    fetch('/api/profile/storage', {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => r.json()).then(d => setStorageInfo(d)).catch(() => {});
   }, []);
 
   async function toggleStealth(val: boolean) {
@@ -504,6 +514,33 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   />
                 </div>
               </div>
+
+              {storageInfo && (
+                <div className="p-4 rounded-xl border" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary, var(--bg-card))' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t('فضای ذخیره‌سازی', 'Storage')}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      {(storageInfo.used / 1024 / 1024).toFixed(1)} MB / {(storageInfo.quota / 1024 / 1024 / 1024).toFixed(1)} GB
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${Math.min(storageInfo.percent, 100)}%`,
+                        background: storageInfo.percent > 80
+                          ? 'linear-gradient(90deg, #ef4444, #f97316)'
+                          : 'linear-gradient(90deg, #7c3aed, #a855f7, #06b6d4)',
+                        filter: 'drop-shadow(0 0 4px rgba(168,85,247,0.5))',
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{storageInfo.percent}% {t('استفاده شده', 'used')}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{((storageInfo.quota - storageInfo.used) / 1024 / 1024).toFixed(0)} MB {t('آزاد', 'free')}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -154,6 +154,12 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  // Hold-to-record states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +334,58 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   function stopVoiceRecording() {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg' });
+      audioChunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.start(100);
+      setMediaRecorder(mr);
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch { /* permission denied */ }
+  }
+
+  function stopRecording(send = true) {
+    if (!mediaRecorder) return;
+    mediaRecorder.onstop = async () => {
+      if (send && audioChunksRef.current.length > 0) {
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        await sendVoiceMessage(blob);
+      }
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.stop();
+    setMediaRecorder(null);
+    setIsRecording(false);
+    setRecordingTime(0);
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+  }
+
+  async function sendVoiceMessage(blob: Blob) {
+    const token = localStorage.getItem('kingwolf_token');
+    const formData = new FormData();
+    formData.append('file', blob, 'voice.webm');
+    formData.append('type', 'voice');
+    const uploadRes = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const uploadData = await uploadRes.json();
+    if (uploadData.url && conversation?.id) {
+      sendMessage('🎤 پیام صوتی', { replyToId: replyTo?.id });
+    }
+  }
+
+  function formatRecordingTime(secs: number) {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   }
 
   async function submitReport() {
@@ -957,7 +1015,37 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                   </div>
                 )}
               </div>
-              {recording ? (
+              {isRecording ? (
+                <div className="flex items-center gap-2 flex-1 px-1">
+                  <div className="flex items-center gap-0.5">
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} className="w-1 rounded-full bg-red-400"
+                           style={{
+                             height: '12px',
+                             animation: `kw-breathe ${0.4 + i * 0.1}s ease-in-out infinite`,
+                             animationDelay: `${i * 80}ms`,
+                           }} />
+                    ))}
+                  </div>
+                  <span className="text-red-400 text-sm font-mono">{formatRecordingTime(recordingTime)}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{fa ? 'برای لغو بکش ←' : 'slide to cancel'}</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => stopRecording(false)}
+                    className="p-1 rounded-full transition-colors"
+                    style={{ color: 'var(--text-secondary)' }}
+                  >
+                    <X size={16} />
+                  </button>
+                  <button
+                    onClick={() => stopRecording(true)}
+                    className="p-2 rounded-full text-white"
+                    style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+                  >
+                    <Send size={14} />
+                  </button>
+                </div>
+              ) : recording ? (
                 <div className="flex-1 flex items-center gap-2 py-1.5">
                   <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                   <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{fa ? 'در حال ضبط...' : 'Recording...'}</span>
@@ -979,14 +1067,27 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                   className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 bg-red-500">
                   <Square size={14} className="text-white" />
                 </button>
-              ) : (
-              <button onClick={handleSend} disabled={!text.trim() || sending}
-                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all"
-                style={{ background: text.trim() ? (editingId ? '#10b981' : 'var(--accent)') : 'transparent', color: text.trim() ? 'white' : 'var(--text-muted)' }}>
-                {sending
-                  ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  : editingId ? <Check size={15} /> : <Send size={15} />}
-              </button>
+              ) : isRecording ? null : (
+                !text.trim() ? (
+                  <button
+                    onPointerDown={startRecording}
+                    onPointerUp={() => stopRecording(true)}
+                    onPointerLeave={() => isRecording && stopRecording(false)}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all active:scale-90"
+                    style={{ color: 'var(--text-muted)' }}
+                    title={fa ? 'پیام صوتی' : 'Voice message'}
+                  >
+                    <Mic size={18} />
+                  </button>
+                ) : (
+                  <button onClick={handleSend} disabled={!text.trim() || sending}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all"
+                    style={{ background: text.trim() ? (editingId ? '#10b981' : 'var(--accent)') : 'transparent', color: text.trim() ? 'white' : 'var(--text-muted)' }}>
+                    {sending
+                      ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      : editingId ? <Check size={15} /> : <Send size={15} />}
+                  </button>
+                )
               )}
             </div>
             </div>

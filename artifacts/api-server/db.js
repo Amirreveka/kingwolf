@@ -454,6 +454,15 @@ CREATE TABLE IF NOT EXISTS user_storage_log (
   created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_storage_user ON user_storage_log(user_id);
+
+CREATE TABLE IF NOT EXISTS landing_cms (
+  key TEXT PRIMARY KEY,
+  value TEXT DEFAULT '',
+  type TEXT DEFAULT 'text',
+  label TEXT DEFAULT '',
+  label_fa TEXT DEFAULT '',
+  updated_at TEXT DEFAULT (datetime('now'))
+);
 `);
 
 // Default settings
@@ -466,6 +475,29 @@ const defaults = {
 };
 const insertSetting = db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, v);
+
+// Seed default landing CMS content
+const cmsDefaults = [
+  ['hero_badge',      '⚡ پیام‌رسان بومی نسل بعدی',                 'text', 'Hero Badge',      'بج هرو'],
+  ['hero_title_fa',   'ارتباط بی‌مرز',                               'text', 'Hero Title (FA)', 'عنوان هرو فارسی'],
+  ['hero_title_en',   'Connect Beyond Limits',                       'text', 'Hero Title (EN)', 'عنوان هرو انگلیسی'],
+  ['hero_sub_fa',     'پیام‌رسان KingWolf — امن، سریع، و کاملاً بومی.','text','Hero Sub (FA)',   'زیرعنوان فارسی'],
+  ['hero_sub_en',     'KingWolf Messenger — secure, fast, and fully domestic.','text','Hero Sub (EN)','زیرعنوان انگلیسی'],
+  ['cta_main_fa',     '🚀 شروع کن — رایگان',                        'text', 'CTA Button (FA)', 'دکمه اصلی فارسی'],
+  ['cta_main_en',     '🚀 Get Started — Free',                       'text', 'CTA Button (EN)', 'دکمه اصلی انگلیسی'],
+  ['app_url',         '/app',                                        'url',  'App URL',         'آدرس اپ'],
+  ['seo_title',       'KingWolf Messenger | پیام‌رسان بومی',         'text', 'SEO Title',       'عنوان سئو'],
+  ['seo_description', 'پیام‌رسان KingWolf — امن، سریع، بومی',       'text', 'SEO Description', 'توضیح سئو'],
+  ['footer_text',     '© ۱۴۰۳ KingWolf Messenger — ساخته شده با ❤️ در ایران','text','Footer Text','متن فوتر'],
+  ['neon_primary',    '#a855f7',                                     'color','Neon Primary',    'رنگ نئون اصلی'],
+  ['neon_secondary',  '#06b6d4',                                     'color','Neon Secondary',  'رنگ نئون ثانویه'],
+  ['maintenance_msg_fa', 'KingWolf در حال ارتقاء است. به زودی برمی‌گردیم!','text','Maintenance Msg (FA)','پیام تعمیر فارسی'],
+  ['maintenance_msg_en', 'KingWolf is being upgraded. We\'ll be back shortly!','text','Maintenance Msg (EN)','پیام تعمیر انگلیسی'],
+];
+const insertCms = db.prepare('INSERT OR IGNORE INTO landing_cms (key, value, type, label, label_fa) VALUES (?,?,?,?,?)');
+for (const [key, value, type, label, label_fa] of cmsDefaults) {
+  insertCms.run(key, value, type, label, label_fa);
+}
 
 // Ensure owner has role='owner' in profiles
 try {

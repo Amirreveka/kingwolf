@@ -2309,6 +2309,85 @@ app.post('/api/admin/maintenance', authMiddleware, adminOnly, (req, res) => {
   res.json({ maintenance: enabled });
 });
 
+// ── Landing CMS ──────────────────────────────────────────────────────────────
+// Public: get all CMS content (for landing page)
+app.get('/api/cms', (req, res) => {
+  const rows = db.prepare('SELECT key, value, type FROM landing_cms').all();
+  const cms = {};
+  for (const r of rows) cms[r.key] = r.value;
+  res.json(cms);
+});
+
+// Founder only: update a CMS field
+app.patch('/api/cms/:key', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== founderUsername) {
+    return res.status(403).json({ error: 'فقط سازنده می‌تواند محتوای سایت را ویرایش کند' });
+  }
+  const { value } = req.body;
+  db.prepare('UPDATE landing_cms SET value=?, updated_at=datetime("now") WHERE key=?').run(value, req.params.key);
+  res.json({ ok: true });
+});
+
+// Founder only: get CMS with labels for Panel UI
+app.get('/api/cms/admin/all', authMiddleware, adminOnly, (req, res) => {
+  const rows = db.prepare('SELECT * FROM landing_cms ORDER BY key').all();
+  res.json(rows);
+});
+
+// ── Serve landing page at /landing or as a template ──────────────────────────
+const LANDING_DIR = path.join(__dirname, '..', '..', 'landing');
+
+// Serve landing page assets
+if (fs.existsSync(LANDING_DIR)) {
+  app.use('/landing-assets', express.static(LANDING_DIR));
+}
+
+// Dynamic landing page — injects CMS content from DB
+app.get('/landing', (req, res) => {
+  const landingFile = path.join(LANDING_DIR, 'index.html');
+  if (!fs.existsSync(landingFile)) return res.redirect('/');
+
+  let html = fs.readFileSync(landingFile, 'utf8');
+
+  // Inject CMS data as a JSON script tag
+  const rows = db.prepare('SELECT key, value FROM landing_cms').all();
+  const cms = {};
+  for (const r of rows) cms[r.key] = r.value;
+
+  // Check maintenance mode
+  const maintenance = db.prepare("SELECT value FROM app_settings WHERE key='maintenance_mode'").get();
+  if (maintenance?.value === 'true') {
+    const maintFile = path.join(LANDING_DIR, 'maintenance.html');
+    if (fs.existsSync(maintFile)) {
+      let maintHtml = fs.readFileSync(maintFile, 'utf8');
+      maintHtml = maintHtml.replace('KingWolf در حال ارتقاء است. به زودی برمی‌گردیم!', cms.maintenance_msg_fa || 'در حال بروزرسانی');
+      return res.send(maintHtml);
+    }
+  }
+
+  // Inject CMS values into HTML via <script> tag before </head>
+  const cmsScript = `<script>window.__CMS__=${JSON.stringify(cms)};</script>`;
+  html = html.replace('</head>', cmsScript + '\n</head>');
+
+  // Update SEO meta tags dynamically
+  if (cms.seo_title) {
+    html = html.replace(/<title>.*?<\/title>/, `<title>${cms.seo_title}</title>`);
+  }
+  if (cms.seo_description) {
+    html = html.replace(
+      /<meta name="description" content=".*?">/,
+      `<meta name="description" content="${cms.seo_description}">`
+    );
+  }
+  if (cms.neon_primary) {
+    html = html.replace('--neon-purple:#a855f7', `--neon-purple:${cms.neon_primary}`);
+  }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+});
+
 // SPA fallback — serve index.html for any non-API route
 if (fs.existsSync(FRONTEND_DIST)) {
   app.get('*', (req, res, next) => {

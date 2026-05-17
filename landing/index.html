@@ -296,6 +296,26 @@ footer{
 </footer>
 
 <script>
+// Apply CMS overrides from server injection
+(function() {
+  const cms = window.__CMS__ || {};
+  if (cms.hero_badge) T.badge = [cms.hero_badge, T.badge[1]];
+  if (cms.hero_title_fa) T.heroTitle1 = [cms.hero_title_fa, T.heroTitle1[1]];
+  if (cms.hero_title_en) T.heroTitle1 = [T.heroTitle1[0], cms.hero_title_en];
+  if (cms.hero_sub_fa) T.heroSub = [cms.hero_sub_fa, T.heroSub[1]];
+  if (cms.hero_sub_en) T.heroSub = [T.heroSub[0], cms.hero_sub_en];
+  if (cms.cta_main_fa) T.ctaMain = [cms.cta_main_fa, T.ctaMain[1]];
+  if (cms.cta_main_en) T.ctaMain = [T.ctaMain[0], cms.cta_main_en];
+  if (cms.footer_text) document.addEventListener('DOMContentLoaded', () => {
+    const f = document.querySelector('footer p');
+    if (f) f.textContent = cms.footer_text;
+  });
+  if (cms.app_url) document.querySelectorAll('a[href="/app"]').forEach(a => a.href = cms.app_url);
+  // Apply neon color override
+  if (cms.neon_primary) document.documentElement.style.setProperty('--neon-purple', cms.neon_primary);
+  if (cms.neon_secondary) document.documentElement.style.setProperty('--neon-cyan', cms.neon_secondary);
+})();
+
 // ── Particles ─────────────────────────────────────────────────────────────
 const canvas = document.getElementById('particles');
 const ctx = canvas.getContext('2d');

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck, Camera, CheckCheck, BellOff, Bell, Pin, PinOff, Trash2, AlertTriangle } from 'lucide-react';
 import { Conversation, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -357,7 +357,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
     { id: 'channels' as Tab, label: t('کانال‌ها', 'Channels'), icon: Radio },
   ];
 
-  const filtered = conversations.filter((c) => {
+  const filtered = useMemo(() => conversations.filter((c) => {
     if (c.name === '__saved__') return false; // shown as pinned button, not in list
     const matchTab = tab === 'direct'
       ? c.type === 'direct'
@@ -366,7 +366,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
     const name = c.type === 'direct' ? (c.other_user?.display_name || c.other_user?.username || c.name) : c.name;
     const matchSearch = !search || name.toLowerCase().includes(search.toLowerCase());
     return matchTab && matchSearch;
-  });
+  }), [conversations, tab, search]);
 
   // Item 4: require 80% of username typed before showing results
   function apply80pFilter(profiles: any[], q: string) {
@@ -631,7 +631,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
               }}
               onTouchEnd={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
               onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
-              className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-right kw-chat-item animate-fadeIn"
+              className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-right kw-chat-item kw-card kw-list-item animate-fadeIn"
               style={{
                 background: selectedId === c.id ? 'var(--bg-active)' : 'transparent',
                 transition: 'background 0.15s ease, transform 0.12s ease',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Users, UserPlus, Phone, RefreshCw, Search, Copy, Share2, X, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -29,6 +29,38 @@ interface Contact {
   online_status?: string;
   bio?: string;
 }
+
+const ContactItem = React.memo(function ContactItem({
+  contact,
+  onOpenChat,
+}: {
+  contact: Contact;
+  onOpenChat?: (userId: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] hover:border-purple-500/40 transition-all cursor-pointer kw-card kw-list-item"
+      onClick={() => onOpenChat && contact.matched_user_id && onOpenChat(contact.matched_user_id)}
+    >
+      <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
+           style={{ boxShadow: '0 0 12px #a855f740' }}>
+        {contact.avatar_url ? (
+          <img src={contact.avatar_url} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm"
+               style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}>
+            {(contact.display_name || contact.name || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm truncate">{contact.display_name || contact.name}</div>
+        <div className="text-xs text-[var(--text-secondary)] truncate">@{contact.username}</div>
+      </div>
+      <div className={`w-2 h-2 rounded-full ${contact.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
+    </div>
+  );
+});
 
 export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => void }) {
   const { profile } = useAuth();
@@ -91,15 +123,22 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
     });
   }
 
-  const onFiltered = contacts.onKingWolf.filter(c =>
-    !searchQuery || (c.display_name || c.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const onFiltered = useMemo(
+    () => contacts.onKingWolf.filter(c =>
+      !searchQuery || (c.display_name || c.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+    [contacts.onKingWolf, searchQuery]
   );
-  const offFiltered = contacts.notOnKingWolf.filter(c =>
-    !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+
+  const offFiltered = useMemo(
+    () => contacts.notOnKingWolf.filter(c =>
+      !searchQuery || (c.name || '').toLowerCase().includes(searchQuery.toLowerCase())
+    ),
+    [contacts.notOnKingWolf, searchQuery]
   );
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)] kw-page-enter">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-primary)] z-10">
         <div className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -149,7 +188,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 kw-scroll">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
@@ -177,28 +216,11 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
           ) : (
             <div className="space-y-2">
               {onFiltered.map(contact => (
-                <div
+                <ContactItem
                   key={contact.phone}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] hover:border-purple-500/40 transition-all cursor-pointer"
-                  onClick={() => onOpenChat && contact.matched_user_id && onOpenChat(contact.matched_user_id)}
-                >
-                  <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0"
-                       style={{ boxShadow: '0 0 12px #a855f740' }}>
-                    {contact.avatar_url ? (
-                      <img src={contact.avatar_url} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-bold text-sm"
-                           style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}>
-                        {(contact.display_name || contact.name || '?').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{contact.display_name || contact.name}</div>
-                    <div className="text-xs text-[var(--text-secondary)] truncate">@{contact.username}</div>
-                  </div>
-                  <div className={`w-2 h-2 rounded-full ${contact.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
-                </div>
+                  contact={contact}
+                  onOpenChat={onOpenChat}
+                />
               ))}
             </div>
           )
@@ -238,7 +260,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
               </div>
             ) : (
               offFiltered.map(contact => (
-                <div key={contact.phone} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <div key={contact.phone} className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] kw-list-item">
                   <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center"
                        style={{ background: 'linear-gradient(135deg, #374151, #4b5563)' }}>
                     <Phone size={16} className="text-gray-400" />

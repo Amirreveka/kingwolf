@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Heart, MessageCircle, Repeat2, Bookmark, Share2, MoreHorizontal,
   Search, TrendingUp, Users, Flame, Send, X, Image as ImageIcon,
@@ -494,13 +494,13 @@ function ReportModal({ targetType, targetId, onClose, t }: {
 }
 
 // ─── PostCard ──────────────────────────────────────────────────────────────────
-function PostCard({
-  post, liked, bookmarked, following, howled,
+const PostCard = React.memo(function PostCard({
+  post, liked, bookmarked, following, howled, howlingPostId,
   onLike, onBookmark, onReply, onRepost, onQuote, onFollow, onDelete, onPin,
   onHowl, onProfileClick, onReport, onBlock,
   isOwn, isAdmin, language, t,
 }: {
-  post: Post; liked: boolean; bookmarked: boolean; following: boolean; howled: boolean;
+  post: Post; liked: boolean; bookmarked: boolean; following: boolean; howled: boolean; howlingPostId: string | null;
   onLike: () => void; onBookmark: () => void; onHowl: () => void;
   onReply: () => void; onRepost: () => void; onQuote: () => void;
   onFollow: (id: string) => void; onDelete: () => void; onPin: () => void;
@@ -514,7 +514,7 @@ function PostCard({
 
   return (
     <article
-      className="px-4 py-3 cursor-pointer kw-post-card animate-fadeIn"
+      className="px-4 py-3 cursor-pointer kw-post-card kw-card kw-list-item animate-fadeIn"
       style={{
         borderBottom: '1px solid var(--border-color)',
         background: hovered ? 'var(--bg-hover)' : 'transparent',
@@ -651,7 +651,7 @@ function PostCard({
               }`}
               style={howled ? { filter: 'drop-shadow(0 0 8px #a855f7)' } : undefined}
             >
-              <span className={`text-base transition-transform duration-200 ${howled ? 'scale-125' : ''}`}>🐺</span>
+              <span className={`text-base transition-transform duration-200 ${howled ? 'scale-125' : ''} ${howlingPostId === post.id ? 'kw-howl-pop' : ''}`}>🐺</span>
               {(post.howls_count || 0) > 0 && (
                 <span style={{ fontSize: 13 }}>{fmtN(post.howls_count || 0)}</span>
               )}
@@ -694,7 +694,7 @@ function PostCard({
       )}
     </article>
   );
-}
+});
 
 // ─── ActionBtn helper ──────────────────────────────────────────────────────────
 function ActionBtn({ onClick, icon, count, hoverColor, activeColor, active }: {
@@ -1490,6 +1490,7 @@ export function FeedPage() {
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [howledPosts, setHowledPosts] = useState<Set<string>>(new Set());
+  const [howlingPostId, setHowlingPostId] = useState<string | null>(null);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [bookmarkPosts, setBookmarkPosts] = useState<Post[]>([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -1569,6 +1570,8 @@ export function FeedPage() {
 
   const howlPost = useCallback(async (postId: string) => {
     if (!user) return;
+    setHowlingPostId(postId);
+    setTimeout(() => setHowlingPostId(null), 500);
     const wasHowled = howledPosts.has(postId);
     setHowledPosts(prev => {
       const next = new Set(prev);
@@ -1629,7 +1632,10 @@ export function FeedPage() {
     if (newTab === 'notifications') setUnreadNotifs(0);
   };
 
-  const currentPosts = tab === 'following' ? followingPosts : posts;
+  const currentPosts = useMemo(
+    () => (tab === 'following' ? followingPosts : posts),
+    [tab, followingPosts, posts]
+  );
 
   const tabs: Array<{ id: FeedTab; label: string; icon: React.ElementType; badge?: number }> = [
     { id: 'foryou', label: t('برای شما', 'For You'), icon: Sparkles },
@@ -1667,7 +1673,7 @@ export function FeedPage() {
         : post;
       return (<PostCard key={post.id} post={displayPost}
         liked={liked.has(post.id)} bookmarked={bookmarked.has(post.id)} following={following.has(post.author_id)}
-        howled={howledPosts.has(post.id)}
+        howled={howledPosts.has(post.id)} howlingPostId={howlingPostId}
         onLike={() => toggleLike(post.id)}
         onBookmark={() => toggleBookmark(post.id)}
         onHowl={() => howlPost(post.id)}

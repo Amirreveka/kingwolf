@@ -407,11 +407,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 <button
                   key={item.id}
                   onClick={() => setSection(item.id)}
-                  className="flex items-center gap-4 w-full px-4 py-3.5 transition-all hover:bg-white/5 active:bg-white/10"
+                  className="kw-card flex items-center gap-4 w-full px-4 py-3.5 transition-all hover:bg-white/5 active:bg-white/10"
                   style={{ borderBottom: idx < arr.length - 1 ? '1px solid var(--border-color)' : 'none' }}
                 >
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: item.grad, boxShadow: `0 4px 12px ${item.shadow}` }}>
+                    style={{ background: item.grad, boxShadow: `0 4px 12px ${item.shadow}`, willChange: 'transform' }}>
                     <item.icon size={20} className="text-white" />
                   </div>
                   <div className="flex-1 text-right">
@@ -618,8 +618,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${msgPreview ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: msgPreview ? '26px' : '2px' }} />
@@ -638,8 +637,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifShowName(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifShowName ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifShowName ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifShowName ? '26px' : '2px' }} />
@@ -648,7 +646,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             </div>
 
             {/* پیام‌های خصوصی */}
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('پیام‌های خصوصی', 'Private Messages')}</p>
+            <div className="kw-section-divider mx-4 mb-2"><span>{t('پیام‌های خصوصی', 'Private Messages')}</span></div>
             <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-3">
@@ -659,8 +657,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifSound ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifSound ? '26px' : '2px' }} />
@@ -675,8 +672,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifSound ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifSound ? '26px' : '2px' }} />
@@ -691,8 +687,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifVibrate ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifVibrate ? '26px' : '2px' }} />
@@ -707,8 +702,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${msgPreview ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: msgPreview ? '26px' : '2px' }} />
@@ -717,7 +711,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             </div>
 
             {/* گروه‌ها */}
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('گروه‌ها', 'Groups')}</p>
+            <div className="kw-section-divider mx-4 mb-2"><span>{t('گروه‌ها', 'Groups')}</span></div>
             <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-3">
@@ -728,8 +722,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifGroups ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifGroups ? '26px' : '2px' }} />
@@ -744,8 +737,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifGroups ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifGroups ? '26px' : '2px' }} />
@@ -760,8 +752,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifVibrate ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifVibrate ? '26px' : '2px' }} />
@@ -776,8 +767,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${msgPreview ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: msgPreview ? '26px' : '2px' }} />
@@ -786,7 +776,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             </div>
 
             {/* کانال‌ها */}
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('کانال‌ها', 'Channels')}</p>
+            <div className="kw-section-divider mx-4 mb-2"><span>{t('کانال‌ها', 'Channels')}</span></div>
             <div className="mx-4 rounded-2xl overflow-hidden mb-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-3">
@@ -797,8 +787,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifGroups(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifGroups ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifGroups ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifGroups ? '26px' : '2px' }} />
@@ -813,8 +802,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifSound ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifSound ? '26px' : '2px' }} />
@@ -829,8 +817,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setMsgPreview(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: msgPreview ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${msgPreview ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: msgPreview ? '26px' : '2px' }} />
@@ -839,7 +826,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             </div>
 
             {/* تماس‌ها */}
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-5" style={{ color: 'var(--text-muted)' }}>{t('تماس‌ها', 'Calls')}</p>
+            <div className="kw-section-divider mx-4 mb-2"><span>{t('تماس‌ها', 'Calls')}</span></div>
             <div className="mx-4 rounded-2xl overflow-hidden mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <div className="flex items-center justify-between py-3 px-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-3">
@@ -850,8 +837,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifCalls(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifCalls ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifCalls ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifCalls ? '26px' : '2px' }} />
@@ -866,8 +852,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifSound(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifSound ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifSound ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifSound ? '26px' : '2px' }} />
@@ -882,8 +867,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => { setNotifVibrate(v => !v); setTimeout(saveNotifications, 100); }}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: notifVibrate ? 'var(--accent)' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${notifVibrate ? 'on' : ''}`}
                 >
                   <span className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
                     style={{ left: notifVibrate ? '26px' : '2px' }} />
@@ -906,7 +890,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 <input
                   type={showOld ? 'text' : 'password'} value={oldPw} onChange={(e) => setOldPw(e.target.value)}
                   placeholder={t('رمز عبور فعلی', 'Current password')}
-                  className="w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
+                  className="kw-input w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
                   style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
                 />
                 <button type="button" onClick={() => setShowOld(!showOld)} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
@@ -917,7 +901,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 <input
                   type={showNew ? 'text' : 'password'} value={newPw} onChange={(e) => setNewPw(e.target.value)}
                   placeholder={t('رمز عبور جدید (حداقل ۶ کاراکتر)', 'New password (min 6 characters)')}
-                  className="w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
+                  className="kw-input w-full pr-4 pl-10 py-3 rounded-xl text-sm outline-none"
                   style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
                 />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
@@ -929,8 +913,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <button
                 onClick={changePassword}
                 disabled={saving}
-                className="w-full py-3 rounded-xl text-sm font-medium text-white transition-all"
-                style={{ background: 'var(--accent)' }}
+                className="kw-btn-primary w-full py-3 rounded-xl text-sm font-medium text-white transition-all"
               >
                 {saving ? t('در حال ذخیره...', 'Saving...') : t('تغییر رمز عبور', 'Change Password')}
               </button>
@@ -954,7 +937,8 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 background: 'var(--bg-card)',
                 border: stealthMode ? '1px solid rgba(168,85,247,0.4)' : '1px solid var(--border-color)',
                 boxShadow: stealthMode ? '0 0 14px rgba(168,85,247,0.18)' : 'none',
-                transition: 'box-shadow 0.3s, border-color 0.3s',
+                filter: stealthMode ? 'drop-shadow(0 0 12px rgba(168,85,247,0.15))' : undefined,
+                transition: 'box-shadow 0.3s, border-color 0.3s, filter 0.3s',
               }}
             >
               <div className="flex items-center justify-between py-3.5 px-4">
@@ -977,8 +961,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
                 <button
                   onClick={() => toggleStealth(!stealthMode)}
-                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
-                  style={{ background: stealthMode ? '#a855f7' : 'rgba(75,85,99,0.6)' }}
+                  className={`kw-toggle flex-shrink-0 ${stealthMode ? 'on' : ''}`}
                 >
                   <span
                     className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"

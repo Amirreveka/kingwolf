@@ -933,3 +933,377 @@ textarea:focus {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   KingWolf NEON SOUL — Universal Design System v2
+   GPU-only animations: transform + opacity + filter(drop-shadow via SVG trick)
+   Never animate: box-shadow, background, width, height, color directly
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Neon color tokens (extend on :root for every theme) ──────────────────── */
+:root {
+  --neon-purple: #a855f7;
+  --neon-cyan:   #06b6d4;
+  --neon-amber:  #f59e0b;
+  --neon-green:  #10b981;
+  --neon-red:    #ef4444;
+  --neon-blue:   #3b82f6;
+  --neon-pink:   #ec4899;
+
+  /* Glow layers (opacity-based, not box-shadow-animated) */
+  --glow-purple: drop-shadow(0 0 6px rgba(168,85,247,.7));
+  --glow-cyan:   drop-shadow(0 0 6px rgba(6,182,212,.7));
+  --glow-amber:  drop-shadow(0 0 6px rgba(245,158,11,.7));
+  --glow-green:  drop-shadow(0 0 6px rgba(16,185,129,.7));
+  --glow-red:    drop-shadow(0 0 6px rgba(239,68,68,.7));
+  --glow-blue:   drop-shadow(0 0 6px rgba(59,130,246,.7));
+}
+
+/* ── Advanced keyframes ────────────────────────────────────────────────────── */
+@keyframes kw-orbit {
+  from { transform: rotate(0deg) translateX(6px) rotate(0deg); }
+  to   { transform: rotate(360deg) translateX(6px) rotate(-360deg); }
+}
+@keyframes kw-scan-line {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  10%  { opacity: .15; }
+  90%  { opacity: .15; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+@keyframes kw-counter-up {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+@keyframes kw-border-flow {
+  0%   { opacity: .3; }
+  50%  { opacity: .9; }
+  100% { opacity: .3; }
+}
+@keyframes kw-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+@keyframes kw-type-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Cyber Panel (Admin Panel command-center base) ────────────────────────── */
+.kw-cyber-bg {
+  position: relative;
+  overflow: hidden;
+}
+/* Subtle circuit grid using CSS gradient — zero repaint */
+.kw-cyber-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(168,85,247,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168,85,247,.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* ── Neon Metric Card ─────────────────────────────────────────────────────── */
+.kw-metric-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+.kw-metric-card:hover { transform: translateY(-2px) scale(1.01); }
+
+/* Animated border using a rotating pseudo-element (transform only) */
+.kw-metric-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, rgba(168,85,247,.4), rgba(6,182,212,.2), rgba(168,85,247,.4)) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  animation: kw-border-flow 3s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* Scan line effect (transform only) */
+.kw-metric-card::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, rgba(168,85,247,.06), transparent);
+  animation: kw-scan-line 4s ease-in-out infinite;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+/* ── Neon stat number (counter animation) ────────────────────────────────── */
+.kw-stat-num {
+  animation: kw-counter-up 0.4s cubic-bezier(0.4,0,0.2,1) both;
+  will-change: transform, opacity;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Cyber Table ─────────────────────────────────────────────────────────── */
+.kw-cyber-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 4px;
+}
+.kw-cyber-table thead th {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--neon-purple);
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(168,85,247,.2);
+}
+.kw-cyber-table tbody tr {
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+}
+.kw-cyber-table tbody tr:hover {
+  transform: translateX(2px);
+}
+.kw-cyber-table tbody td {
+  padding: 10px 12px;
+  background: rgba(168,85,247,.04);
+  border-top: 1px solid rgba(168,85,247,.06);
+  border-bottom: 1px solid rgba(168,85,247,.06);
+}
+.kw-cyber-table tbody td:first-child {
+  border-radius: 10px 0 0 10px;
+  border-left: 1px solid rgba(168,85,247,.1);
+}
+.kw-cyber-table tbody td:last-child {
+  border-radius: 0 10px 10px 0;
+  border-right: 1px solid rgba(168,85,247,.1);
+}
+
+/* ── Neon Toggle (pill switch) ──────────────────────────────────────────── */
+.kw-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.1);
+  border: 1px solid rgba(255,255,255,.15);
+  cursor: pointer;
+  transition: background 0.2s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+  flex-shrink: 0;
+}
+.kw-toggle.on {
+  background: rgba(168,85,247,.35);
+  border-color: rgba(168,85,247,.6);
+}
+.kw-toggle::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.5);
+  transform: translateX(0);
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), background 0.2s;
+  will-change: transform;
+}
+.kw-toggle.on::after {
+  transform: translateX(20px);
+  background: var(--neon-purple);
+  filter: var(--glow-purple);
+}
+
+/* ── Neon Checkbox ──────────────────────────────────────────────────────── */
+.kw-checkbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(168,85,247,.1);
+  background: rgba(168,85,247,.04);
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1),
+              border-color 0.15s;
+  will-change: transform;
+  cursor: pointer;
+}
+.kw-checkbox-row:hover {
+  transform: translateX(2px);
+  border-color: rgba(168,85,247,.35);
+}
+.kw-checkbox-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid rgba(168,85,247,.4);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.kw-checkbox-row input[type="checkbox"]:checked {
+  background: var(--neon-purple);
+  border-color: var(--neon-purple);
+  filter: var(--glow-purple);
+}
+.kw-checkbox-row input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* ── Neon Input Field ────────────────────────────────────────────────────── */
+.kw-input {
+  width: 100%;
+  background: rgba(168,85,247,.05);
+  border: 1px solid rgba(168,85,247,.2);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: .9rem;
+  color: inherit;
+  outline: none;
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1),
+              border-color 0.15s;
+  will-change: transform;
+}
+.kw-input:focus {
+  border-color: var(--neon-purple);
+  transform: scale(1.005);
+  filter: var(--glow-purple);
+}
+.kw-input::placeholder { color: rgba(255,255,255,.3); }
+
+/* ── Neon Button variants ────────────────────────────────────────────────── */
+.kw-btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: .9rem;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.15s;
+  will-change: transform;
+  filter: var(--glow-purple);
+}
+.kw-btn-primary:hover  { opacity: .9; }
+.kw-btn-primary:active { transform: scale(.96); }
+.kw-btn-primary:disabled { opacity: .4; pointer-events: none; }
+
+.kw-btn-danger {
+  background: linear-gradient(135deg, #b91c1c, #ef4444);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1);
+  will-change: transform;
+}
+.kw-btn-danger:active { transform: scale(.96); }
+
+.kw-btn-ghost {
+  background: transparent;
+  color: var(--neon-purple);
+  border: 1px solid rgba(168,85,247,.35);
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4,0,0.2,1),
+              background 0.15s;
+  will-change: transform;
+}
+.kw-btn-ghost:hover  { background: rgba(168,85,247,.1); }
+.kw-btn-ghost:active { transform: scale(.96); }
+
+/* ── Badge variants ──────────────────────────────────────────────────────── */
+.kw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  padding: 2px 7px;
+  border-radius: 99px;
+}
+.kw-badge-owner  { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.4); filter: var(--glow-amber); }
+.kw-badge-admin  { background: rgba(59,130,246,.15);  color: #3b82f6; border: 1px solid rgba(59,130,246,.4); }
+.kw-badge-mod    { background: rgba(16,185,129,.15);  color: #10b981; border: 1px solid rgba(16,185,129,.4); }
+.kw-badge-online { background: rgba(16,185,129,.15);  color: #10b981; border: 1px solid rgba(16,185,129,.4); }
+.kw-badge-banned { background: rgba(239,68,68,.15);   color: #ef4444; border: 1px solid rgba(239,68,68,.4); }
+.kw-badge-pending{ background: rgba(245,158,11,.15);  color: #f59e0b; border: 1px solid rgba(245,158,11,.4); }
+
+/* ── Floating label icon glow ────────────────────────────────────────────── */
+.kw-icon-glow-purple { filter: var(--glow-purple); color: var(--neon-purple); }
+.kw-icon-glow-cyan   { filter: var(--glow-cyan);   color: var(--neon-cyan);   }
+.kw-icon-glow-amber  { filter: var(--glow-amber);  color: var(--neon-amber);  }
+.kw-icon-glow-green  { filter: var(--glow-green);  color: var(--neon-green);  }
+.kw-icon-glow-blue   { filter: var(--glow-blue);   color: var(--neon-blue);   }
+.kw-icon-glow-red    { filter: var(--glow-red);    color: var(--neon-red);    }
+
+/* ── Section divider ─────────────────────────────────────────────────────── */
+.kw-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 12px;
+}
+.kw-section-divider span {
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--neon-purple);
+  white-space: nowrap;
+}
+.kw-section-divider::before,
+.kw-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168,85,247,.3), transparent);
+}
+
+/* ── Float animation for hero icons ─────────────────────────────────────── */
+.kw-float { animation: kw-float 3s ease-in-out infinite; will-change: transform; }
+
+/* ── Scrollbar neon style ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(168,85,247,.35);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,.6); }
+
+/* ── Selection highlight ─────────────────────────────────────────────────── */
+::selection {
+  background: rgba(168,85,247,.3);
+  color: inherit;
+}

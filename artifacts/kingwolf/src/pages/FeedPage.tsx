@@ -777,7 +777,11 @@ function ComposeBox({ onPosted, placeholder }: { onPosted: (p: Post) => void; pl
   }
 
   return (
-    <div className="px-4 pt-3 pb-2" style={{ borderBottom: '1px solid var(--border-color)' }}>
+    <div className="px-4 pt-3 pb-2 border border-purple-500/20 rounded-2xl"
+      style={{
+        borderBottom: '1px solid var(--border-color)',
+        background: 'linear-gradient(135deg, rgba(168,85,247,0.05), rgba(6,182,212,0.03))',
+      }}>
       <div className="flex gap-3">
         <div className="flex-shrink-0 rounded-full overflow-hidden" style={{ width: 40, height: 40 }}>
           {avatar(profile as any)}
@@ -788,7 +792,7 @@ function ComposeBox({ onPosted, placeholder }: { onPosted: (p: Post) => void; pl
             onChange={e => setText(e.target.value)}
             placeholder={placeholder || t('چه خبره؟ ...', "What's happening?...")}
             rows={text.length > 80 ? 4 : 2}
-            className="w-full bg-transparent outline-none resize-none"
+            className="w-full bg-transparent outline-none resize-none kw-input"
             style={{
               fontSize: 17,
               color: 'var(--text-primary)',
@@ -1302,7 +1306,7 @@ function RightSidebar({ language, t, following, onFollow }: { language: string; 
           </div>
           {trending.map((tag, i) => (
             <div key={tag.tag}
-              className="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors"
+              className="flex items-center justify-between px-4 py-3 cursor-pointer transition-colors kw-card"
               style={{ borderBottom: i < trending.length - 1 ? '1px solid var(--border-color)' : 'none' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-primary)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -1711,6 +1715,7 @@ export function FeedPage() {
                 color: tab === item.id ? 'var(--text-primary)' : 'var(--text-muted)',
                 touchAction: 'manipulation',
                 minWidth: 60,
+                ...(tab === item.id ? { filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' } : {}),
               }}>
               <div className="relative">
                 <item.icon size={19} />
@@ -1750,6 +1755,7 @@ export function FeedPage() {
                 fontSize: 15,
                 color: tab === item.id ? 'var(--text-primary)' : 'var(--text-muted)',
                 touchAction: 'manipulation',
+                ...(tab === item.id ? { filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' } : {}),
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-primary)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>

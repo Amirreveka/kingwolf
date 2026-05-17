@@ -57,7 +57,10 @@ const ContactItem = React.memo(function ContactItem({
         <div className="font-medium text-sm truncate">{contact.display_name || contact.name}</div>
         <div className="text-xs text-[var(--text-secondary)] truncate">@{contact.username}</div>
       </div>
-      <div className={`w-2 h-2 rounded-full ${contact.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`} />
+      <div
+        className={`w-2 h-2 rounded-full ${contact.online_status === 'online' ? 'bg-green-400' : 'bg-gray-500'}`}
+        style={contact.online_status === 'online' ? { filter: 'drop-shadow(0 0 4px rgba(16,185,129,0.8))' } : undefined}
+      />
     </div>
   );
 });
@@ -138,7 +141,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
   );
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)] kw-page-enter">
+    <div className="flex flex-col h-full bg-[var(--bg-primary)] text-[var(--text-primary)] kw-page-enter kw-cyber-bg">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)] sticky top-0 bg-[var(--bg-primary)] z-10">
         <div className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -149,7 +152,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
         <button
           onClick={syncContacts}
           disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all kw-btn-primary"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', color: 'white' }}
         >
           <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
@@ -177,7 +180,10 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
             key={tabId}
             onClick={() => setTab(tabId)}
             className={`flex-1 py-2 text-sm font-medium transition-all ${tab === tabId ? 'text-white' : 'text-[var(--text-secondary)]'}`}
-            style={tab === tabId ? { background: 'linear-gradient(135deg, #7c3aed, #a855f7)' } : {}}
+            style={tab === tabId ? {
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              filter: 'drop-shadow(0 0 8px rgba(168,85,247,0.4))',
+            } : {}}
           >
             {tabId === 'on'
               ? `${t('در KingWolf', 'On KingWolf')} (${contacts.onKingWolf.length})`
@@ -234,7 +240,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
                   <input
                     readOnly
                     value={inviteLink}
-                    className="flex-1 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs outline-none"
+                    className="flex-1 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-xs outline-none kw-input"
                   />
                   <button onClick={copyInvite} className="p-1.5 rounded-lg bg-purple-500/20 text-purple-400">
                     {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -279,7 +285,7 @@ export function ContactsPage({ onOpenChat }: { onOpenChat?: (userId: string) => 
                         navigator.clipboard.writeText(msg);
                       }
                     }}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition-all"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition-all kw-btn-ghost"
                   >
                     <Share2 size={12} />
                     {t('دعوت', 'Invite')}

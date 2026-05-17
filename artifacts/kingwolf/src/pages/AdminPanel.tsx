@@ -816,9 +816,9 @@ export function AdminPanel() {
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
+    <div className="min-h-screen flex kw-cyber-bg" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
       {/* Sidebar — desktop only */}
-      <div className="hidden md:flex w-64 flex-shrink-0 flex-col relative" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="hidden md:flex w-64 flex-shrink-0 flex-col relative border-r border-purple-500/20" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)', boxShadow: 'inset -1px 0 20px rgba(168,85,247,0.05)', willChange: 'transform' }}>
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)' }} />
         <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
           <div className="relative flex-shrink-0">
@@ -835,8 +835,8 @@ export function AdminPanel() {
             const isActive = tab === item.id;
             return (
               <button key={item.id} onClick={() => setTab(item.id)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all kw-btn-press"
-                style={{ background: isActive ? item.accent : 'transparent', color: isActive ? item.color : 'rgba(107,114,128,1)', boxShadow: isActive ? `0 0 12px ${item.accent}` : 'none' }}>
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all kw-btn-press${!isActive ? ' hover:text-purple-400 transition-all duration-150' : ''}`}
+                style={{ background: isActive ? item.accent : 'transparent', color: isActive ? item.color : 'rgba(107,114,128,1)', boxShadow: isActive ? `0 0 12px ${item.accent}` : 'none', ...(isActive ? { filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' } : {}) }}>
                 <item.icon size={17} className="flex-shrink-0" style={{ color: isActive ? item.color : undefined }} />
                 <span className="text-sm font-medium">{item.label}</span>
                 {isActive && <div className="mr-auto w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />}
@@ -866,13 +866,7 @@ export function AdminPanel() {
             {(() => { const nav = navItems.find(n => n.id === tab); const Icon = nav?.icon; return Icon ? <Icon size={16} style={{ color: nav?.color }} className="flex-shrink-0" /> : null; })()}
             <h1 className="text-sm md:text-base font-bold text-white truncate">{tabTitle[tab]}</h1>
             {isOwner && (
-              <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold flex-shrink-0"
-                style={{
-                  background: 'linear-gradient(135deg, #f59e0b20, #ef444420)',
-                  color: '#f59e0b',
-                  border: '1px solid #f59e0b40',
-                  filter: 'drop-shadow(0 0 8px #f59e0b40)',
-                }}>
+              <div className="kw-badge kw-badge-owner kw-float text-xs hidden sm:inline-flex items-center gap-1.5 flex-shrink-0">
                 👑 سازنده و مالک
               </div>
             )}
@@ -911,8 +905,8 @@ export function AdminPanel() {
                   { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', bg: 'rgba(249,115,22,0.12)',   Icon: Flag,          filterKey: null },
                 ].map(s => (
                   <div key={s.label}
-                    className="rounded-2xl p-4 kw-stat-pop cursor-pointer"
-                    style={{ background: 'rgba(15,23,42,0.8)', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
+                    className="rounded-2xl p-4 kw-stat-pop kw-metric-card cursor-pointer"
+                    style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(6,182,212,0.04))', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
                     onClick={() => { if (s.filterKey) { setTab('users'); setUsersFilter(s.filterKey); } else { setTab('users'); } }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 32px ${s.color}25`; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
@@ -922,7 +916,7 @@ export function AdminPanel() {
                         <s.Icon size={14} style={{ color: s.color }} />
                       </div>
                     </div>
-                    <p className="text-2xl font-bold kw-count-in" style={{ color: s.color }}>{s.value}</p>
+                    <span className="kw-stat-num font-mono text-2xl font-bold kw-count-in" style={{ color: 'var(--neon-purple)' }}>{s.value}</span>
                     <p className="text-xs mt-1" style={{ color: `${s.color}70` }}>→ مشاهده لیست</p>
                   </div>
                 ))}
@@ -1088,9 +1082,12 @@ export function AdminPanel() {
                         <p className="text-xs text-gray-500">@{u.username}</p>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${u.is_banned ? 'bg-red-500/10 text-red-400' : u.is_approved ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                          {u.is_banned ? 'مسدود' : u.is_approved ? 'فعال' : 'منتظر'}
-                        </span>
+                        {u.is_banned
+                          ? <span className="kw-badge kw-badge-banned">🚫 مسدود</span>
+                          : u.is_approved
+                            ? <span className="kw-badge kw-badge-online">● فعال</span>
+                            : <span className="kw-badge kw-badge-pending">⏳ منتظر</span>
+                        }
 
                         {/* Blue tick button */}
                         <button
@@ -1116,17 +1113,17 @@ export function AdminPanel() {
                           </button>
                         )}
                         {!u.is_approved && !u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); approveUser(u.id); }} className="p-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20" title="تأیید">
+                          <button onClick={e => { e.stopPropagation(); approveUser(u.id); }} className="kw-btn-primary p-1.5 rounded-lg" title="تأیید">
                             <Check size={14} />
                           </button>
                         )}
                         {!u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); banUser(u.id); }} className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20" title="مسدود">
+                          <button onClick={e => { e.stopPropagation(); banUser(u.id); }} className="kw-btn-danger p-1.5 rounded-lg" title="مسدود">
                             <Ban size={14} />
                           </button>
                         )}
                         {u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); unbanUser(u.id); }} className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20" title="رفع مسدود">
+                          <button onClick={e => { e.stopPropagation(); unbanUser(u.id); }} className="kw-btn-ghost p-1.5 rounded-lg" title="رفع مسدود">
                             <UserCheck size={14} />
                           </button>
                         )}
@@ -1178,11 +1175,11 @@ export function AdminPanel() {
             <div className="space-y-4 kw-tab-in">
               {/* Stats bar */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', backdropFilter: 'blur(12px)' }}>
+                <div className="rounded-2xl p-4 kw-stat-pop kw-metric-card" style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.2)', backdropFilter: 'blur(12px)' }}>
                   <p className="text-xs mb-1" style={{ color: 'rgba(167,139,250,0.7)' }}>کل پست‌های فعال</p>
                   <p className="text-2xl font-bold text-purple-400">{feedPosts.length}</p>
                 </div>
-                <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', backdropFilter: 'blur(12px)' }}>
+                <div className="rounded-2xl p-4 kw-stat-pop kw-metric-card" style={{ animationDelay: '60ms', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', backdropFilter: 'blur(12px)' }}>
                   <p className="text-xs mb-1" style={{ color: 'rgba(251,191,36,0.7)' }}>پست‌های سنجاق‌شده</p>
                   <p className="text-2xl font-bold text-yellow-400">{feedPosts.filter(p => p.is_pinned === 1).length}</p>
                 </div>
@@ -1271,7 +1268,7 @@ export function AdminPanel() {
                       value={appSettings.app_name || 'KingWolf'}
                       onChange={e => setAppSettings(p => ({ ...p, app_name: e.target.value }))}
                       onBlur={e => saveSetting('app_name', e.target.value)}
-                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -1283,7 +1280,7 @@ export function AdminPanel() {
                       onChange={e => setAppSettings(p => ({ ...p, welcome_message: e.target.value }))}
                       onBlur={e => saveSetting('welcome_message', e.target.value)}
                       placeholder="به KingWolf خوش آمدید!"
-                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -1296,7 +1293,7 @@ export function AdminPanel() {
                       onChange={e => setAppSettings(p => ({ ...p, max_post_length: e.target.value }))}
                       onBlur={e => saveSetting('max_post_length', e.target.value)}
                       min={50} max={5000}
-                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      className="w-full px-3 py-2 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                   </div>
 
@@ -1370,7 +1367,7 @@ export function AdminPanel() {
                     <input
                       type={showNewPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)}
                       placeholder="رمز جدید (حداقل ۶ کاراکتر)"
-                      className="w-full px-3 py-2.5 pl-10 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      className="w-full px-3 py-2.5 pl-10 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                     />
                     <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                       {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -1379,7 +1376,7 @@ export function AdminPanel() {
                   <input
                     type={showNewPw ? 'text' : 'password'} value={newPw2} onChange={e => setNewPw2(e.target.value)}
                     placeholder="تکرار رمز جدید"
-                    className="w-full px-3 py-2.5 text-white rounded-xl text-sm kw-glass-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    className="w-full px-3 py-2.5 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
                   />
                   {pwErr && <p className="text-xs text-red-400">{pwErr}</p>}
                   {pwMsg && <p className="text-xs text-green-400">{pwMsg}</p>}
@@ -1781,7 +1778,7 @@ export function AdminPanel() {
                 { key: 'can_view_audit_log',     labelFa: 'مشاهده لاگ فعالیت' },
                 { key: 'can_manage_settings',    labelFa: 'مدیریت تنظیمات اپ' },
               ].map(perm => (
-                <label key={perm.key} className="flex items-center justify-between p-2.5 rounded-xl border border-white/10 hover:border-purple-500/30 cursor-pointer transition-all" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                <label key={perm.key} className="kw-checkbox-row">
                   <span className="text-sm text-gray-300">{perm.labelFa}</span>
                   <input
                     type="checkbox"
@@ -1839,8 +1836,8 @@ export function AdminPanel() {
           const isActive = tab === item.id;
           return (
             <button key={item.id} onClick={() => setTab(item.id)}
-              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl flex-shrink-0 transition-all kw-btn-press min-w-[48px]"
-              style={{ color: isActive ? item.color : 'rgba(75,85,99,1)', background: isActive ? item.accent : 'transparent' }}>
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl flex-shrink-0 transition-all kw-btn-press min-w-[48px]${!isActive ? ' hover:text-purple-400 transition-all duration-150' : ''}`}
+              style={{ color: isActive ? item.color : 'rgba(75,85,99,1)', background: isActive ? item.accent : 'transparent', ...(isActive ? { filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' } : {}) }}>
               <item.icon size={18} style={{ color: isActive ? item.color : undefined }} />
               <span className="text-[9px] font-medium leading-none">{item.label.split(' ')[0]}</span>
             </button>
@@ -1974,7 +1971,7 @@ function StatusTab() {
             delay: '120ms',
           },
         ].map(card => (
-          <div key={card.label} className="rounded-2xl p-4 kw-stat-pop"
+          <div key={card.label} className="rounded-2xl p-4 kw-stat-pop kw-metric-card"
             style={{ animationDelay: card.delay, background: card.crit ? 'rgba(239,68,68,0.12)' : '#0d1525', border: `1px solid ${card.color}30`, transition: 'background 1s ease' }}>
             <div className="flex items-center gap-2 mb-3">
               <card.icon size={14} style={{ color: card.color }} />

@@ -744,7 +744,7 @@ export function StoriesPage() {
               <div key={s.id} className="flex-1 rounded-full overflow-hidden" style={{ height: 2, background: 'rgba(255,255,255,0.3)' }}>
                 <div className="h-full rounded-full"
                   style={{
-                    background: 'white',
+                    background: 'linear-gradient(90deg, #a855f7, #06b6d4)',
                     width: i < (viewing?.storyIdx ?? 0) ? '100%' : i === (viewing?.storyIdx ?? 0) ? `${progress}%` : '0%',
                   }} />
               </div>
@@ -786,7 +786,10 @@ export function StoriesPage() {
                 <span className="text-sm font-bold">⊞</span>
               </button>
             )}
-            <button onClick={closeViewer} className="text-white/80 p-1.5">
+            <button
+              onClick={closeViewer}
+              className="text-white/80 p-1.5 transition-transform duration-150 hover:rotate-90"
+              style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.5))' }}>
               <X size={22} />
             </button>
           </div>
@@ -818,7 +821,7 @@ export function StoriesPage() {
                     : <img src={currentStory.media_url} className="w-full h-full object-cover" alt="" />}
                   {/* Progress bar overlay */}
                   <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/20 pointer-events-none">
-                    <div className="h-full bg-purple-400 transition-none" style={{ width: `${progress}%` }} />
+                    <div className="h-full transition-none" style={{ background: 'linear-gradient(90deg, #a855f7, #06b6d4)', width: `${progress}%` }} />
                   </div>
                 </div>
                 {/* Right story — next */}
@@ -876,7 +879,7 @@ export function StoriesPage() {
           {currentStory.caption && (
             <div className="absolute bottom-28 inset-x-0 px-5 z-20">
               <div className="rounded-2xl px-4 py-2 mx-auto" style={{ background: 'rgba(0,0,0,0.6)', maxWidth: 360, textAlign: 'center' }}>
-                <p className="text-white text-sm" style={{ direction: 'auto' }}>{currentStory.caption}</p>
+                <p className="text-white text-sm" style={{ direction: 'auto', textShadow: '0 2px 8px rgba(0,0,0,0.8)', filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.6))' }}>{currentStory.caption}</p>
               </div>
             </div>
           )}
@@ -897,10 +900,11 @@ export function StoriesPage() {
             {!isOwnStory ? (
               <div>
                 {/* Quick react emoji bar */}
-                <div className="flex justify-center gap-2 mb-2">
+                <div className="flex justify-center gap-2 mb-2 rounded-2xl px-3 py-1.5"
+                  style={{ backdropFilter: 'blur(12px)', background: 'rgba(0,0,0,0.4)' }}>
                   {QUICK_REACT_EMOJIS.map(em => (
                     <button key={em} onClick={() => sendReaction(em)}
-                      className="text-2xl hover:scale-125 active:scale-110 transition-transform"
+                      className="text-2xl hover:scale-125 active:scale-110 transition-transform duration-150"
                       style={{ touchAction: 'manipulation', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))' }}>
                       {em}
                     </button>

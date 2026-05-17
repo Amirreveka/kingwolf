@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ZoomIn, ZoomOut, RotateCw, Download } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Download, PictureInPicture2 } from 'lucide-react';
 
 interface MediaViewerProps {
   src: string;
@@ -14,7 +14,9 @@ export function MediaViewer({ src, type = 'image', caption, onClose }: MediaView
   const [rotation, setRotation] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [pipSupported, setPipSupported] = useState(false);
   const dragStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -24,8 +26,18 @@ export function MediaViewer({ src, type = 'image', caption, onClose }: MediaView
     };
     document.addEventListener('keydown', onKey);
     document.body.style.overflow = 'hidden';
+    // Check PiP support
+    setPipSupported(type === 'video' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled);
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
-  }, [onClose]);
+  }, [onClose, type]);
+
+  async function enterPip() {
+    try {
+      if (videoRef.current) {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch { /* PiP denied or not supported */ }
+  }
 
   const node = (
     <div
@@ -55,6 +67,13 @@ export function MediaViewer({ src, type = 'image', caption, onClose }: MediaView
           </button>
         </div>
         <div className="flex items-center gap-2">
+          {pipSupported && (
+            <button onClick={enterPip}
+                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Picture in Picture">
+              <PictureInPicture2 size={18} className="text-white" />
+            </button>
+          )}
           <a href={src} download target="_blank" rel="noopener"
              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
             <Download size={18} className="text-white" />
@@ -94,7 +113,7 @@ export function MediaViewer({ src, type = 'image', caption, onClose }: MediaView
         onWheel={e => { e.preventDefault(); setScale(s => Math.max(0.25, Math.min(5, s - e.deltaY * 0.002))); }}
       >
         {type === 'video' ? (
-          <video src={src} controls autoPlay playsInline
+          <video ref={videoRef} src={src} controls autoPlay playsInline
                  className="rounded-lg max-w-[90vw] max-h-[82vh]"
                  style={{ filter: 'drop-shadow(0 8px 40px rgba(0,0,0,0.9))' }} />
         ) : (

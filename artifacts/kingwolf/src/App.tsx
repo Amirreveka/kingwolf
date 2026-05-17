@@ -7,6 +7,7 @@ import { MessengerLayout } from './pages/MessengerLayout';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { PermissionGate, needsPermissionGate } from './components/PermissionGate';
+import { PinLock } from './components/PinLock';
 
 function LocalModeBanner() {
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -107,7 +108,9 @@ export default function App() {
           <AdminPanel />
         ) : (
           <AuthProvider>
-            <AppRouter />
+            <PinLock>
+              <AppRouter />
+            </PinLock>
           </AuthProvider>
         )}
       </AppSettingsProvider>

@@ -133,7 +133,7 @@ export function useMessages(conversationId: string | null) {
 
   async function sendMessage(
     content: string,
-    options?: { type?: string; mediaUrl?: string; replyToId?: string | null; forwardFromId?: string | null }
+    options?: { type?: string; mediaUrl?: string; replyToId?: string | null; forwardFromId?: string | null; expiresIn?: number }
   ): Promise<boolean> {
     if (!user || !conversationId || !content.trim()) return false;
 
@@ -154,6 +154,28 @@ export function useMessages(conversationId: string | null) {
       sender: null as any,
     };
     setMessages(prev => [...prev, tempMsg]);
+
+    // If expires_in is set, use API (server handles expiry scheduling)
+    if (options?.expiresIn) {
+      try {
+        await apiCall('/messages', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            content: content.trim(),
+            type: options?.type || 'text',
+            reply_to_id: options?.replyToId || null,
+            forwarded_from_id: options?.forwardFromId || null,
+            expires_in: options.expiresIn,
+          }),
+        });
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        return true;
+      } catch {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        return false;
+      }
+    }
 
     const { error } = await supabase.from('messages').insert({
       conversation_id: conversationId,

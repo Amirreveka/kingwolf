@@ -15,8 +15,10 @@ import { Avatar } from '../components/Avatar';
 import { CallsPage } from './CallsPage';
 import { StoriesPage } from './StoriesPage';
 import { ContactsPage } from './ContactsPage';
+import { TrashPage } from './TrashPage';
+import { Trash2 } from 'lucide-react';
 
-type Page = 'messages' | 'calls' | 'contacts' | 'feed' | 'stories' | 'settings';
+type Page = 'messages' | 'calls' | 'contacts' | 'feed' | 'stories' | 'settings' | 'trash';
 
 // Instagram-style Stories icon
 function StoriesIcon({ size = 22, active = false }: { size?: number; active?: boolean }) {
@@ -382,6 +384,7 @@ export function MessengerLayout() {
     { id: 'calls'     as Page, label: fa ? 'تماس‌ها'   : 'Calls',     icon: Phone },
     { id: 'contacts'  as Page, label: fa ? 'مخاطبین'   : 'Contacts',  icon: Users },
     { id: 'feed'      as Page, label: fa ? 'توییت'      : 'Tweet',     icon: null /* uses TwitterBird */ },
+    { id: 'trash'     as Page, label: fa ? 'سطل زباله' : 'Trash',     icon: Trash2 },
     { id: 'settings'  as Page, label: fa ? 'تنظیمات'   : 'Settings',  icon: Settings },
   ];
 
@@ -502,7 +505,7 @@ export function MessengerLayout() {
           >
             <KingWolfBrand size="sm" showName={false} />
             <h1 className="font-bold flex-1" style={{ color: 'var(--text-primary)' }}>
-              {page === 'feed' ? (fa ? 'توییت' : 'Tweet') : page === 'stories' ? (fa ? 'استوری' : 'Stories') : (fa ? 'تنظیمات' : 'Settings')}
+              {page === 'feed' ? (fa ? 'توییت' : 'Tweet') : page === 'stories' ? (fa ? 'استوری' : 'Stories') : page === 'trash' ? (fa ? 'سطل زباله' : 'Trash') : (fa ? 'تنظیمات' : 'Settings')}
             </h1>
             {/* Language + theme quick toggles in header */}
             <button
@@ -539,6 +542,8 @@ export function MessengerLayout() {
             <FeedPage />
           ) : page === 'stories' ? (
             <StoriesPage />
+          ) : page === 'trash' ? (
+            <TrashPage />
           ) : (
             <SettingsPage onClose={() => setPage('messages')} />
           )}

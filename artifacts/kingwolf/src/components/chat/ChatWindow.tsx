@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin, Link2, Flag, BellOff, LogOut, Square, Download, Mic2 } from 'lucide-react';
+import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin, Link2, Flag, BellOff, LogOut, Square, Download, Mic2, Clock, SmilePlus } from 'lucide-react';
+import { StickerPanel, stickerTextToEmoji } from './StickerPanel';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -182,6 +183,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [showUserProfile, setShowUserProfile] = useState<Profile | null>(null);
   const [mediaViewer, setMediaViewer] = useState<{ src: string; type: 'image' | 'video'; caption?: string } | null>(null);
   const [profileOverlay, setProfileOverlay] = useState<{ userId: string; username: string; displayName: string; avatarUrl?: string; bio?: string } | null>(null);
+  const [expiresIn, setExpiresIn] = useState<number | null>(null);
+  const [showExpiry, setShowExpiry] = useState(false);
+  const [showSticker, setShowSticker] = useState(false);
 
   const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState('');
@@ -322,7 +326,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
     }
 
     setSending(true);
-    const ok = await sendMessage(content, { replyToId: replyTo?.id });
+    const ok = await sendMessage(content, { replyToId: replyTo?.id, expiresIn: expiresIn ?? undefined });
     if (ok) { setText(''); setReplyTo(null); }
     setSending(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
@@ -752,7 +756,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                 <div className={`flex items-end gap-2 mb-0.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isOwn && (
                     <div className={`flex-shrink-0 ${showAvatar ? 'cursor-pointer' : 'invisible'}`}
-                      onClick={e => { e.stopPropagation(); if (showAvatar && msg.sender) setShowUserProfile(msg.sender as any); }}>
+                      onClick={e => { e.stopPropagation(); if (showAvatar && msg.sender) setProfileOverlay({ userId: msg.sender_id, username: (msg.sender as any).username || '', displayName: (msg.sender as any).display_name || (msg.sender as any).username || '', avatarUrl: (msg.sender as any).avatar_url, bio: (msg.sender as any).bio }); }}>
                       <Avatar src={msg.sender?.avatar_url} name={msg.sender?.display_name} username={msg.sender?.username} size={28} />
                     </div>
                   )}
@@ -782,7 +786,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     {/* Group sender name */}
                     {!isOwn && conversation.type === 'group' && showAvatar && (
                       <div className="flex items-center gap-1 flex-wrap mb-1 cursor-pointer"
-                        onClick={e => { e.stopPropagation(); if (msg.sender) setShowUserProfile(msg.sender as any); }}>
+                        onClick={e => { e.stopPropagation(); if (msg.sender) setProfileOverlay({ userId: msg.sender_id, username: (msg.sender as any).username || '', displayName: (msg.sender as any).display_name || (msg.sender as any).username || '', avatarUrl: (msg.sender as any).avatar_url, bio: (msg.sender as any).bio }); }}>
                         <p className="text-xs font-semibold" style={{ color: '#93c5fd' }}>
                           {msg.sender?.display_name || msg.sender?.username}
                         </p>
@@ -880,12 +884,17 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                       }
                     })()}
                     {/* Text content - show for text type OR when no media_url */}
-                    {(msg.type === 'text' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio' && msg.type !== 'location')) && (
-                      <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>
-                    )}
+                    {(msg.type === 'text' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio' && msg.type !== 'location')) && (() => {
+                      const stickerEmoji = stickerTextToEmoji(msg.content);
+                      if (stickerEmoji) {
+                        return <span style={{ fontSize: '3rem', lineHeight: 1, display: 'block' }}>{stickerEmoji}</span>;
+                      }
+                      return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>;
+                    })()}
                     {/* Footer */}
                     <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? 'justify-start flex-row-reverse' : 'justify-end'}`}>
                       {!!msg.is_edited && <span className="text-xs opacity-40">{fa ? 'ویرایش‌شده' : 'edited'}</span>}
+                      {!!(msg as any).expires_at && <Clock size={11} className="opacity-50 text-amber-400" title={fa ? 'پیام موقت' : 'Ephemeral'} />}
                       <span className="text-xs opacity-60">{formatTime(msg.created_at)}</span>
                       {isOwn && (
                         readMessageIds.has(msg.id)
@@ -1049,6 +1058,67 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     ? <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     : <Paperclip size={26} />}
                 </button>
+              </div>
+              {/* Ephemeral timer button */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={e => { e.stopPropagation(); setShowExpiry(v => !v); setShowSticker(false); }}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl mb-1.5"
+                  style={{ color: expiresIn ? '#f59e0b' : 'var(--text-muted)', background: expiresIn ? 'rgba(245,158,11,0.12)' : 'transparent' }}
+                  title={fa ? 'پیام موقت' : 'Ephemeral'}
+                >
+                  <Clock size={18} />
+                </button>
+                {showExpiry && (
+                  <div
+                    className="absolute bottom-full left-0 mb-1 rounded-2xl shadow-2xl overflow-hidden z-50"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', minWidth: 160 }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {[
+                      { label: fa ? 'خاموش' : 'Off', value: null },
+                      { label: fa ? '۳۰ ثانیه' : '30s', value: 30 },
+                      { label: fa ? '۱ دقیقه' : '1 min', value: 60 },
+                      { label: fa ? '۵ دقیقه' : '5 min', value: 300 },
+                      { label: fa ? '۱ ساعت' : '1 hr', value: 3600 },
+                      { label: fa ? '۲۴ ساعت' : '24 hr', value: 86400 },
+                    ].map(opt => (
+                      <button
+                        key={String(opt.value)}
+                        onClick={() => { setExpiresIn(opt.value); setShowExpiry(false); }}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-right transition-colors hover:bg-white/5"
+                        style={{ color: expiresIn === opt.value ? '#f59e0b' : 'var(--text-primary)' }}
+                      >
+                        {expiresIn === opt.value && <Check size={12} />}
+                        {expiresIn !== opt.value && <div style={{ width: 12 }} />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Sticker button */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={e => { e.stopPropagation(); setShowSticker(v => !v); setShowExpiry(false); }}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl mb-1.5"
+                  style={{ color: showSticker ? 'var(--accent)' : 'var(--text-muted)' }}
+                  title={fa ? 'استیکر' : 'Sticker'}
+                >
+                  <SmilePlus size={18} />
+                </button>
+                {showSticker && (
+                  <div className="absolute bottom-full left-0 mb-1 z-50">
+                    <StickerPanel onSelect={async (stickerText) => {
+                      setShowSticker(false);
+                      setSending(true);
+                      await sendMessage(stickerText, { replyToId: replyTo?.id });
+                      setReplyTo(null);
+                      setSending(false);
+                      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                    }} />
+                  </div>
+                )}
               </div>
             <div className="relative flex items-end gap-2 flex-1 p-2 rounded-2xl focus-within:ring-1 focus-within:ring-purple-500/40 transition-all duration-200" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
               {/* #/@ Smart Suggestion Dropdown */}
@@ -1496,6 +1566,21 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
               <button onClick={() => setForwardMsg(null)} style={{ color: 'var(--text-secondary)' }}><X size={18} /></button>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{fa ? 'فوروارد به...' : 'Forward to...'}</h3>
             </div>
+            {/* Forward anonymous toggle */}
+            <div className="px-4 py-2.5 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
+              <button
+                onClick={() => setForwardAnon(v => !v)}
+                className="relative w-9 h-5 rounded-full transition-colors flex-shrink-0"
+                style={{ background: forwardAnon ? '#7c3aed' : 'var(--bg-input)' }}
+                aria-label={fa ? 'بدون نام فرستنده' : 'Without sender name'}
+              >
+                <span className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                  style={{ transform: forwardAnon ? (fa ? 'translateX(-1.25rem)' : 'translateX(1.25rem)') : (fa ? 'translateX(-0.125rem)' : 'translateX(0.125rem)') }} />
+              </button>
+              <span className="text-xs" style={{ color: forwardAnon ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                {fa ? 'بدون نام فرستنده' : 'Without sender name'}
+              </span>
+            </div>
             <div className="max-h-80 overflow-y-auto p-2 space-y-1">
               {conversations.filter(c => c.name !== '__saved__').map(c => (
                 <button key={c.id} onClick={() => handleForward(c.id)}
@@ -1574,6 +1659,34 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
             </div>
           </div>
         </div>
+      )}
+
+      {/* MediaViewer */}
+      {mediaViewer && (
+        <MediaViewer
+          src={mediaViewer.src}
+          type={mediaViewer.type}
+          caption={mediaViewer.caption}
+          onClose={() => setMediaViewer(null)}
+        />
+      )}
+
+      {/* ProfileOverlay */}
+      {profileOverlay && (
+        <ProfileOverlay
+          userId={profileOverlay.userId}
+          username={profileOverlay.username}
+          displayName={profileOverlay.displayName}
+          avatarUrl={profileOverlay.avatarUrl}
+          bio={profileOverlay.bio}
+          onClose={() => setProfileOverlay(null)}
+          onOpenChat={() => {
+            setProfileOverlay(null);
+            // Open direct conversation if possible
+            const existing = conversations.find(c => c.type === 'direct' && c.other_user?.id === profileOverlay.userId);
+            if (existing && onSelectConv) onSelectConv(existing.id);
+          }}
+        />
       )}
 
     </div>

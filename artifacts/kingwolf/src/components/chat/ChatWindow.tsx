@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Send, ArrowRight, Smile, MoreVertical, Phone, Video, Users, UserPlus, UserMinus, X, Search, Shield, Crown, Reply, Edit2, Forward, Copy, Trash2, Check, CheckCheck, PhoneOff, MicOff, Mic, VideoOff, Volume2, Info, BadgeCheck, Paperclip, FileText, Image, Film, FileUp, MapPin, Link2, Flag, BellOff, LogOut, Square, Download, Mic2 } from 'lucide-react';
 import { useMessages } from '../../hooks/useMessages';
 import { useAuth } from '../../contexts/AuthContext';
@@ -123,6 +123,18 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [newUsername, setNewUsername] = useState('');
   const [usernameMsg, setUsernameMsg] = useState('');
 
+  // Admin promotion modal state
+  const [adminPromoteTarget, setAdminPromoteTarget] = useState<any>(null);
+  const [adminPerms, setAdminPerms] = useState({
+    can_delete_messages: true,
+    can_ban_members: false,
+    can_invite_users: true,
+    can_pin_messages: true,
+    can_manage_chat: false,
+    can_post_messages: true,
+    can_edit_messages: false,
+  });
+
   // Reply / Edit / Forward
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -158,6 +170,15 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const isConvAdmin = myConvRole === 'owner' || myConvRole === 'admin' || isAdmin;
   const isConvOwner = myConvRole === 'owner' || conversation?.created_by === user?.id || isAdmin;
   const canSend = !isChannel || isConvAdmin;
+
+  // Memoized role lookup map from members list
+  const memberRoles = useMemo(() => {
+    const map: Record<string, string> = {};
+    members.forEach(m => {
+      map[m.id] = (m as any).role || 'member';
+    });
+    return map;
+  }, [members]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -637,12 +658,24 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                   >
                     {/* Group sender name */}
                     {!isOwn && conversation.type === 'group' && showAvatar && (
-                      <div className="flex items-center gap-1 mb-1 cursor-pointer"
+                      <div className="flex items-center gap-1 flex-wrap mb-1 cursor-pointer"
                         onClick={e => { e.stopPropagation(); if (msg.sender) setShowUserProfile(msg.sender as any); }}>
                         <p className="text-xs font-semibold" style={{ color: '#93c5fd' }}>
                           {msg.sender?.display_name || msg.sender?.username}
                         </p>
                         {!!(msg.sender as any)?.is_verified && <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />}
+                        {memberRoles[msg.sender_id] === 'owner' && (
+                          <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}>
+                            👑 {fa ? 'سازنده' : 'Creator'}
+                          </span>
+                        )}
+                        {memberRoles[msg.sender_id] === 'admin' && (
+                          <span className="inline-flex items-center text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: '#3b82f620', color: '#3b82f6', border: '1px solid #3b82f640' }}>
+                            ⚡ {fa ? 'ادمین' : 'Admin'}
+                          </span>
+                        )}
                       </div>
                     )}
                     {/* Reply preview */}
@@ -1142,45 +1175,122 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     {(m as any).online_status === 'online' && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2" style={{ borderColor: 'var(--bg-secondary)' }} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.display_name || m.username}</span>
-                      {isOwnerRow && <Crown size={10} className="text-yellow-400 flex-shrink-0" title={fa ? 'مالک' : 'Owner'} />}
-                      {isAdminRow && <Shield size={10} className="text-blue-400 flex-shrink-0" title={fa ? 'مدیر' : 'Admin'} />}
                       {(m as any).is_admin && <BadgeCheck size={10} className="text-sky-400 flex-shrink-0" />}
+                      {isOwnerRow && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}>
+                          👑 {fa ? 'سازنده' : 'Creator'}
+                        </span>
+                      )}
+                      {isAdminRow && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: '#3b82f620', color: '#3b82f6', border: '1px solid #3b82f640' }}>
+                          ⚡ {fa ? 'ادمین' : 'Admin'}
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{m.username}</p>
-                      {isOwnerRow && <span className="text-xs px-1 rounded" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>{fa ? 'مالک' : 'Owner'}</span>}
-                      {isAdminRow && <span className="text-xs px-1 rounded" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>{fa ? 'مدیر' : 'Admin'}</span>}
-                    </div>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{m.username}</p>
                   </div>
-                  {isConvOwner && m.id !== user?.id && (
+                  {isConvOwner && m.id !== user?.id && !isOwnerRow && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {isAdminRow ? (
-                        <button onClick={() => demoteMember(m.id)} title={fa ? 'لغو مدیریت' : 'Demote'}
-                          className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
-                          style={{ color: '#f87171' }}>
-                          <UserMinus size={12} />
-                        </button>
-                      ) : !isOwnerRow ? (
-                        <button onClick={() => promoteMember(m.id)} title={fa ? 'ارتقاء به مدیر' : 'Promote'}
+                        <>
+                          <button
+                            onClick={() => {
+                              setAdminPerms({ can_delete_messages: true, can_ban_members: false, can_invite_users: true, can_pin_messages: true, can_manage_chat: false, can_post_messages: true, can_edit_messages: false });
+                              setAdminPromoteTarget(m);
+                            }}
+                            title={fa ? 'ویرایش دسترسی' : 'Edit Permissions'}
+                            className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-blue-500/20"
+                            style={{ color: '#60a5fa' }}>
+                            <Shield size={12} />
+                          </button>
+                          <button onClick={() => demoteMember(m.id)} title={fa ? 'لغو مدیریت' : 'Demote'}
+                            className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
+                            style={{ color: '#f87171' }}>
+                            <UserMinus size={12} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAdminPerms({ can_delete_messages: true, can_ban_members: false, can_invite_users: true, can_pin_messages: true, can_manage_chat: false, can_post_messages: true, can_edit_messages: false });
+                            setAdminPromoteTarget(m);
+                          }}
+                          title={fa ? 'ارتقاء به ادمین' : 'Make Admin'}
                           className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-blue-500/20"
                           style={{ color: '#60a5fa' }}>
                           <Shield size={12} />
                         </button>
-                      ) : null}
-                      {!isOwnerRow && (
-                        <button onClick={() => removeMember(m.id)} title={fa ? 'حذف از گروه' : 'Remove'}
-                          className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
-                          style={{ color: 'var(--text-muted)' }}>
-                          <X size={12} />
-                        </button>
                       )}
+                      <button onClick={() => removeMember(m.id)} title={fa ? 'حذف از گروه' : 'Remove'}
+                        className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20"
+                        style={{ color: 'var(--text-muted)' }}>
+                        <X size={12} />
+                      </button>
                     </div>
                   )}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Admin Permissions Modal */}
+      {adminPromoteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>{fa ? 'دسترسی‌های ادمین' : 'Admin Permissions'}</h3>
+              <button onClick={() => setAdminPromoteTarget(null)} style={{ color: 'var(--text-secondary)' }}>✕</button>
+            </div>
+            <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+              @{adminPromoteTarget.username}
+            </p>
+            {[
+              { key: 'can_delete_messages', fa: 'حذف پیام', en: 'Delete Messages' },
+              { key: 'can_ban_members',     fa: 'بن کردن اعضا', en: 'Ban Members' },
+              { key: 'can_invite_users',    fa: 'دعوت کاربران', en: 'Invite Users' },
+              { key: 'can_pin_messages',    fa: 'پین کردن پیام', en: 'Pin Messages' },
+              { key: 'can_manage_chat',     fa: 'مدیریت گروه/کانال', en: 'Manage Chat' },
+              { key: 'can_post_messages',   fa: 'ارسال پیام', en: 'Post Messages' },
+              { key: 'can_edit_messages',   fa: 'ویرایش پیام‌های دیگران', en: "Edit Others' Messages" },
+            ].map(p => (
+              <label key={p.key} className="flex items-center justify-between py-2 cursor-pointer" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{fa ? p.fa : p.en}</span>
+                <input
+                  type="checkbox"
+                  checked={!!(adminPerms as any)[p.key]}
+                  onChange={e => setAdminPerms(prev => ({ ...prev, [p.key]: e.target.checked }))}
+                  className="w-4 h-4 accent-blue-500"
+                />
+              </label>
+            ))}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={async () => {
+                  if (!adminPromoteTarget || !conversation) return;
+                  const token = localStorage.getItem('kingwolf_token');
+                  await fetch(API_BASE + '/conversations/' + conversation.id + '/members/' + adminPromoteTarget.id + '/role', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+                    body: JSON.stringify({ role: 'admin', permissions: adminPerms, title: fa ? 'ادمین' : 'Admin' }),
+                  });
+                  setAdminPromoteTarget(null);
+                  await loadMembers();
+                }}
+                className="flex-1 py-2 rounded-xl text-white text-sm font-medium"
+                style={{ background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)' }}
+              >
+                {fa ? 'تأیید' : 'Confirm'}
+              </button>
+              <button onClick={() => setAdminPromoteTarget(null)} className="px-4 py-2 rounded-xl text-sm" style={{ border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
+                {fa ? 'لغو' : 'Cancel'}
+              </button>
+            </div>
           </div>
         </div>
       )}

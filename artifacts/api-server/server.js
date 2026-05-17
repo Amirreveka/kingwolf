@@ -444,6 +444,7 @@ function profileToClient(p) {
     is_active: !!p.is_active,
     is_banned: !!p.is_banned,
     is_admin: !!p.is_admin,
+    is_premium: !!p.is_premium,
     settings: tryParse(p.settings, {}),
   };
 }
@@ -773,6 +774,40 @@ app.post('/conversations/:id/messages', authMiddleware, (req, res) => {
   return res.json({ ok: true, id: msgId });
 });
 
+// ===== Get messages for a conversation (with ephemeral + trash filters) =====
+app.get('/conversations/:id/messages', authMiddleware, (req, res) => {
+  const conv = db.prepare('SELECT id FROM conversations WHERE id = ?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'conversation not found' });
+  const isMember = db.prepare('SELECT 1 FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
+  if (!isMember && !req.profile.is_admin) return res.status(403).json({ error: 'not a member' });
+
+  const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const before = req.query.before || null; // cursor: created_at of last fetched msg
+  const params = [req.params.id];
+  let cursorClause = '';
+  if (before) { cursorClause = 'AND m.created_at < ?'; params.push(before); }
+
+  const rows = db.prepare(`
+    SELECT m.*,
+      p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name,
+      p.avatar_url AS _s_avatar_url, p.is_admin AS _s_is_admin
+    FROM messages m
+    LEFT JOIN profiles p ON p.id = m.sender_id
+    WHERE m.conversation_id = ?
+      AND m.deleted_at IS NULL
+      AND (m.expires_at IS NULL OR m.expires_at > unixepoch())
+      ${cursorClause}
+    ORDER BY m.created_at DESC
+    LIMIT ${limit}
+  `).all(...params);
+
+  const out = rows.map(r => {
+    const { _s_id, _s_username, _s_display_name, _s_avatar_url, _s_is_admin, ...msg } = r;
+    return { ...msg, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null, is_admin: _s_is_admin } : null };
+  });
+  return res.json({ data: out });
+});
+
 // ===== Conversation Member Management =====
 app.get('/conversations/:id/members', authMiddleware, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
@@ -782,7 +817,7 @@ app.get('/conversations/:id/members', authMiddleware, (req, res) => {
   // For channels: only admins/owners see the full member list; others see only count
   if (conv.type === 'channel' && !isMgr) {
     const count = db.prepare('SELECT COUNT(*) as n FROM conversation_members WHERE conversation_id = ?').get(req.params.id)?.n || 0;
-    return res.json({ data: [], count, restricted: true });
+    return res.json({ data: null, members: null, member_count: count, restricted: true });
   }
   const members = db.prepare(`
     SELECT p.*, cm.role, cm.joined_at, cm.admin_permissions, cm.title
@@ -792,7 +827,7 @@ app.get('/conversations/:id/members', authMiddleware, (req, res) => {
     ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, cm.joined_at ASC
   `).all(req.params.id);
   const count = members.length;
-  return res.json({ data: members.map((m, i) => ({ ...profileToClient(m), role: m.role, joined_at: m.joined_at, admin_permissions: tryParse(m.admin_permissions, []), title: m.title })), count });
+  return res.json({ data: members.map((m) => ({ ...profileToClient(m), role: m.role, joined_at: m.joined_at, admin_permissions: tryParse(m.admin_permissions, []), title: m.title })), member_count: count, count });
 });
 
 // Set conversation username (@id for groups/channels)
@@ -1751,6 +1786,8 @@ app.get('/unread-counts', authMiddleware, (req, res) => {
     FROM messages m
     WHERE m.sender_id != ?
       AND m.is_deleted = 0
+      AND m.deleted_at IS NULL
+      AND (m.expires_at IS NULL OR m.expires_at > unixepoch())
       AND m.conversation_id IN (
         SELECT conversation_id FROM conversation_members WHERE user_id = ?
       )
@@ -2659,6 +2696,258 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── EPHEMERAL / SELF-DESTRUCT MESSAGES ──────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Set a self-destruct timer on a message (seconds from now)
+app.patch('/messages/:id/expire', authMiddleware, (req, res) => {
+  const { seconds } = req.body || {};
+  if (!seconds || typeof seconds !== 'number' || seconds < 1) {
+    return res.status(400).json({ error: 'seconds (positive number) required' });
+  }
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);
+  if (!msg) return res.status(404).json({ error: 'message not found' });
+  if (msg.sender_id !== req.userId) return res.status(403).json({ error: 'only sender can set expiry' });
+  const expiresAt = Math.floor(Date.now() / 1000) + Math.floor(seconds);
+  db.prepare('UPDATE messages SET expires_at = ? WHERE id = ?').run(expiresAt, req.params.id);
+  return res.json({ ok: true, expires_at: expiresAt });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── TRASH / SOFT-DELETE / RECOVERY ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Soft-delete a message (move to trash)
+app.delete('/messages/:id', authMiddleware, (req, res) => {
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);
+  if (!msg) return res.status(404).json({ error: 'message not found' });
+  if (msg.sender_id !== req.userId && !req.profile.is_admin) return res.status(403).json({ error: 'forbidden' });
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare('UPDATE messages SET deleted_at = ?, deleted_by = ? WHERE id = ?').run(now, req.userId, req.params.id);
+  broadcast({ event: 'UPDATE', table: 'messages', new: { id: msg.id, conversation_id: msg.conversation_id, deleted_at: now, deleted_by: req.userId } });
+  return res.json({ ok: true });
+});
+
+// List trash for current user (soft-deleted within 30 days)
+app.get('/trash', authMiddleware, (req, res) => {
+  const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+  const rows = db.prepare(`
+    SELECT m.*,
+      p.id AS _s_id, p.username AS _s_username, p.display_name AS _s_display_name, p.avatar_url AS _s_avatar_url
+    FROM messages m
+    LEFT JOIN profiles p ON p.id = m.sender_id
+    WHERE m.sender_id = ?
+      AND m.deleted_at IS NOT NULL
+      AND m.deleted_at > ?
+    ORDER BY m.deleted_at DESC
+    LIMIT 200
+  `).all(req.userId, cutoff);
+  const out = rows.map(r => {
+    const { _s_id, _s_username, _s_display_name, _s_avatar_url, ...msg } = r;
+    return { ...msg, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null } : null };
+  });
+  return res.json({ data: out });
+});
+
+// Restore a message from trash (within 30 days, only sender)
+app.post('/trash/:id/restore', authMiddleware, (req, res) => {
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);
+  if (!msg) return res.status(404).json({ error: 'message not found' });
+  if (msg.sender_id !== req.userId) return res.status(403).json({ error: 'only sender can restore' });
+  if (!msg.deleted_at) return res.status(400).json({ error: 'message is not deleted' });
+  const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+  if (msg.deleted_at < cutoff) return res.status(410).json({ error: 'message expired from trash (>30 days)' });
+  db.prepare('UPDATE messages SET deleted_at = NULL, deleted_by = NULL WHERE id = ?').run(req.params.id);
+  broadcast({ event: 'UPDATE', table: 'messages', new: { id: msg.id, conversation_id: msg.conversation_id, deleted_at: null, deleted_by: null } });
+  return res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── WOLF PREMIUM ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Get premium status for a user (public within auth)
+app.get('/profile/premium/:userId', authMiddleware, (req, res) => {
+  const profile = db.prepare('SELECT is_premium, premium_expires_at FROM profiles WHERE id = ?').get(req.params.userId);
+  if (!profile) return res.status(404).json({ error: 'user not found' });
+  // Check if premium is actually still active
+  const isActive = !!profile.is_premium && (!profile.premium_expires_at || new Date(profile.premium_expires_at) > new Date());
+  return res.json({ is_premium: isActive, premium_expires_at: profile.premium_expires_at || null });
+});
+
+// Founder only: grant/update premium for a user
+app.patch('/api/admin/users/:userId/premium', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = getMasterAdmin();
+  if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده می‌تواند پریمیوم اعطا کند' });
+  const { is_premium, premium_expires_at } = req.body || {};
+  const profile = db.prepare('SELECT id FROM profiles WHERE id = ?').get(req.params.userId);
+  if (!profile) return res.status(404).json({ error: 'user not found' });
+  db.prepare('UPDATE profiles SET is_premium = ?, premium_expires_at = ? WHERE id = ?').run(
+    is_premium ? 1 : 0,
+    premium_expires_at || null,
+    req.params.userId
+  );
+  broadcast({ event: 'UPDATE', table: 'profiles', new: { id: req.params.userId, is_premium: is_premium ? 1 : 0, premium_expires_at: premium_expires_at || null } });
+  return res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── LINK PREVIEW ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Per-user rate limiter for link preview: 10 requests per minute
+const linkPreviewRateMap = new Map(); // userId -> { count, windowStart }
+const LINK_PREVIEW_LIMIT = 10;
+const LINK_PREVIEW_WINDOW_MS = 60 * 1000;
+
+function linkPreviewRlCheck(userId) {
+  const now = Date.now();
+  const rec = linkPreviewRateMap.get(userId);
+  if (!rec || now - rec.windowStart > LINK_PREVIEW_WINDOW_MS) {
+    linkPreviewRateMap.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+  if (rec.count >= LINK_PREVIEW_LIMIT) return false;
+  rec.count += 1;
+  return true;
+}
+
+function fetchUrlMeta(rawUrl) {
+  return new Promise((resolve, reject) => {
+    let redirectsLeft = 2;
+    function doFetch(urlStr) {
+      let parsedUrl;
+      try { parsedUrl = new URL(urlStr); } catch { return reject(new Error('invalid URL')); }
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        return reject(new Error('only http/https allowed'));
+      }
+      const lib = parsedUrl.protocol === 'https:' ? https : http;
+      const opts = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+        headers: { 'User-Agent': 'KingWolfBot/1.0 (link-preview)', 'Accept': 'text/html' },
+        timeout: 5000,
+      };
+      const req = lib.get(opts, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+          if (redirectsLeft <= 0) return reject(new Error('too many redirects'));
+          redirectsLeft--;
+          const nextUrl = res.headers.location.startsWith('http') ? res.headers.location : new URL(res.headers.location, urlStr).href;
+          res.resume();
+          return doFetch(nextUrl);
+        }
+        if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
+        const contentType = res.headers['content-type'] || '';
+        if (!contentType.includes('text/html')) { res.resume(); return reject(new Error('not HTML')); }
+        res.setEncoding('utf8');
+        let body = '';
+        res.on('data', chunk => {
+          body += chunk;
+          if (body.length > 200 * 1024) { res.destroy(); } // stop after 200KB
+        });
+        res.on('end', () => resolve(body));
+        res.on('error', reject);
+      });
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+      req.on('error', reject);
+    }
+    doFetch(rawUrl);
+  });
+}
+
+function parseMetaTags(html, pageUrl) {
+  function getOg(prop) {
+    const m = html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))
+      || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, 'i'));
+    return m ? m[1] : null;
+  }
+  function getTitle() {
+    const og = getOg('title');
+    if (og) return og;
+    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return m ? m[1].trim() : null;
+  }
+  function getDesc() {
+    const og = getOg('description');
+    if (og) return og;
+    const m = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i);
+    return m ? m[1] : null;
+  }
+  let image = getOg('image');
+  if (image && image.startsWith('/')) {
+    try { image = new URL(image, pageUrl).href; } catch {}
+  }
+  return { title: getTitle(), description: getDesc(), image, url: pageUrl };
+}
+
+app.get('/api/link-preview', authMiddleware, async (req, res) => {
+  const rawUrl = (req.query.url || '').trim();
+  if (!rawUrl) return res.status(400).json({ error: 'url query param required' });
+
+  // Rate limit
+  if (!linkPreviewRlCheck(req.userId)) {
+    return res.status(429).json({ error: 'rate limit exceeded (10/min)' });
+  }
+
+  // Basic URL validation
+  let targetUrl;
+  try {
+    targetUrl = new URL(rawUrl);
+    if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') throw new Error();
+  } catch {
+    return res.status(400).json({ error: 'invalid URL' });
+  }
+
+  try {
+    const html = await fetchUrlMeta(rawUrl);
+    const meta = parseMetaTags(html, rawUrl);
+    return res.json(meta);
+  } catch (e) {
+    return res.status(502).json({ error: 'could not fetch URL', detail: e.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── ADMIN BOT RULES ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+// List all bot rules (admin only)
+app.get('/api/admin/bot/rules', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM bot_rules ORDER BY created_at DESC').all();
+    return res.json({ data: rows });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Create a bot rule (founder only)
+app.post('/api/admin/bot/rules', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = getMasterAdmin();
+  if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده می‌تواند قوانین ربات را مدیریت کند' });
+  const { rule_type, value, action } = req.body || {};
+  if (!rule_type) return res.status(400).json({ error: 'rule_type required' });
+  const id = nanoid();
+  db.prepare('INSERT INTO bot_rules (id, rule_type, value, action) VALUES (?, ?, ?, ?)').run(
+    id, rule_type, value || null, action || 'warn'
+  );
+  const row = db.prepare('SELECT * FROM bot_rules WHERE id = ?').get(id);
+  return res.status(201).json({ ok: true, data: row });
+});
+
+// Delete a bot rule (founder only)
+app.delete('/api/admin/bot/rules/:id', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = getMasterAdmin();
+  if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده می‌تواند قوانین ربات را حذف کند' });
+  const rule = db.prepare('SELECT id FROM bot_rules WHERE id = ?').get(req.params.id);
+  if (!rule) return res.status(404).json({ error: 'rule not found' });
+  db.prepare('DELETE FROM bot_rules WHERE id = ?').run(req.params.id);
+  return res.json({ ok: true });
+});
 
 function broadcast(payload) {
   const data = JSON.stringify({ type: 'change', ...payload });

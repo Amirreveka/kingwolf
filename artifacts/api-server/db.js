@@ -554,10 +554,29 @@ const colMigrations = [
   ['conversation_members', 'group_permissions', "TEXT DEFAULT '{}'"],
   ['profiles', 'storage_quota_bytes', 'INTEGER DEFAULT 2147483648'],  // 2GB default
   ['profiles', 'storage_used_bytes', 'INTEGER DEFAULT 0'],
+  // ── New columns (ephemeral messages, trash/recovery, premium) ──
+  ['messages', 'expires_at', 'INTEGER DEFAULT NULL'],
+  ['messages', 'deleted_at', 'INTEGER DEFAULT NULL'],
+  ['messages', 'deleted_by', 'TEXT DEFAULT NULL'],
+  ['profiles', 'is_premium', 'INTEGER DEFAULT 0'],
+  ['profiles', 'premium_expires_at', 'TEXT DEFAULT NULL'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }
 }
+
+// ── bot_rules table (Admin Bot rules) ─────────────────────────────────────
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bot_rules (
+      id TEXT PRIMARY KEY,
+      rule_type TEXT NOT NULL,
+      value TEXT,
+      action TEXT DEFAULT 'warn',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+} catch (_) { /* already exists */ }
 
 // Log final table state so you can confirm everything is in place at startup
 try {

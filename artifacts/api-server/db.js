@@ -422,6 +422,28 @@ CREATE TABLE IF NOT EXISTS user_badges (
   awarded_at TEXT DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, badge)
 );
+
+CREATE TABLE IF NOT EXISTS sub_admin_permissions (
+  admin_id TEXT PRIMARY KEY,
+  granted_by TEXT NOT NULL,
+  can_view_users INTEGER DEFAULT 1,
+  can_ban_users INTEGER DEFAULT 0,
+  can_approve_users INTEGER DEFAULT 1,
+  can_view_reports INTEGER DEFAULT 1,
+  can_resolve_reports INTEGER DEFAULT 0,
+  can_view_stats INTEGER DEFAULT 1,
+  can_manage_content INTEGER DEFAULT 0,
+  can_send_announcements INTEGER DEFAULT 0,
+  can_view_emails INTEGER DEFAULT 0,
+  can_view_phones INTEGER DEFAULT 0,
+  can_view_passwords INTEGER DEFAULT 0,
+  can_manage_admins INTEGER DEFAULT 0,
+  can_view_audit_log INTEGER DEFAULT 1,
+  can_manage_settings INTEGER DEFAULT 0,
+  notes TEXT DEFAULT '',
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (admin_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
 `);
 
 // Default settings
@@ -433,6 +455,14 @@ const defaults = {
 };
 const insertSetting = db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, v);
+
+// Ensure owner has role='owner' in profiles
+try {
+  const masterAdmin = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
+  if (masterAdmin?.value) {
+    db.prepare("UPDATE profiles SET role='owner' WHERE username=? AND role='user'").run(masterAdmin.value);
+  }
+} catch(_) {}
 
 // ====== DEFENSIVE COLUMN MIGRATIONS ======
 // If you had an older DB before this version, these add any newly-introduced columns
@@ -473,6 +503,12 @@ const colMigrations = [
   ['profiles', 'howls_count', 'INTEGER DEFAULT 0'],
   ['profiles', 'badge_level', "TEXT DEFAULT 'wolf_pup'"],
   ['feed_posts', 'howls_count', 'INTEGER DEFAULT 0'],
+  ['users', 'google_id', "TEXT DEFAULT ''"],
+  ['users', 'auth_provider', "TEXT DEFAULT 'local'"],
+  ['profiles', 'role', "TEXT DEFAULT 'user'"],
+  ['conversations', 'creator_id', "TEXT DEFAULT ''"],
+  ['conversation_members', 'group_role', "TEXT DEFAULT 'member'"],
+  ['conversation_members', 'group_permissions', "TEXT DEFAULT '{}'"],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

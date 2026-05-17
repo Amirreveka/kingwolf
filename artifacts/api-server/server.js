@@ -166,8 +166,9 @@ function adminOnly(req, res, next) {
 
 // ===== AUTH =====
 app.post('/auth/signup', async (req, res) => {
-  const { email, password } = req.body || {};
+  const { username, password, email, phone, display_name } = req.body || {};
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  if (!phone) return res.status(400).json({ error: 'همه فیلدها الزامی هستند' });
   if (password.length < 6) return res.status(400).json({ error: 'password too short' });
 
   const lockRow = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('signup_locked');
@@ -180,37 +181,36 @@ app.post('/auth/signup', async (req, res) => {
 
   const id = nanoid();
   const hash = await bcrypt.hash(password, 10);
-  // Derive username from email local-part as a sensible default
-  const usernameDefault = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  // Use provided username or derive from email local-part
+  const usernameDefault = (username || email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '');
   // Make sure it's unique across both profiles and conversations
-  let username = usernameDefault;
+  let finalUsername = usernameDefault;
   let n = 0;
   while (
-    db.prepare('SELECT id FROM profiles WHERE username = ?').get(username) ||
-    db.prepare('SELECT id FROM conversations WHERE username = ? AND username != ?').get(username, '')
+    db.prepare('SELECT id FROM profiles WHERE username = ?').get(finalUsername) ||
+    db.prepare('SELECT id FROM conversations WHERE username = ? AND username != ?').get(finalUsername, '')
   ) {
     n++;
-    username = `${usernameDefault}${n}`;
+    finalUsername = `${usernameDefault}${n}`;
   }
+  // Rebind so rest of code uses consistent variable name
+  const resolvedUsername = finalUsername;
 
   const approvalRow = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('require_admin_approval');
   const isApproved = !(approvalRow && approvalRow.value === 'true');
 
   const tx = db.transaction(() => {
     db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, email, hash, password);
+    const normalizedPhone = phone ? phone.replace(/\D/g, '') : '';
     db.prepare(`
-      INSERT INTO profiles (id, username, email, display_name, avatar_url, is_approved)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, username, email, username, '/icon-192.png', isApproved ? 1 : 0);
+      INSERT INTO profiles (id, username, email, display_name, avatar_url, is_approved, phone)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, resolvedUsername, email, display_name || resolvedUsername, '/icon-192.png', isApproved ? 1 : 0, normalizedPhone);
 
     // Notify contacts who have this phone number
     try {
-      const phone = req.body?.phone || '';
-      if (phone) {
-        const normalizedPhone = phone.replace(/\D/g, '');
-        if (normalizedPhone) {
-          db.prepare('UPDATE user_contacts SET matched_user_id = ? WHERE phone = ?').run(id, normalizedPhone);
-        }
+      if (normalizedPhone) {
+        db.prepare('UPDATE user_contacts SET matched_user_id = ? WHERE phone = ?').run(id, normalizedPhone);
       }
     } catch (_) {}
 
@@ -229,7 +229,7 @@ app.post('/auth/signup', async (req, res) => {
     const allUserIds = db.prepare("SELECT id FROM profiles WHERE id != ? AND is_active = 1 AND is_approved = 1 LIMIT 500").all(id);
     for (const u of allUserIds) {
       db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, target_id, target_type, message) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(nanoid(), u.id, 'join', id, id, 'profile', `${username} joined KingWolf`);
+        .run(nanoid(), u.id, 'join', id, id, 'profile', `${resolvedUsername} joined KingWolf`);
     }
   } catch (_) {}
 
@@ -241,7 +241,7 @@ app.post('/auth/signup', async (req, res) => {
   db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
     .run(sessionId, id, ip, ua, parseDeviceName(ua));
   const token = makeToken(id, sessionId);
-  try { db.prepare("INSERT INTO activity_log (user_id, username, action, ip) VALUES (?,?,?,?)").run(id, username, 'signup', req.ip || ''); } catch {}
+  try { db.prepare("INSERT INTO activity_log (user_id, username, action, ip) VALUES (?,?,?,?)").run(id, resolvedUsername, 'signup', req.ip || ''); } catch {}
   return res.json({ user: { id, email }, access_token: token });
 });
 
@@ -287,27 +287,31 @@ function rlRecordSuccess(req, email) {
 }
 
 app.post('/auth/signin', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  const { password } = req.body || {};
+  const identifier = (req.body.username || req.body.email || req.body.phone || '').trim();
+  if (!identifier || !password) return res.status(400).json({ error: 'email and password required' });
 
   // Rate limit
-  const rl = rlCheck(req, email);
+  const rl = rlCheck(req, identifier);
   if (!rl.allowed) {
     return res.status(429).json({ error: 'rate_limited', retryAfter: rl.retryAfter, message: `بیش از حد تلاش — ${rl.retryAfter} ثانیه دیگر دوباره امتحان کنید` });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  if (!user) { rlRecordFail(req, email); return res.status(401).json({ error: 'invalid credentials' }); }
+  // Try to find user by username, email, or phone
+  let profile = db.prepare('SELECT * FROM profiles WHERE username = ?').get(identifier);
+  if (!profile) profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(identifier);
+  if (!profile) profile = db.prepare('SELECT * FROM profiles WHERE phone = ?').get(identifier.replace(/\D/g, ''));
+  const user = profile ? db.prepare('SELECT * FROM users WHERE id = ?').get(profile.id) : null;
+  if (!user) { rlRecordFail(req, identifier); return res.status(401).json({ error: 'invalid credentials' }); }
   const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) { rlRecordFail(req, email); return res.status(401).json({ error: 'invalid credentials' }); }
+  if (!ok) { rlRecordFail(req, identifier); return res.status(401).json({ error: 'invalid credentials' }); }
 
-  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(user.id);
   if (profile && profile.is_banned) return res.status(403).json({ error: 'banned' });
   if (profile && !profile.is_admin && !profile.is_approved) {
     return res.status(403).json({ error: 'pending_approval' });
   }
 
-  rlRecordSuccess(req, email);
+  rlRecordSuccess(req, identifier);
   const sessionId = nanoid();
   const ip = getClientIp(req);
   const ua = req.headers['user-agent'] || '';
@@ -779,6 +783,10 @@ app.post('/conversations/:id/demote', authMiddleware, (req, res) => {
   if (!user_id) return res.status(400).json({ error: 'user_id required' });
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
   if (!conv) return res.status(404).json({ error: 'not found' });
+  // Protect creator from being demoted
+  if ((conv.creator_id && conv.creator_id === user_id) || conv.created_by === user_id) {
+    return res.status(403).json({ error: 'نقش سازنده قابل تغییر نیست' });
+  }
   const myRole = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
   const canDemote = myRole?.role === 'owner' || conv.created_by === req.userId || req.profile.is_admin;
   if (!canDemote) return res.status(403).json({ error: 'owner only' });
@@ -805,6 +813,10 @@ app.post('/conversations/:id/members', authMiddleware, (req, res) => {
 app.delete('/conversations/:id/members/:userId', authMiddleware, (req, res) => {
   const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(req.params.id);
   if (!conv) return res.status(404).json({ error: 'conversation not found' });
+  // Protect creator from being kicked/banned
+  if ((conv.creator_id && conv.creator_id === req.params.userId) || conv.created_by === req.params.userId) {
+    return res.status(403).json({ error: 'سازنده گروه را نمی‌توان حذف کرد' });
+  }
   const membership = db.prepare('SELECT role FROM conversation_members WHERE conversation_id = ? AND user_id = ?').get(req.params.id, req.userId);
   const isConvAdmin = membership?.role === 'admin' || conv.created_by === req.userId || req.profile.is_admin;
   if (!isConvAdmin && req.params.userId !== req.userId) return res.status(403).json({ error: 'not authorized' });
@@ -2050,6 +2062,153 @@ app.get('/badges/:userId', authMiddleware, (req, res) => {
 function awardBadge(userId, badge) {
   try { db.prepare('INSERT OR IGNORE INTO user_badges (user_id, badge) VALUES (?,?)').run(userId, badge); } catch(_) {}
 }
+
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+app.post('/auth/google', async (req, res) => {
+  const { credential } = req.body; // Google ID token
+  if (!credential) return res.status(400).json({ error: 'No credential' });
+
+  try {
+    // Verify token via Google's tokeninfo endpoint
+    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+    const googleData = await googleRes.json();
+
+    if (googleData.error || !googleData.email) {
+      return res.status(401).json({ error: 'Invalid Google token' });
+    }
+
+    const { email, name, picture, sub: googleId } = googleData;
+
+    // Check if user exists by google_id or email
+    let user = db.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId);
+    if (!user) user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+    let profile;
+    if (!user) {
+      // Create new user
+      const newId = nanoid();
+      const baseUsername = email.split('@')[0].replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 20) + '_' + Math.random().toString(36).slice(2, 6);
+
+      db.prepare(`INSERT INTO users (id, email, password_hash, google_id, auth_provider) VALUES (?,?,?,?,?)`).run(newId, email, '', googleId, 'google');
+
+      const approvalRow = db.prepare("SELECT value FROM app_settings WHERE key='require_admin_approval'").get();
+      const isApproved = 1; // Google users auto-approved
+
+      db.prepare(`INSERT INTO profiles (id, username, email, display_name, avatar_url, is_approved, is_active) VALUES (?,?,?,?,?,?,1)`).run(newId, baseUsername, email, name || baseUsername, picture || '/icon-192.png', isApproved);
+
+      profile = db.prepare('SELECT * FROM profiles WHERE id=?').get(newId);
+    } else {
+      // Update google_id if not set
+      db.prepare('UPDATE users SET google_id=?, auth_provider=? WHERE id=? AND (google_id IS NULL OR google_id="")').run(googleId, 'google', user.id);
+      profile = db.prepare('SELECT * FROM profiles WHERE id=?').get(user.id);
+    }
+
+    if (!profile) return res.status(500).json({ error: 'Profile error' });
+    if (profile.is_banned) return res.status(403).json({ error: 'حساب شما مسدود شده است' });
+
+    const userId = user ? user.id : profile.id;
+    const sessionId = nanoid();
+    const ip = getClientIp(req);
+    const ua = req.headers['user-agent'] || '';
+    db.prepare('UPDATE users SET current_session_id = ? WHERE id = ?').run(sessionId, userId);
+    db.prepare(`INSERT INTO user_sessions (id, user_id, ip, user_agent, device_name) VALUES (?, ?, ?, ?, ?)`)
+      .run(sessionId, userId, ip, ua, parseDeviceName(ua));
+    const token = makeToken(userId, sessionId);
+    res.json({ token, access_token: token, profile: profileToClient(profile) });
+  } catch (e) {
+    console.error('Google OAuth error:', e);
+    res.status(500).json({ error: 'Google auth failed' });
+  }
+});
+
+// ── Sub-admin permissions ─────────────────────────────────────────────────────
+app.get('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => {
+  const perms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.params.adminId);
+  res.json(perms || { admin_id: req.params.adminId });
+});
+
+app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => {
+  // Only owner can manage permissions
+  const ownerRow = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
+  if (req.profile.username !== ownerRow?.value) {
+    return res.status(403).json({ error: 'فقط سازنده می‌تواند دسترسی‌ها را تغییر دهد' });
+  }
+  const { adminId } = req.params;
+  const p = req.body;
+
+  db.prepare(`INSERT OR REPLACE INTO sub_admin_permissions
+    (admin_id, granted_by, can_view_users, can_ban_users, can_approve_users, can_view_reports,
+     can_resolve_reports, can_view_stats, can_manage_content, can_send_announcements,
+     can_view_emails, can_view_phones, can_view_passwords, can_manage_admins, can_view_audit_log,
+     can_manage_settings, notes, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+  `).run(adminId, req.profile.id,
+    p.can_view_users?1:0, p.can_ban_users?1:0, p.can_approve_users?1:0,
+    p.can_view_reports?1:0, p.can_resolve_reports?1:0, p.can_view_stats?1:0,
+    p.can_manage_content?1:0, p.can_send_announcements?1:0,
+    p.can_view_emails?1:0, p.can_view_phones?1:0, p.can_view_passwords?1:0,
+    p.can_manage_admins?1:0, p.can_view_audit_log?1:0, p.can_manage_settings?1:0,
+    p.notes||'');
+
+  res.json({ ok: true });
+});
+
+app.get('/admin/my-permissions', authMiddleware, (req, res) => {
+  const ownerRow = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
+  if (req.profile.username === ownerRow?.value) {
+    // Owner has all permissions
+    return res.json({
+      is_owner: true,
+      can_view_users:1, can_ban_users:1, can_approve_users:1, can_view_reports:1,
+      can_resolve_reports:1, can_view_stats:1, can_manage_content:1, can_send_announcements:1,
+      can_view_emails:1, can_view_phones:1, can_view_passwords:1, can_manage_admins:1,
+      can_view_audit_log:1, can_manage_settings:1
+    });
+  }
+  const perms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+  res.json({ is_owner: false, ...(perms || {}) });
+});
+
+// ── Group/Channel member endpoints ───────────────────────────────────────────
+
+// GET group members with roles (replaces the earlier version)
+app.get('/conversations/:id/members/roles', authMiddleware, (req, res) => {
+  const members = db.prepare(`
+    SELECT cm.*, p.username, p.display_name, p.avatar_url, p.online_status,
+           CASE WHEN c.creator_id = cm.user_id THEN 'creator' ELSE cm.role END AS effective_role,
+           cm.group_permissions, cm.title
+    FROM conversation_members cm
+    JOIN profiles p ON p.id = cm.user_id
+    JOIN conversations c ON c.id = cm.conversation_id
+    WHERE cm.conversation_id = ?
+    ORDER BY CASE WHEN c.creator_id = cm.user_id THEN 0 WHEN cm.role = 'admin' THEN 1 ELSE 2 END,
+             cm.joined_at ASC
+  `).all(req.params.id);
+  res.json(members);
+});
+
+// Update member role/permissions in group
+app.patch('/conversations/:id/members/:userId/role', authMiddleware, (req, res) => {
+  const conv = db.prepare('SELECT * FROM conversations WHERE id=?').get(req.params.id);
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+
+  // Only creator or admin can change roles
+  const myMembership = db.prepare('SELECT * FROM conversation_members WHERE conversation_id=? AND user_id=?').get(req.params.id, req.profile.id);
+  const isCreator = conv.creator_id === req.profile.id || conv.created_by === req.profile.id;
+  if (!isCreator && myMembership?.role !== 'admin' && !req.profile.is_admin) return res.status(403).json({ error: 'دسترسی ندارید' });
+
+  // Cannot change creator role
+  if (conv.creator_id === req.params.userId || conv.created_by === req.params.userId) {
+    return res.status(403).json({ error: 'نقش سازنده قابل تغییر نیست' });
+  }
+
+  const { role, title, permissions } = req.body;
+  db.prepare('UPDATE conversation_members SET role=?, title=?, group_permissions=? WHERE conversation_id=? AND user_id=?').run(
+    role || 'member', title || '', JSON.stringify(permissions || {}), req.params.id, req.params.userId
+  );
+
+  res.json({ ok: true });
+});
 
 // SPA fallback — serve index.html for any non-API route
 if (fs.existsSync(FRONTEND_DIST)) {

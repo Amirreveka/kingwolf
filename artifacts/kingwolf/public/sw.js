@@ -1,4 +1,4 @@
-const CACHE = 'kw-v2';
+const CACHE = 'kw-v3';
 const PRECACHE = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -51,20 +51,40 @@ self.addEventListener('fetch', e => {
 
 self.addEventListener('push', e => {
   if (!e.data) return;
-  const d = e.data.json();
-  self.registration.showNotification(d.title || 'KingWolf', {
-    body: d.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: d.tag || 'kw',
-    renotify: true,
-    data: d.url ? { url: d.url } : undefined,
-  });
+  let d = {};
+  try { d = e.data.json(); } catch { d = { title: 'KingWolf', body: e.data.text() }; }
+  e.waitUntil(
+    self.registration.showNotification(d.title || 'KingWolf', {
+      body: d.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: d.tag || 'kw-msg',
+      renotify: true,
+      requireInteraction: false,
+      silent: false,
+      vibrate: [200, 100, 200, 100, 200],
+      timestamp: Date.now(),
+      data: { url: d.url || '/', conversationId: d.conversationId },
+      actions: [
+        { action: 'open', title: 'باز کردن' },
+        { action: 'dismiss', title: 'بستن' },
+      ],
+    })
+  );
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  if (e.notification.data?.url) {
-    e.waitUntil(clients.openWindow(e.notification.data.url));
-  }
+  if (e.action === 'dismiss') return;
+  const url = e.notification.data?.url || '/';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      for (const client of list) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
+  );
 });

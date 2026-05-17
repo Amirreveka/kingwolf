@@ -181,12 +181,26 @@ export function MessengerLayout() {
     const avatar = conv?.other_user?.avatar_url;
     callTargetRef.current = targetUserId;
     try {
-      const videoConstraints = type === 'video'
-        ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
-        : false;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints });
+      let stream: MediaStream;
+      if (type === 'video') {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        }
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+      }
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.playsInline = true;
+        try { await localVideoRef.current.play(); } catch { /* autoplay may be blocked */ }
+      }
       const pc = buildPc();
       pcRef.current = pc;
       stream.getTracks().forEach(t => pc.addTrack(t, stream));
@@ -214,12 +228,26 @@ export function MessengerLayout() {
     const { fromUserId, callType, offer, fromName, fromAvatar } = incomingCall;
     callTargetRef.current = fromUserId;
     try {
-      const videoConstraints = callType === 'video'
-        ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
-        : false;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints });
+      let stream: MediaStream;
+      if (callType === 'video') {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        }
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+      }
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.muted = true;
+        localVideoRef.current.playsInline = true;
+        try { await localVideoRef.current.play(); } catch { /* autoplay */ }
+      }
       const pc = buildPc();
       pcRef.current = pc;
       stream.getTracks().forEach(t => pc.addTrack(t, stream));

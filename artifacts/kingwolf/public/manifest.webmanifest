@@ -2,14 +2,14 @@
   "id": "/",
   "name": "KingWolf Messenger",
   "short_name": "KingWolf",
-  "description": "پیام‌رسان امن KingWolf",
-  "start_url": "/",
+  "description": "پیام‌رسان امن و سریع KingWolf",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#0b0f1a",
-  "theme_color": "#0b0f1a",
+  "background_color": "#030712",
+  "theme_color": "#2563eb",
   "lang": "fa",
   "dir": "rtl",
   "prefer_related_applications": false,
@@ -19,5 +19,10 @@
     { "src": "/icon-512.png",        "sizes": "512x512",  "type": "image/png", "purpose": "maskable" },
     { "src": "/apple-touch-icon.png","sizes": "180x180",  "type": "image/png", "purpose": "any" }
   ],
-  "categories": ["social", "communication"]
+  "categories": ["social", "communication"],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
 }

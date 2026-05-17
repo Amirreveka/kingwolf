@@ -1347,3 +1347,7 @@ textarea:focus {
   will-change: opacity;
   z-index: -1;
 }
+
+/* ── Hide scrollbars (cross-browser) ────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

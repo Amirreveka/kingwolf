@@ -2499,6 +2499,7 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
         db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, `${username}@kingwolf.internal`, hash, password);
         db.prepare('INSERT INTO profiles (id, username, email, display_name, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, 1, 1, 1)').run(id, username, `${username}@kingwolf.internal`, username);
         db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(username);
+        db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(username);
       });
       tx();
       console.log(`🔑 Default admin: ${username} / ${password}`);

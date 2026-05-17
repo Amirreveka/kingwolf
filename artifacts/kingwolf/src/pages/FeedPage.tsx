@@ -32,7 +32,7 @@ async function apiGet(path: string) {
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type FeedTab = 'foryou' | 'following' | 'explore' | 'notifications' | 'bookmarks';
+type FeedTab = 'foryou' | 'following' | 'explore' | 'notifications' | 'bookmarks' | 'follow';
 interface Post {
   id: string; author_id: string; content: string;
   media_urls: string[]; media_types: string[];
@@ -1364,6 +1364,114 @@ function RightSidebar({ language, t, following, onFollow }: { language: string; 
   );
 }
 
+// ─── FollowManagementTab ───────────────────────────────────────────────────────
+function FollowManagementTab({ language, t }: { language: string; t: (fa: string, en?: string) => string }) {
+  const [following, setFollowing] = useState<any[]>([]);
+  const [followers, setFollowers] = useState<any[]>([]);
+  const [followSubTab, setFollowSubTab] = useState<'following' | 'followers'>('following');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [fw, fr] = await Promise.all([
+        apiGet('/follows/following'),
+        apiGet('/follows/followers'),
+      ]);
+      setFollowing(fw.data || []);
+      setFollowers(fr.data || []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  async function handleUnfollow(userId: string) {
+    await apiPost('/follows/unfollow', { target_id: userId });
+    setFollowing(prev => prev.filter(u => u.id !== userId));
+  }
+
+  async function handleFollow(userId: string) {
+    await apiPost('/follows/follow', { target_id: userId });
+    setFollowers(prev => prev.map(u => u.id === userId ? { ...u, is_following_back: true } : u));
+  }
+
+  const isFollowingTab = followSubTab === 'following';
+  const list = isFollowingTab ? following : followers;
+
+  return (
+    <div>
+      {/* Sub-tab bar */}
+      <div className="flex sticky top-0 z-10"
+        style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}>
+        {(['following', 'followers'] as const).map(sub => (
+          <button
+            key={sub}
+            onClick={() => setFollowSubTab(sub)}
+            className="relative flex-1 py-3 text-sm font-semibold transition-colors"
+            style={{
+              color: followSubTab === sub ? 'var(--text-primary)' : 'var(--text-muted)',
+              touchAction: 'manipulation',
+            }}>
+            {sub === 'following' ? t('دنبال می‌کنم', 'Following') : t('دنبال‌کنندگانم', 'Followers')}
+            {followSubTab === sub && (
+              <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-14 h-0.5 rounded-full"
+                style={{ background: '#1d9bf0' }} />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div className="flex items-center justify-center h-40">
+          <div className="w-6 h-6 border-2 rounded-full animate-spin"
+            style={{ borderColor: '#1d9bf0', borderTopColor: 'transparent' }} />
+        </div>
+      ) : list.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <Users size={40} style={{ color: 'var(--text-muted)', opacity: 0.2 }} />
+          <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+            {isFollowingTab
+              ? t('هنوز کسی را دنبال نکرده‌اید', "You're not following anyone yet")
+              : t('هنوز کسی شما را دنبال نکرده', 'No followers yet')}
+          </p>
+        </div>
+      ) : (
+        <div>
+          {list.map(user => (
+            <div key={user.id} className="flex items-center gap-3 px-4 py-3"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+              {user.avatar_url
+                ? <img src={user.avatar_url} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="" />
+                : <img src="/icon-192.png" className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="" />
+              }
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                  {user.display_name || user.username}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>@{user.username}</p>
+              </div>
+              <button
+                onClick={() => isFollowingTab ? handleUnfollow(user.id) : handleFollow(user.id)}
+                className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all kw-btn-press flex-shrink-0"
+                style={{
+                  background: isFollowingTab ? 'transparent' : 'var(--accent)',
+                  color: isFollowingTab ? 'var(--text-secondary)' : 'white',
+                  border: isFollowingTab ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                  touchAction: 'manipulation',
+                }}>
+                {isFollowingTab
+                  ? t('دنبال نکردن', 'Unfollow')
+                  : (user.is_following_back ? t('دنبال کردن', 'Follow back') : t('+ دنبال کردن', '+ Follow'))}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── FeedPage (main) ───────────────────────────────────────────────────────────
 export function FeedPage() {
   const { user, profile } = useAuth();
@@ -1492,6 +1600,7 @@ export function FeedPage() {
     { id: 'explore', label: t('کاوش', 'Explore'), icon: Compass },
     { id: 'notifications', label: t('اعلان‌ها', 'Notifications'), icon: Bell, badge: unreadNotifs },
     { id: 'bookmarks', label: t('ذخیره‌شده‌ها', 'Saved'), icon: Bookmark },
+    { id: 'follow', label: t('دنبال‌شدگان', 'Manage Follows'), icon: UserCheck },
   ];
 
   // ─── Post list shared renderer ────────────────────────────────────────────────
@@ -1714,6 +1823,8 @@ export function FeedPage() {
             <Bookmark size={40} style={{ color: 'var(--text-muted)', opacity: 0.2 }} />,
             t('هیچ پستی ذخیره نکرده‌اید', 'No saved posts'),
           )}
+
+          {tab === 'follow' && <FollowManagementTab language={language} t={t} />}
         </div>
 
         {/* Modals */}
@@ -1808,6 +1919,8 @@ export function FeedPage() {
             <Bookmark size={40} style={{ color: 'var(--text-muted)', opacity: 0.2 }} />,
             t('هیچ پستی ذخیره نکرده‌اید', 'No saved posts'),
           )}
+
+          {tab === 'follow' && <FollowManagementTab language={language} t={t} />}
         </div>
       </div>
 

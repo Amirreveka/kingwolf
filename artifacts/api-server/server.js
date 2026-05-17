@@ -199,9 +199,9 @@ app.post('/auth/signup', async (req, res) => {
   const tx = db.transaction(() => {
     db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, email, hash, password);
     db.prepare(`
-      INSERT INTO profiles (id, username, email, display_name, is_approved)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, username, email, username, isApproved ? 1 : 0);
+      INSERT INTO profiles (id, username, email, display_name, avatar_url, is_approved)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, username, email, username, '/icon-192.png', isApproved ? 1 : 0);
 
     // Auto-join the default KingWolf group + channel if they exist
     const defaults = db.prepare(`SELECT id FROM conversations WHERE type IN ('group','channel') AND name = 'KingWolf'`).all();
@@ -1488,6 +1488,57 @@ app.post('/social/follow/:userId', authMiddleware, (req, res) => {
   const followerP = db.prepare('SELECT display_name, username FROM profiles WHERE id=?').get(me);
   sendPushToUser(target, { title: '👤 ' + (followerP?.display_name || followerP?.username || 'Someone'), body: 'شما را دنبال کرد', tag: 'follow', url: '/' });
   return res.json({ following: true });
+});
+
+// My following list (users I follow)
+app.get('/follows/following', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.id, p.username, p.display_name, p.avatar_url, p.bio
+    FROM follows f
+    JOIN profiles p ON p.id = f.followed_id
+    WHERE f.follower_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT 200
+  `).all(req.userId);
+  return res.json({ data: rows });
+});
+
+// My followers list (users who follow me), with is_following_back flag
+app.get('/follows/followers', authMiddleware, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.id, p.username, p.display_name, p.avatar_url, p.bio,
+           CASE WHEN (SELECT 1 FROM follows WHERE follower_id=? AND followed_id=p.id) IS NOT NULL THEN 1 ELSE 0 END AS is_following_back
+    FROM follows f
+    JOIN profiles p ON p.id = f.follower_id
+    WHERE f.followed_id = ?
+    ORDER BY f.created_at DESC
+    LIMIT 200
+  `).all(req.userId, req.userId);
+  return res.json({ data: rows });
+});
+
+// Unfollow a user (POST body: { target_id })
+app.post('/follows/unfollow', authMiddleware, (req, res) => {
+  const { target_id } = req.body || {};
+  if (!target_id) return res.status(400).json({ error: 'target_id required' });
+  db.prepare('DELETE FROM follows WHERE follower_id=? AND followed_id=?').run(req.userId, target_id);
+  return res.json({ ok: true });
+});
+
+// Follow a user (POST body: { target_id })
+app.post('/follows/follow', authMiddleware, (req, res) => {
+  const { target_id } = req.body || {};
+  if (!target_id) return res.status(400).json({ error: 'target_id required' });
+  if (target_id === req.userId) return res.status(400).json({ error: 'cannot follow yourself' });
+  const existing = db.prepare('SELECT 1 FROM follows WHERE follower_id=? AND followed_id=?').get(req.userId, target_id);
+  if (!existing) {
+    db.prepare('INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)').run(req.userId, target_id);
+    try {
+      db.prepare('INSERT INTO notifications (id, user_id, type, actor_id, target_id, target_type) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(nanoid(), target_id, 'follow', req.userId, req.userId, 'profile');
+    } catch (_) {}
+  }
+  return res.json({ ok: true });
 });
 
 // Block / unblock

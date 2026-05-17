@@ -444,6 +444,16 @@ CREATE TABLE IF NOT EXISTS sub_admin_permissions (
   updated_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (admin_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS user_storage_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  file_path TEXT,
+  file_size INTEGER DEFAULT 0,
+  file_type TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_storage_user ON user_storage_log(user_id);
 `);
 
 // Default settings
@@ -452,6 +462,7 @@ const defaults = {
   require_admin_approval: 'true',
   allow_signup: 'true',
   signup_locked: 'false',
+  maintenance_mode: 'false',
 };
 const insertSetting = db.prepare('INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, v);
@@ -509,6 +520,8 @@ const colMigrations = [
   ['conversations', 'creator_id', "TEXT DEFAULT ''"],
   ['conversation_members', 'group_role', "TEXT DEFAULT 'member'"],
   ['conversation_members', 'group_permissions', "TEXT DEFAULT '{}'"],
+  ['profiles', 'storage_quota_bytes', 'INTEGER DEFAULT 2147483648'],  // 2GB default
+  ['profiles', 'storage_used_bytes', 'INTEGER DEFAULT 0'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

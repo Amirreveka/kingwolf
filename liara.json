@@ -1,5 +1,18 @@
 {
-  "app": "kingwolf",
   "platform": "docker",
-  "port": 8000
+  "app": "kingwolf",
+  "port": 3001,
+  "build": {
+    "dockerfile": "Dockerfile.backend"
+  },
+  "disks": [
+    {
+      "name": "kingwolf-data",
+      "mountTo": "/app/data"
+    },
+    {
+      "name": "kingwolf-uploads",
+      "mountTo": "/app/uploads"
+    }
+  ]
 }

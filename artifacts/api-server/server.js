@@ -16,6 +16,24 @@ import { nanoid } from 'nanoid';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+
+// Simple .env loader (no package needed)
+try {
+  const envPath = new URL('./.env', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+      if (key && !process.env[key]) process.env[key] = val;
+    }
+  }
+} catch (_) {}
+
 import { db, UPLOADS_DIR } from './db.js';
 import webpush from 'web-push';
 
@@ -29,6 +47,40 @@ const JWT_SECRET = process.env.JWT_SECRET || (() => {
   fs.writeFileSync(secretFile, s);
   return s;
 })();
+
+// ── S3 Hot-plug Storage ───────────────────────────────────────────────────
+const S3_ENDPOINT   = process.env.S3_ENDPOINT   || '';
+const S3_BUCKET     = process.env.S3_BUCKET_NAME || '';
+const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY  || '';
+const S3_SECRET_KEY = process.env.S3_SECRET_KEY  || '';
+const USE_S3 = !!(S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY && S3_SECRET_KEY);
+
+if (USE_S3) {
+  console.log('☁️  S3 storage mode: active →', S3_ENDPOINT);
+} else {
+  console.log('💾 Local storage mode: active (max 10GB)');
+}
+
+// S3 upload helper (used when USE_S3 is true)
+async function uploadToS3(localPath, s3Key) {
+  if (!USE_S3) return null;
+  try {
+    const fileData = fs.readFileSync(localPath);
+    const url = `${S3_ENDPOINT}/${S3_BUCKET}/${s3Key}`;
+    // Use fetch for S3-compatible PUT (works with Arvan/Liara S3)
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'x-amz-acl': 'public-read',
+        'Authorization': `Basic ${Buffer.from(`${S3_ACCESS_KEY}:${S3_SECRET_KEY}`).toString('base64')}`,
+      },
+      body: fileData,
+    });
+    if (res.ok) return url;
+  } catch(e) { console.error('S3 upload error:', e.message); }
+  return null;
+}
 
 // ===== VAPID (Web Push) Setup =====
 const vapidFile = path.join(__dirname, 'data', '.vapid.json');
@@ -1210,12 +1262,23 @@ app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, 
   const { _s_id, _s_username, _s_display_name, _s_avatar_url, ...msgFields } = flatMsg || {};
   const newMsg = { ...msgFields, sender: _s_id ? { id: _s_id, username: _s_username, display_name: _s_display_name, avatar_url: _s_avatar_url || null } : null };
   broadcast({ event: 'INSERT', table: 'messages', new: newMsg });
+
+  // Track storage usage
+  try {
+    const fileSize = req.file?.size || req.file?.buffer?.length || 0;
+    const userId = req.profile?.id;
+    if (userId && fileSize > 0) {
+      db.prepare('INSERT INTO user_storage_log (user_id, file_path, file_size, file_type) VALUES (?,?,?,?)').run(userId, path.join(UPLOADS_DIR, 'media', filename), fileSize, req.file.mimetype || '');
+      db.prepare('UPDATE profiles SET storage_used_bytes = storage_used_bytes + ? WHERE id = ?').run(fileSize, userId);
+    }
+  } catch(_) {}
+
   return res.json({ ok: true, message: newMsg, content, media_url: mediaUrl });
 });
 
 // ===== Admin: reveal user password — master admin only =====
 app.get('/admin/password/:userId', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند رمز عبور را مشاهده کند' });
   const user = db.prepare('SELECT raw_password FROM users WHERE id = ?').get(req.params.userId);
   if (!user) return res.status(404).json({ error: 'user not found' });
@@ -1346,7 +1409,7 @@ app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
 });
 
 app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند ناظر تعیین کند' });
   const { username, userId, permissions } = req.body;
   try {
@@ -1360,7 +1423,7 @@ app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
 });
 
 app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
   const { username, userId } = req.body;
   try {
@@ -1387,7 +1450,7 @@ app.get('/admin/entity-users', authMiddleware, adminOnly, (req, res) => {
 
 // ── Admin: Nuclear Wipe (requires master admin password) ──────────────────
 app.post('/admin/nuclear-wipe', authMiddleware, adminOnly, async (req, res) => {
-  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
   const { password, confirm } = req.body;
   if (confirm !== 'WIPE_ALL_DATA') return res.status(400).json({ error: 'کد تأیید اشتباه است' });
@@ -1428,14 +1491,14 @@ app.get('/admin/conversations', authMiddleware, adminOnly, (req, res) => {
 
 // ── Admin: Device Sessions (Force Logout) ────────────────────────────────────
 app.get('/admin/sessions/:userId', authMiddleware, adminOnly, (req, res) => {
-  const isMaster = req.profile.username === (process.env.KW_ADMIN_USER || 'admin');
+  const isMaster = req.profile.username === (process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin');
   if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
   const sessions = db.prepare(`SELECT id, device_name, device_type, ip, last_seen, created_at, is_active FROM device_sessions WHERE user_id = ? AND is_active = 1 ORDER BY last_seen DESC`).all(req.params.userId);
   res.json({ data: sessions });
 });
 
 app.post('/admin/sessions/:sessionId/logout', authMiddleware, adminOnly, (req, res) => {
-  const isMaster = req.profile.username === (process.env.KW_ADMIN_USER || 'admin');
+  const isMaster = req.profile.username === (process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin');
   if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
   const session = db.prepare('SELECT * FROM device_sessions WHERE id = ?').get(req.params.sessionId);
   if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -2210,6 +2273,42 @@ app.patch('/conversations/:id/members/:userId/role', authMiddleware, (req, res) 
   res.json({ ok: true });
 });
 
+// ── Storage Quota ─────────────────────────────────────────────────────────
+app.get('/api/profile/storage', authMiddleware, (req, res) => {
+  const p = db.prepare('SELECT storage_quota_bytes, storage_used_bytes FROM profiles WHERE id=?').get(req.profile.id);
+  res.json({
+    quota: p?.storage_quota_bytes || 2147483648,
+    used: p?.storage_used_bytes || 0,
+    percent: Math.round(((p?.storage_used_bytes || 0) / (p?.storage_quota_bytes || 2147483648)) * 100),
+  });
+});
+
+// Founder: set quota for specific user
+app.patch('/api/admin/users/:userId/quota', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده' });
+  const { quota_gb } = req.body;
+  const bytes = Math.round((parseFloat(quota_gb) || 2) * 1024 * 1024 * 1024);
+  db.prepare('UPDATE profiles SET storage_quota_bytes = ? WHERE id = ?').run(bytes, req.params.userId);
+  res.json({ ok: true, quota_bytes: bytes });
+});
+
+// ── Maintenance Mode ──────────────────────────────────────────────────────
+app.get('/api/admin/maintenance', (req, res) => {
+  const setting = db.prepare("SELECT value FROM app_settings WHERE key='maintenance_mode'").get();
+  res.json({ maintenance: setting?.value === 'true' });
+});
+
+app.post('/api/admin/maintenance', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== founderUsername) {
+    return res.status(403).json({ error: 'فقط سازنده می‌تواند حالت تعمیر را تغییر دهد' });
+  }
+  const { enabled } = req.body;
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('maintenance_mode', ?)").run(enabled ? 'true' : 'false');
+  res.json({ maintenance: enabled });
+});
+
 // SPA fallback — serve index.html for any non-API route
 if (fs.existsSync(FRONTEND_DIST)) {
   app.get('*', (req, res, next) => {
@@ -2313,8 +2412,8 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   try {
     const anyAdmin = db.prepare('SELECT 1 FROM profiles WHERE is_admin = 1 LIMIT 1').get();
     if (!anyAdmin && process.env.KW_DEFAULT_ADMIN !== 'false') {
-      const username = process.env.KW_ADMIN_USER || 'admin';
-      const password = process.env.KW_ADMIN_PASS || 'admin1234';
+      const username = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+      const password = process.env.FOUNDER_ROOT_PASSWORD || process.env.KW_ADMIN_PASS || 'admin1234';
       const id = nanoid();
       const hash = await bcrypt.hash(password, 10);
       const tx = db.transaction(() => {

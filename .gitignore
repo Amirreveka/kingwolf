@@ -15,10 +15,13 @@ artifacts/api-server/uploads/media/*
 !artifacts/api-server/uploads/avatars/.gitkeep
 !artifacts/api-server/uploads/media/.gitkeep
 
-# Environment
+# Environment secrets
 .env
 .env.local
 .env.production
+artifacts/api-server/.env
+artifacts/api-server/data/
+artifacts/api-server/uploads/
 
 # OS
 .DS_Store

@@ -522,7 +522,7 @@ export function MessengerLayout() {
           </div>
         )}
 
-        <div key={page} className="flex-1 flex flex-col min-w-0 overflow-hidden kw-page-in">
+        <div key={page} className="flex-1 flex flex-col min-w-0 overflow-hidden kw-page-in kw-page-enter">
           {page === 'messages' ? (
             <ChatWindow
               conversation={selectedConv}
@@ -678,7 +678,7 @@ export function MessengerLayout() {
               setPage(item.id);
               if (item.id !== 'messages') setShowChatOnMobile(false);
             }}
-            className="flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors"
+            className={`flex-1 py-2 flex flex-col items-center gap-0.5 transition-colors relative${page === item.id ? ' kw-nav-active' : ''}`}
             style={{
               color: page === item.id ? 'var(--accent)' : 'var(--text-muted)',
               touchAction: 'manipulation',
@@ -693,6 +693,10 @@ export function MessengerLayout() {
               <TwitterBird size={page === item.id ? 22 : 20} />
             )}
             <span className="text-[10px] font-medium">{item.label}</span>
+            {page === item.id && (
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-purple-400 opacity-90"
+                    style={{ filter: 'drop-shadow(0 0 4px #a855f7)' }} />
+            )}
           </button>
         ))}
       </div>

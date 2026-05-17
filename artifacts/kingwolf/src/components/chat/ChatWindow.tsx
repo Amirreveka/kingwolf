@@ -891,7 +891,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     : <Paperclip size={26} />}
                 </button>
               </div>
-            <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
+            <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl focus-within:ring-1 focus-within:ring-purple-500/40 transition-all duration-200" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
               <div className="relative flex-shrink-0">
                 <button onClick={e => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
                   className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"

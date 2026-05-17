@@ -431,7 +431,7 @@ export function StoriesPage() {
                     style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', touchAction: 'manipulation' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-primary)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
-                    <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
+                    <div className={`relative flex-shrink-0${!allViewed ? ' kw-story-ring' : ''}`} style={{ width: 52, height: 52 }}>
                       <div className="w-full h-full rounded-full overflow-hidden" style={{ border: '2px solid var(--bg-primary)' }}>
                         <StoryAvatar src={group.avatar_url} name={group.display_name || group.username} size={52} />
                       </div>
@@ -724,7 +724,7 @@ export function StoriesPage() {
       {/* Feature 3: modal overlay — fixed inset-0 z-[999], opens/closes via local state */}
       {viewing && currentGroup && currentStory && (
         <div
-          className="fixed inset-0 z-[999] flex flex-col"
+          className="fixed inset-0 z-[999] flex flex-col kw-fade-in"
           style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(12px)', touchAction: 'none' }}
           onTouchStart={e => { viewerSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
           onTouchEnd={e => {
@@ -792,7 +792,7 @@ export function StoriesPage() {
           </div>
 
           {/* Media */}
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center kw-page-enter">
             {dualMode && currentGroup.stories.length > 1 ? (
               <div className="flex h-full w-full">
                 {/* Left story — current */}

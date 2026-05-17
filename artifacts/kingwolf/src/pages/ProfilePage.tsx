@@ -148,11 +148,11 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
   const avatarColor = `hsl(${(initials.charCodeAt(0) * 17 + 100) % 360},55%,42%)`;
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden" style={{ background: 'var(--bg-primary)' }} dir={fa ? 'rtl' : 'ltr'}>
+    <div className="flex-1 flex flex-col overflow-hidden kw-cyber-bg" style={{ background: 'var(--bg-primary)' }} dir={fa ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div
-        className="flex-shrink-0 flex items-center gap-3 px-4 py-3"
-        style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}
+        className="flex-shrink-0 flex items-center gap-3 px-4 py-3 kw-header-accent"
+        style={{ background: 'var(--bg-card)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}
       >
         <button onClick={onBack} className="p-1.5 rounded-xl" style={{ color: 'var(--text-secondary)' }}>
           <ArrowRight size={20} />
@@ -176,7 +176,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
         <div className="px-4 pb-4 relative" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}>
           {/* Avatar */}
           <div className="flex items-end justify-between" style={{ marginTop: -44 }}>
-            <div className="border-4 rounded-full flex-shrink-0"
+            <div className={`border-4 rounded-full flex-shrink-0${isOwn ? ' kw-story-ring' : ''}`}
               style={{ borderColor: 'var(--bg-card)', background: avatarColor }}>
               <Avatar
                 src={effectiveProfile.avatar_url}

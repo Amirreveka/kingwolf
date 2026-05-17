@@ -10,7 +10,7 @@ import { FeedPage } from './FeedPage';
 import { SettingsPage } from './SettingsPage';
 import { Conversation } from '../types';
 import { supabase, onSignal, offSignal, sendSignal } from '../lib/supabase';
-import { WolfLogo } from '../components/ui/WolfLogo';
+import { WolfLogo, KingWolfBrand } from '../components/ui/WolfLogo';
 import { Avatar } from '../components/Avatar';
 import { CallsPage } from './CallsPage';
 import { StoriesPage } from './StoriesPage';
@@ -402,7 +402,7 @@ export function MessengerLayout() {
         style={{ background: 'var(--bg-card)', borderLeft: '1px solid var(--border-color)' }}
       >
         <div className="mb-2">
-          <WolfLogo size={32} />
+          <WolfLogo size={32} glow />
         </div>
 
         <div className="flex-1 flex flex-col gap-1 w-full px-2">
@@ -493,14 +493,14 @@ export function MessengerLayout() {
         {/* Mobile header for non-messages pages */}
         {page !== 'messages' && page !== 'calls' && page !== 'contacts' && page !== 'settings' && (
           <div
-            className="flex-shrink-0 flex items-center gap-3 px-4 py-3 md:hidden"
+            className="flex-shrink-0 flex items-center gap-3 px-4 py-3 md:hidden kw-header-accent"
             style={{
               background: 'var(--bg-card)',
               borderBottom: '1px solid var(--border-color)',
               paddingTop: 'max(12px, env(safe-area-inset-top))',
             }}
           >
-            <WolfLogo size={24} />
+            <KingWolfBrand size="sm" showName={false} />
             <h1 className="font-bold flex-1" style={{ color: 'var(--text-primary)' }}>
               {page === 'feed' ? (fa ? 'توییت' : 'Tweet') : page === 'stories' ? (fa ? 'استوری' : 'Stories') : (fa ? 'تنظیمات' : 'Settings')}
             </h1>

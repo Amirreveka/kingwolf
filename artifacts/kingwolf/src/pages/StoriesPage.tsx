@@ -369,8 +369,8 @@ export function StoriesPage() {
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-primary)' }} dir={fa ? 'rtl' : 'ltr'}>
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 kw-header-accent"
+        style={{ borderBottom: '1px solid rgba(168,85,247,0.15)', background: 'var(--bg-card)' }}>
         <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{fa ? 'استوری‌ها' : 'Stories'}</span>
         <button
           onClick={() => setShowCreator(true)}

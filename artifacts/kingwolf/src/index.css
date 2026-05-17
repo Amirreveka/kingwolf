@@ -1307,3 +1307,43 @@ textarea:focus {
   background: rgba(168,85,247,.3);
   color: inherit;
 }
+
+/* ── Global neon top accent line on all major section headers ─────────────── */
+.kw-header-accent {
+  position: relative;
+}
+.kw-header-accent::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168,85,247,.5), rgba(6,182,212,.3), transparent);
+  will-change: opacity;
+  pointer-events: none;
+}
+
+/* ── Wolf brand gradient text ─────────────────────────────────────────────── */
+.kw-brand-text {
+  background: linear-gradient(135deg, #a855f7, #06b6d4);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 6px rgba(168,85,247,.3));
+}
+
+/* ── Premium avatar ring for current user ────────────────────────────────── */
+.kw-avatar-own {
+  position: relative;
+}
+.kw-avatar-own::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: conic-gradient(#a855f7, #06b6d4, #f59e0b, #a855f7);
+  animation: kw-breathe-subtle 2.5s ease-in-out infinite;
+  will-change: opacity;
+  z-index: -1;
+}

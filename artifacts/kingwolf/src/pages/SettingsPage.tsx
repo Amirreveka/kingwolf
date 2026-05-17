@@ -360,12 +360,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         />
       )}
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}>
+      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-4 kw-header-accent" style={{ background: 'var(--bg-card)', borderBottom: '1px solid rgba(168,85,247,0.15)' }}>
         {section !== 'main' ? <Back /> : (
           <button onClick={onClose} className="p-1 rounded-xl" style={{ color: 'var(--text-secondary)' }}>
             <X size={20} />
           </button>
         )}
+        {section === 'main' && <WolfLogo size={28} glow />}
         <h2 className="font-bold text-base flex-1" style={{ color: 'var(--text-primary)' }}>
           {section === 'main' ? t('تنظیمات', 'Settings') :
            section === 'about' ? t('درباره ما', 'About Us') :

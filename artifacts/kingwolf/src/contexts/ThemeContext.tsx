@@ -153,6 +153,15 @@ const AUTO_EN: Record<string, string> = {
   "آپدیت": "Update",
   "اپ": "App",
   "KingWolf Messenger": "KingWolf Messenger",
+  "ایمیل": "Email",
+  "نام کاربری، ایمیل یا تلفن": "Username, email, or phone",
+  "شماره تلفن (مثلاً ۰۹۱۲۳۴۵۶۷۸۹)": "Phone number (e.g. 09123456789)",
+  "یا": "or",
+  "ورود با گوگل": "Sign in with Google",
+  "ایمیل و شماره تلفن الزامی است": "Email and phone are required",
+  "برای فعال‌سازی ورود با گوگل، Client ID را در تنظیمات سرور وارد کنید": "To enable Google sign-in, configure Google Client ID in server settings",
+  "ورود با گوگل ناموفق بود": "Google sign-in failed",
+  "این ایمیل قبلاً ثبت شده است": "This email is already registered",
 };
 
 export type { Theme };

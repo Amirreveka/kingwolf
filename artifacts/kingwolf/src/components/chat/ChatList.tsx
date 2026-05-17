@@ -230,11 +230,20 @@ function ConvAvatar({ src, initials, type }: { src?: string | null; initials: st
 
 type Tab = 'direct' | 'groups' | 'channels';
 
+const FOLDERS = [
+  { id: 'all',      labelFa: 'همه',          label: 'All',      icon: '💬' },
+  { id: 'direct',   labelFa: 'پیام‌ها',      label: 'Direct',   icon: '👤' },
+  { id: 'groups',   labelFa: 'گروه‌ها',      label: 'Groups',   icon: '👥' },
+  { id: 'channels', labelFa: 'کانال‌ها',     label: 'Channels', icon: '📢' },
+  { id: 'unread',   labelFa: 'خوانده‌نشده',  label: 'Unread',   icon: '🔔' },
+];
+
 export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, onCreateChannel, onSavedMessages, onOpenStories }: ChatListProps) {
   const { user } = useAuth();
   const { language, t } = useTheme();
   const fa = language === 'fa';
   const [tab, setTab] = useState<Tab>('direct');
+  const [activeFolder, setActiveFolder] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalResults, setGlobalResults] = useState<{ users: any[]; groups: any[]; channels: any[] }>({ users: [], groups: [], channels: [] });
@@ -357,16 +366,29 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
     { id: 'channels' as Tab, label: t('کانال‌ها', 'Channels'), icon: Radio },
   ];
 
-  const filtered = useMemo(() => conversations.filter((c) => {
-    if (c.name === '__saved__') return false; // shown as pinned button, not in list
-    const matchTab = tab === 'direct'
-      ? c.type === 'direct'
-      : tab === 'groups' ? c.type === 'group'
-      : c.type === 'channel';
-    const name = c.type === 'direct' ? (c.other_user?.display_name || c.other_user?.username || c.name) : c.name;
-    const matchSearch = !search || name.toLowerCase().includes(search.toLowerCase());
-    return matchTab && matchSearch;
-  }), [conversations, tab, search]);
+  const filtered = useMemo(() => {
+    let list = conversations.filter((c) => {
+      if (c.name === '__saved__') return false; // shown as pinned button, not in list
+      // Folder filter overrides tab filter when not 'all'
+      if (activeFolder === 'direct')   return c.type === 'direct';
+      if (activeFolder === 'groups')   return c.type === 'group';
+      if (activeFolder === 'channels') return c.type === 'channel';
+      if (activeFolder === 'unread')   return ((c as any).unread_count || 0) > 0;
+      // activeFolder === 'all': use tab filter
+      const matchTab = tab === 'direct'
+        ? c.type === 'direct'
+        : tab === 'groups' ? c.type === 'group'
+        : c.type === 'channel';
+      return matchTab;
+    });
+    if (search) {
+      list = list.filter(c => {
+        const name = c.type === 'direct' ? (c.other_user?.display_name || c.other_user?.username || c.name) : c.name;
+        return name.toLowerCase().includes(search.toLowerCase());
+      });
+    }
+    return list;
+  }, [conversations, tab, search, activeFolder]);
 
   // Item 4: require 80% of username typed before showing results
   function apply80pFilter(profiles: any[], q: string) {
@@ -474,6 +496,34 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             <Plus size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
         </div>
+      </div>
+
+      {/* ── Chat Folders ─────────────────────────────────────────────── */}
+      <div
+        className="flex gap-1.5 px-3 py-2 overflow-x-auto no-scrollbar border-b border-[var(--border)]"
+        style={{ scrollbarWidth: 'none', borderColor: 'var(--border-color)' }}
+      >
+        {FOLDERS.map(folder => (
+          <button
+            key={folder.id}
+            onClick={() => setActiveFolder(folder.id)}
+            className={`flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+              activeFolder === folder.id
+                ? 'text-white'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+            style={activeFolder === folder.id ? {
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.4))',
+            } : {
+              background: 'rgba(168,85,247,0.06)',
+              border: '1px solid rgba(168,85,247,0.12)',
+            }}
+          >
+            <span>{folder.icon}</span>
+            <span>{fa ? folder.labelFa : folder.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* ── Telegram-style Stories Bar (above search, below title) ── */}

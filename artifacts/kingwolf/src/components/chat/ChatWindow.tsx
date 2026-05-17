@@ -7,6 +7,8 @@ import { Conversation, Message, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { WolfLogo } from '../ui/WolfLogo';
 import { Avatar } from '../Avatar';
+import { MediaViewer } from '../MediaViewer';
+import { ProfileOverlay } from '../ProfileOverlay';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -98,6 +100,37 @@ function renderContent(text: string): React.ReactNode {
   return <>{parts}</>;
 }
 
+interface LinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  domain?: string;
+}
+
+function extractUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s]+/);
+  return match ? match[0] : null;
+}
+
+function LinkPreviewCard({ url }: { url: string }) {
+  const domain = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+       className="flex items-center gap-3 mt-2 p-2.5 rounded-xl border hover:border-purple-500/30 transition-all kw-card"
+       style={{ textDecoration: 'none', maxWidth: 280, borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+      <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-sm"
+           style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.2), rgba(6,182,212,0.1))' }}>
+        🔗
+      </div>
+      <div className="min-w-0">
+        <div className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{domain}</div>
+        <div className="text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>{url.length > 40 ? url.slice(0, 40) + '...' : url}</div>
+      </div>
+    </a>
+  );
+}
+
 export function ChatWindow({ conversation, conversations, onBack, onSelectConv, onStartCall }: ChatWindowProps) {
   const { user, profile } = useAuth();
   const { language } = useTheme();
@@ -107,6 +140,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [suggestion, setSuggestion] = useState<{ type: 'hash' | 'mention'; query: string; items: string[] } | null>(null);
+  const [recentHashtags] = useState(['کینگ‌وولف', 'ایران', 'تکنولوژی', 'موسیقی', 'ورزش']);
   const [emojiCat, setEmojiCat] = useState('😀');
   const [contextMenu, setContextMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [showInfo, setShowInfo] = useState(false);
@@ -140,9 +175,13 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [forwardAnon, setForwardAnon] = useState(false);
+  const [forwardMenu, setForwardMenu] = useState<{ msg: Message; x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [showUserProfile, setShowUserProfile] = useState<Profile | null>(null);
+  const [mediaViewer, setMediaViewer] = useState<{ src: string; type: 'image' | 'video'; caption?: string } | null>(null);
+  const [profileOverlay, setProfileOverlay] = useState<{ userId: string; username: string; displayName: string; avatarUrl?: string; bio?: string } | null>(null);
 
   const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState('');
@@ -414,9 +453,32 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
     });
   }
 
+  function handleInputChange(val: string) {
+    setText(val);
+    autoResize();
+    // Detect # or @ trigger at end of current word
+    const match = val.match(/[#@](\w*)$/);
+    if (match) {
+      const type = match[0].startsWith('#') ? 'hash' : 'mention';
+      const query = match[1].toLowerCase();
+      if (type === 'hash') {
+        const items = recentHashtags.filter(h => h.toLowerCase().includes(query)).slice(0, 5);
+        setSuggestion({ type: 'hash', query, items });
+      } else {
+        const items = members
+          .map((m: any) => m.username || '')
+          .filter((u: string) => u && u.toLowerCase().includes(query))
+          .slice(0, 5);
+        setSuggestion({ type: 'mention', query, items });
+      }
+    } else {
+      setSuggestion(null);
+    }
+  }
+
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    if (e.key === 'Escape') { setReplyTo(null); setEditingId(null); setEditText(''); setText(''); }
+    if (e.key === 'Escape') { setReplyTo(null); setEditingId(null); setEditText(''); setText(''); setSuggestion(null); }
   }
 
   function autoResize() {
@@ -444,17 +506,20 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
 
   async function handleForward(targetConvId: string) {
     if (!forwardMsg) return;
-    await sendMessage(forwardMsg.content, { forwardFromId: forwardMsg.id });
+    // forwardAnon = true → strip author attribution
+    const content = forwardMsg.content;
+    await sendMessage(content, { forwardFromId: forwardAnon ? undefined : forwardMsg.id });
     // Also send to target if different
     if (targetConvId !== conversation?.id) {
       const token = localStorage.getItem('kingwolf_token');
       await fetch(`${API_BASE}/messages/forward`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ messageId: forwardMsg.id, targetConversationId: targetConvId }),
+        body: JSON.stringify({ messageId: forwardMsg.id, targetConversationId: targetConvId, anonymous: forwardAnon }),
       });
     }
     setForwardMsg(null);
+    setForwardAnon(false);
   }
 
   async function copyText(text: string) {
@@ -749,10 +814,13 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     )}
                     {/* Media content */}
                     {msg.media_url && msg.type === 'image' && (
-                      <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-pointer block" onClick={() => window.open(msg.media_url!, '_blank')} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+                      <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-zoom-in block"
+                           onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'image', caption: msg.content || undefined }); }}
+                           onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
                     )}
                     {msg.media_url && msg.type === 'video' && (
-                      <video controls className="rounded-xl max-w-full max-h-64 mb-1 block" style={{ maxWidth: 280 }}>
+                      <video controls className="rounded-xl max-w-full max-h-64 mb-1 block cursor-pointer" style={{ maxWidth: 280 }}
+                             onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'video', caption: msg.content || undefined }); }}>
                         <source src={msg.media_url} />
                       </video>
                     )}
@@ -862,7 +930,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
           const actions = [
             { icon: Reply, label: fa ? 'ریپلای' : 'Reply', color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
             ...(contextMenu.msg.sender_id === user?.id && contextMenu.msg.type === 'text' ? [{ icon: Edit2, label: fa ? 'ویرایش' : 'Edit', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
-            { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMsg(contextMenu.msg); setContextMenu(null); } },
+            { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMenu({ msg: contextMenu.msg, x: contextMenu.x, y: contextMenu.y }); setContextMenu(null); } },
             { icon: Copy, label: fa ? 'کپی متن' : 'Copy', color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
             ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
           ];
@@ -982,7 +1050,31 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     : <Paperclip size={26} />}
                 </button>
               </div>
-            <div className="flex items-end gap-2 flex-1 p-2 rounded-2xl focus-within:ring-1 focus-within:ring-purple-500/40 transition-all duration-200" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
+            <div className="relative flex items-end gap-2 flex-1 p-2 rounded-2xl focus-within:ring-1 focus-within:ring-purple-500/40 transition-all duration-200" style={{ background: 'var(--bg-input)', border: '1px solid var(--border-input)' }}>
+              {/* #/@ Smart Suggestion Dropdown */}
+              {suggestion && suggestion.items.length > 0 && (
+                <div className="absolute bottom-full left-0 right-0 mb-1 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] overflow-hidden shadow-lg z-50 kw-fade-in"
+                     style={{ background: 'var(--bg-card)' }}>
+                  {suggestion.items.map((item, i) => (
+                    <button
+                      key={i}
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        const newMsg = text.replace(/[#@]\w*$/, (suggestion.type === 'hash' ? '#' : '@') + item + ' ');
+                        setText(newMsg);
+                        setSuggestion(null);
+                        setTimeout(() => textareaRef.current?.focus(), 0);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors text-right"
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <span className="text-purple-400">{suggestion.type === 'hash' ? '#' : '@'}</span>
+                      <span style={{ color: 'var(--text-primary)' }}>{item}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="relative flex-shrink-0">
                 <button onClick={e => { e.stopPropagation(); setShowEmoji(!showEmoji); }}
                   className="w-8 h-8 flex items-center justify-center rounded-xl mb-0.5"
@@ -1054,7 +1146,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
               <textarea
                 ref={textareaRef}
                 value={text}
-                onChange={e => { setText(e.target.value); autoResize(); }}
+                onChange={e => handleInputChange(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder={editingId ? (fa ? 'ویرایش پیام...' : 'Edit message...') : conversation.name === '__saved__' ? (fa ? 'یادداشت بنویسید...' : 'Write a note...') : (fa ? 'پیام بنویسید...' : 'Write a message...')}
                 rows={1}

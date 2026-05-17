@@ -228,8 +228,6 @@ function ConvAvatar({ src, initials, type }: { src?: string | null; initials: st
   );
 }
 
-type Tab = 'direct' | 'groups' | 'channels';
-
 const FOLDERS = [
   { id: 'all',      labelFa: 'همه',          label: 'All',      icon: '💬' },
   { id: 'direct',   labelFa: 'پیام‌ها',      label: 'Direct',   icon: '👤' },
@@ -242,7 +240,6 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
   const { user } = useAuth();
   const { language, t } = useTheme();
   const fa = language === 'fa';
-  const [tab, setTab] = useState<Tab>('direct');
   const [activeFolder, setActiveFolder] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
@@ -357,14 +354,8 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
     }
   }, [deletePending?.countdown]);
 
-  // Reset visible count when tab or search changes
-  useEffect(() => { setVisibleCount(30); }, [tab, search]);
+  useEffect(() => { setVisibleCount(30); }, [search, activeFolder]);
 
-  const tabs = [
-    { id: 'direct' as Tab, label: t('شخصی', 'Direct'), icon: MessageSquare },
-    { id: 'groups' as Tab, label: t('گروه‌ها', 'Groups'), icon: Users },
-    { id: 'channels' as Tab, label: t('کانال‌ها', 'Channels'), icon: Radio },
-  ];
 
   const filtered = useMemo(() => {
     let list = conversations.filter((c) => {
@@ -374,12 +365,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
       if (activeFolder === 'groups')   return c.type === 'group';
       if (activeFolder === 'channels') return c.type === 'channel';
       if (activeFolder === 'unread')   return ((c as any).unread_count || 0) > 0;
-      // activeFolder === 'all': use tab filter
-      const matchTab = tab === 'direct'
-        ? c.type === 'direct'
-        : tab === 'groups' ? c.type === 'group'
-        : c.type === 'channel';
-      return matchTab;
+      return true;
     });
     if (search) {
       list = list.filter(c => {
@@ -388,7 +374,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
       });
     }
     return list;
-  }, [conversations, tab, search, activeFolder]);
+  }, [conversations, search, activeFolder]);
 
   // Item 4: require 80% of username typed before showing results
   function apply80pFilter(profiles: any[], q: string) {
@@ -611,28 +597,8 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
         {!globalSearch && <div className="mb-2" />}
       </div>
 
-      <div className="px-3 pb-2 flex-shrink-0">
-        {/* Tabs */}
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-input)' }}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex-1 py-1.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-all"
-              style={{
-                background: tab === t.id ? 'var(--accent)' : 'transparent',
-                color: tab === t.id ? 'white' : 'var(--text-muted)',
-              }}
-            >
-              <t.icon size={12} />
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Saved Messages (only in direct tab) */}
-      {tab === 'direct' && (
+      {/* Saved Messages */}
+      {(activeFolder === 'all' || activeFolder === 'direct') && (
         <button
           onClick={onSavedMessages}
           className="mx-3 mb-1 px-3 py-2.5 rounded-xl flex items-center gap-3 transition-colors"
@@ -652,17 +618,15 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
       <div className="flex-1 overflow-y-auto px-2 space-y-0.5 chat-list-scroll">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            {tab === 'direct' && <MessageSquare size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} />}
-            {tab === 'groups' && <Users size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} />}
-            {tab === 'channels' && <Radio size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} />}
+            {activeFolder === 'channels' ? <Radio size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} /> : activeFolder === 'groups' ? <Users size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} /> : <MessageSquare size={32} className="mb-3 opacity-30" style={{ color: 'var(--text-muted)' }} />}
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-              {tab === 'direct' ? t('هنوز مکالمه‌ای ندارید', 'No conversations yet') : tab === 'groups' ? t('عضو گروهی نیستید', 'Not in any group') : t('کانالی ندارید', 'No channels')}
+              {activeFolder === 'groups' ? t('عضو گروهی نیستید', 'Not in any group') : activeFolder === 'channels' ? t('کانالی ندارید', 'No channels') : t('هنوز مکالمه‌ای ندارید', 'No conversations yet')}
             </p>
             <button
-              onClick={() => setModal(tab === 'direct' ? 'newChat' : tab === 'groups' ? 'newGroup' : 'newChannel')}
+              onClick={() => setModal(activeFolder === 'groups' ? 'newGroup' : activeFolder === 'channels' ? 'newChannel' : 'newChat')}
               className="mt-3 text-xs text-blue-400 hover:text-blue-300"
             >
-              {tab === 'direct' ? t('+ شروع مکالمه', '+ New Chat') : tab === 'groups' ? t('+ ساخت گروه', '+ New Group') : t('+ ساخت کانال', '+ New Channel')}
+              {activeFolder === 'groups' ? t('+ ساخت گروه', '+ New Group') : activeFolder === 'channels' ? t('+ ساخت کانال', '+ New Channel') : t('+ شروع مکالمه', '+ New Chat')}
             </button>
           </div>
         ) : (

@@ -1098,7 +1098,7 @@ export function AdminPanel() {
   ];
 
   return (
-    <div className="min-h-screen flex kw-cyber-bg" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
+    <div className="h-screen flex kw-cyber-bg overflow-hidden" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
       {/* Sidebar — desktop only */}
       <div className="hidden md:flex w-64 flex-shrink-0 flex-col relative border-r border-purple-500/20" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)', boxShadow: 'inset -1px 0 20px rgba(168,85,247,0.05)', willChange: 'transform' }}>
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)' }} />
@@ -1383,7 +1383,7 @@ export function AdminPanel() {
                           }
                         </button>
 
-                        {isMasterAdmin && (
+                        {isOwner && (
                           <button
                             onClick={e => revealPassword(u, e)}
                             className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"

@@ -40,6 +40,7 @@ interface Post {
   is_deleted: number; is_pinned: number;
   likes_count: number; reposts_count: number; comments_count: number;
   bookmarks_count: number; views_count: number;
+  howls_count?: number;
   hashtags: string[]; mentions: string[]; visibility: string;
   created_at: string; updated_at: string;
   author?: { id: string; username: string; display_name: string; avatar_url: string; bio?: string; is_admin?: boolean };
@@ -494,13 +495,13 @@ function ReportModal({ targetType, targetId, onClose, t }: {
 
 // ─── PostCard ──────────────────────────────────────────────────────────────────
 function PostCard({
-  post, liked, bookmarked, following,
+  post, liked, bookmarked, following, howled,
   onLike, onBookmark, onReply, onRepost, onQuote, onFollow, onDelete, onPin,
-  onProfileClick, onReport, onBlock,
+  onHowl, onProfileClick, onReport, onBlock,
   isOwn, isAdmin, language, t,
 }: {
-  post: Post; liked: boolean; bookmarked: boolean; following: boolean;
-  onLike: () => void; onBookmark: () => void;
+  post: Post; liked: boolean; bookmarked: boolean; following: boolean; howled: boolean;
+  onLike: () => void; onBookmark: () => void; onHowl: () => void;
   onReply: () => void; onRepost: () => void; onQuote: () => void;
   onFollow: (id: string) => void; onDelete: () => void; onPin: () => void;
   onProfileClick: (userId: string) => void; onReport: () => void; onBlock: () => void;
@@ -640,15 +641,21 @@ function PostCard({
               )}
             </div>
 
-            {/* Like */}
-            <ActionBtn
-              onClick={onLike}
-              icon={<Heart size={17} fill={liked ? 'currentColor' : 'none'} />}
-              count={post.likes_count}
-              hoverColor="rgba(244,63,94,0.1)"
-              activeColor="#f43f5e"
-              active={liked}
-            />
+            {/* Howl */}
+            <button
+              onClick={e => { e.stopPropagation(); onHowl(); }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm transition-all duration-200 ${
+                howled
+                  ? 'text-purple-400'
+                  : 'text-gray-400 hover:text-purple-400'
+              }`}
+              style={howled ? { filter: 'drop-shadow(0 0 8px #a855f7)' } : undefined}
+            >
+              <span className={`text-base transition-transform duration-200 ${howled ? 'scale-125' : ''}`}>🐺</span>
+              {(post.howls_count || 0) > 0 && (
+                <span style={{ fontSize: 13 }}>{fmtN(post.howls_count || 0)}</span>
+              )}
+            </button>
 
             {/* Bookmark */}
             <ActionBtn
@@ -1482,6 +1489,7 @@ export function FeedPage() {
   const [followingPosts, setFollowingPosts] = useState<Post[]>([]);
   const [liked, setLiked] = useState<Set<string>>(new Set());
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
+  const [howledPosts, setHowledPosts] = useState<Set<string>>(new Set());
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [bookmarkPosts, setBookmarkPosts] = useState<Post[]>([]);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -1508,6 +1516,11 @@ export function FeedPage() {
         if (myFollows) setFollowing(new Set((myFollows as any[]).map((f: any) => f.followed_id)));
         const nRes = await apiGet('/notifications');
         setUnreadNotifs(nRes.unread || 0);
+        // Load howled posts
+        if (allPosts.length) {
+          const howledData = await apiGet(`/feed/howled?postIds=${allPosts.map((p: any) => p.id).join(',')}`);
+          if (Array.isArray(howledData)) setHowledPosts(new Set(howledData));
+        }
       }
       setLoading(false);
     })();
@@ -1553,6 +1566,30 @@ export function FeedPage() {
     if (wasBm) setBookmarkPosts(p => p.filter(x => x.id !== postId));
     await apiPost(`/social/bookmark/${postId}`);
   }, [user, bookmarked]);
+
+  const howlPost = useCallback(async (postId: string) => {
+    if (!user) return;
+    const wasHowled = howledPosts.has(postId);
+    setHowledPosts(prev => {
+      const next = new Set(prev);
+      wasHowled ? next.delete(postId) : next.add(postId);
+      return next;
+    });
+    // Optimistic update
+    setPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, howls_count: (p.howls_count || 0) + (wasHowled ? -1 : 1) }
+      : p
+    ));
+    setFollowingPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, howls_count: (p.howls_count || 0) + (wasHowled ? -1 : 1) }
+      : p
+    ));
+    setBookmarkPosts(prev => prev.map(p => p.id === postId
+      ? { ...p, howls_count: (p.howls_count || 0) + (wasHowled ? -1 : 1) }
+      : p
+    ));
+    await apiPost(`/feed/howl/${postId}`);
+  }, [user, howledPosts]);
 
   const doRepost = useCallback(async (post: Post) => {
     if (!user) return;
@@ -1630,8 +1667,10 @@ export function FeedPage() {
         : post;
       return (<PostCard key={post.id} post={displayPost}
         liked={liked.has(post.id)} bookmarked={bookmarked.has(post.id)} following={following.has(post.author_id)}
+        howled={howledPosts.has(post.id)}
         onLike={() => toggleLike(post.id)}
         onBookmark={() => toggleBookmark(post.id)}
+        onHowl={() => howlPost(post.id)}
         onReply={() => setReplyTarget(post)}
         onRepost={() => doRepost(post)}
         onQuote={() => setQuoteTarget(post)}

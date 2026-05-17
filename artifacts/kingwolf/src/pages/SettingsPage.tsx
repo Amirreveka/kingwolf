@@ -177,6 +177,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [notifCalls, setNotifCalls] = useState(profile?.settings?.notification_calls ?? true);
   const [notifShowName, setNotifShowName] = useState(profile?.settings?.notification_show_name ?? true);
 
+  // Privacy state
+  const [stealthMode, setStealthMode] = useState(false);
+
   // Devices state
   const [sessionInfo, setSessionInfo] = useState<{ ip: string; device_name: string; user_agent: string; created_at: string | null } | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -190,6 +193,27 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
       setBirthday((profile as any).birthday || '');
     }
   }, [profile]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('kingwolf_token');
+    if (!token) return;
+    fetch('/api/profile/stealth', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => setStealthMode(!!d?.stealth_mode))
+      .catch(() => {});
+  }, []);
+
+  async function toggleStealth(val: boolean) {
+    setStealthMode(val);
+    const token = localStorage.getItem('kingwolf_token');
+    try {
+      await fetch('/api/profile/stealth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ enabled: val }),
+      });
+    } catch {}
+  }
 
   function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -921,6 +945,47 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <Shield size={32} className="mx-auto mb-3 text-blue-400" />
               <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('حریم خصوصی شما محافظت می‌شود', 'Your privacy is protected')}</p>
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{t('اطلاعات شما کاملاً رمزنگاری شده و در اختیار هیچ شخص ثالثی قرار نمی‌گیرد.', 'Your data is fully encrypted and never shared with third parties.')}</p>
+            </div>
+
+            {/* Stealth Mode toggle */}
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{
+                background: 'var(--bg-card)',
+                border: stealthMode ? '1px solid rgba(168,85,247,0.4)' : '1px solid var(--border-color)',
+                boxShadow: stealthMode ? '0 0 14px rgba(168,85,247,0.18)' : 'none',
+                transition: 'box-shadow 0.3s, border-color 0.3s',
+              }}
+            >
+              <div className="flex items-center justify-between py-3.5 px-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: stealthMode ? 'rgba(168,85,247,0.2)' : 'rgba(100,116,139,0.15)',
+                      transition: 'background 0.3s',
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>👻</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-white">{t('حالت مخفی', 'Stealth Mode')}</span>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {t('پنهان کردن وضعیت آنلاین و خواندن پیام‌ها', 'Hide online status & read receipts')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleStealth(!stealthMode)}
+                  className="relative w-12 h-6 rounded-full transition-all duration-300 flex-shrink-0"
+                  style={{ background: stealthMode ? '#a855f7' : 'rgba(75,85,99,0.6)' }}
+                >
+                  <span
+                    className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300"
+                    style={{ left: stealthMode ? '26px' : '2px' }}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         )}

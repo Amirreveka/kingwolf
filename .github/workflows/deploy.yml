@@ -1,0 +1,17 @@
+name: Deploy to Liara
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Liara
+        run: |
+          npm install -g @liara/cli
+          liara deploy \
+            --image amirreveka/kingwolf:latest \
+            --port 3001 \
+            --app kingwolf \
+            --api-token ${{ secrets.LIARA_TOKEN }}

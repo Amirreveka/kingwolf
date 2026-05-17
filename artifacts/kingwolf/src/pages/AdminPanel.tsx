@@ -77,7 +77,7 @@ function BackupTab() {
       const text = await file.text();
       const parsed = JSON.parse(text);
       const res = await adminFetch('/admin/restore', { method: 'POST', body: JSON.stringify(parsed) });
-      setMsg(res.ok ? `✅ بازیابی موفق — ${(res.body as any)?.added ?? 0} مورد اضافه شد` : `❌ خطا: ${(res.body as any)?.error}`);
+      setMsg(res.ok ? `✅ بازیابی موفق — ${(res.body as any)?.rowsAdded ?? 0} ردیف و ${(res.body as any)?.filesRestored ?? 0} فایل بازیابی شد` : `❌ خطا: ${(res.body as any)?.error}`);
     } catch { setMsg('❌ فایل نامعتبر است'); }
     setRestoreLoading(false);
     if (fileRef.current) fileRef.current.value = '';
@@ -746,78 +746,73 @@ export function AdminPanel() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
-      {/* Sidebar */}
-      <div className="w-16 md:w-64 flex-shrink-0 flex flex-col relative" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
-        {/* Top glow line */}
+      {/* Sidebar — desktop only */}
+      <div className="hidden md:flex w-64 flex-shrink-0 flex-col relative" style={{ background: 'rgba(5,10,25,0.95)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.4), transparent)' }} />
-
         <div className="p-4 flex items-center gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
           <div className="relative flex-shrink-0">
             <div className="absolute inset-0 rounded-full" style={{ background: 'rgba(239,68,68,0.2)', filter: 'blur(8px)' }} />
             <WolfLogo size={30} className="relative" />
           </div>
-          <div className="hidden md:block">
+          <div>
             <span className="text-sm font-bold text-white">KingWolf</span>
             <p className="text-xs" style={{ color: 'rgba(99,102,241,0.9)' }}>پنل مدیریت</p>
           </div>
         </div>
-
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map(item => {
             const isActive = tab === item.id;
             return (
-              <button
-                key={item.id} onClick={() => setTab(item.id)}
+              <button key={item.id} onClick={() => setTab(item.id)}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all kw-btn-press"
-                style={{
-                  background: isActive ? item.accent : 'transparent',
-                  color: isActive ? item.color : 'rgba(107,114,128,1)',
-                  boxShadow: isActive ? `0 0 12px ${item.accent}` : 'none',
-                }}
-              >
+                style={{ background: isActive ? item.accent : 'transparent', color: isActive ? item.color : 'rgba(107,114,128,1)', boxShadow: isActive ? `0 0 12px ${item.accent}` : 'none' }}>
                 <item.icon size={17} className="flex-shrink-0" style={{ color: isActive ? item.color : undefined }} />
-                <span className="hidden md:block text-sm font-medium">{item.label}</span>
-                {isActive && <div className="hidden md:block mr-auto w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />}
+                <span className="text-sm font-medium">{item.label}</span>
+                {isActive && <div className="mr-auto w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />}
               </button>
             );
           })}
         </nav>
-
         <div className="p-2" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           <button onClick={() => setLoggedIn(false)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors kw-btn-press" style={{ color: 'rgba(107,114,128,1)' }}
             onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'rgba(107,114,128,1)'; e.currentTarget.style.background = 'transparent'; }}>
             <LogIn size={17} className="rotate-180 flex-shrink-0" />
-            <span className="hidden md:block text-sm font-medium">خروج</span>
+            <span className="text-sm font-medium">خروج</span>
           </button>
         </div>
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 flex items-center gap-3" style={{ background: 'rgba(5,10,25,0.8)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
-          <div className="flex items-center gap-2 flex-1">
-            {(() => { const nav = navItems.find(n => n.id === tab); const Icon = nav?.icon; return Icon ? <Icon size={18} style={{ color: nav?.color }} /> : null; })()}
-            <h1 className="text-base font-bold text-white">{tabTitle[tab]}</h1>
+        <div className="flex-shrink-0 px-4 md:px-6 py-3 md:py-4 flex items-center gap-3" style={{ background: 'rgba(5,10,25,0.92)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingTop: 'max(12px, env(safe-area-inset-top))' }}>
+          {/* Mobile: logo + title */}
+          <div className="flex md:hidden items-center gap-2 flex-shrink-0">
+            <WolfLogo size={22} />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs" style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {(() => { const nav = navItems.find(n => n.id === tab); const Icon = nav?.icon; return Icon ? <Icon size={16} style={{ color: nav?.color }} className="flex-shrink-0" /> : null; })()}
+            <h1 className="text-sm md:text-base font-bold text-white truncate">{tabTitle[tab]}</h1>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              آنلاین
+              <span className="hidden sm:inline">آنلاین</span>
             </div>
-            <button
-              onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); if (tab === 'reports') { if (reportsSubTab === 'chat') loadChatReports(); else if (reportsSubTab === 'feed') loadFeedReports(); else loadLoginAttempts(); } }}
+            <button onClick={() => { loadData(); if (tab === 'content') loadFeedPosts(); if (tab === 'reports') { if (reportsSubTab === 'chat') loadChatReports(); else if (reportsSubTab === 'feed') loadFeedReports(); else loadLoginAttempts(); } }}
               className="p-2 rounded-xl transition-colors kw-btn-press" style={{ color: 'rgba(107,114,128,1)' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(107,114,128,1)'; e.currentTarget.style.background = 'transparent'; }}
-            >
-              <RefreshCw size={16} />
+              onMouseLeave={e => { e.currentTarget.style.color = 'rgba(107,114,128,1)'; e.currentTarget.style.background = 'transparent'; }}>
+              <RefreshCw size={15} />
+            </button>
+            <button className="md:hidden p-2 rounded-xl transition-colors kw-btn-press" onClick={() => setLoggedIn(false)} style={{ color: '#f87171' }}>
+              <LogIn size={15} className="rotate-180" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-3 md:p-5 pb-20 md:pb-5">
 
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
@@ -1669,7 +1664,7 @@ export function AdminPanel() {
 
       {/* ── RESET PASSWORD MODAL (standalone) ── */}
       {resetPwTarget && !selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }} onClick={() => setResetPwTarget(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }} onClick={() => setResetPwTarget(null)}>
           <div className="w-80 rounded-2xl p-5 kw-modal-in" style={{ background: 'rgba(8,15,35,0.97)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 80px rgba(0,0,0,0.6)' }} onClick={e => e.stopPropagation()} dir="rtl">
             <h2 className="text-sm font-bold text-white mb-3">تغییر رمز @{resetPwTarget.username}</h2>
             <form onSubmit={handleResetPassword} className="space-y-2">
@@ -1684,6 +1679,22 @@ export function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-1 overflow-x-auto"
+        style={{ background: 'rgba(5,10,25,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: 'max(6px, env(safe-area-inset-bottom))', paddingTop: 6 }}>
+        {navItems.map(item => {
+          const isActive = tab === item.id;
+          return (
+            <button key={item.id} onClick={() => setTab(item.id)}
+              className="flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl flex-shrink-0 transition-all kw-btn-press min-w-[48px]"
+              style={{ color: isActive ? item.color : 'rgba(75,85,99,1)', background: isActive ? item.accent : 'transparent' }}>
+              <item.icon size={18} style={{ color: isActive ? item.color : undefined }} />
+              <span className="text-[9px] font-medium leading-none">{item.label.split(' ')[0]}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1720,14 +1731,18 @@ function StatusTab() {
   }, []);
 
   const tables = [
-    { name: 'users',                label: 'کاربران' },
-    { name: 'profiles',             label: 'پروفایل‌ها' },
-    { name: 'conversations',        label: 'مکالمات' },
-    { name: 'conversation_members', label: 'اعضا' },
-    { name: 'messages',             label: 'پیام‌ها' },
-    { name: 'feed_posts',           label: 'پست‌ها' },
-    { name: 'app_settings',         label: 'تنظیمات' },
-    { name: 'admin_access',         label: 'دسترسی ادمین' },
+    { name: 'users',                 label: 'کاربران' },
+    { name: 'profiles',              label: 'پروفایل‌ها' },
+    { name: 'conversations',         label: 'مکالمات' },
+    { name: 'conversation_members',  label: 'اعضای گروه‌ها' },
+    { name: 'messages',              label: 'پیام‌ها' },
+    { name: 'feed_posts',            label: 'پست‌های فید' },
+    { name: 'stories',               label: 'استوری‌ها' },
+    { name: 'message_reactions',     label: 'ری‌اکشن‌ها' },
+    { name: 'notifications',         label: 'اعلان‌ها' },
+    { name: 'follows',               label: 'دنبال‌کنندگان' },
+    { name: 'calls',                 label: 'تماس‌ها' },
+    { name: 'reports',               label: 'گزارش‌ها' },
   ];
 
   const cpuPct = metrics?.cpu?.percent ?? 0;
@@ -1785,41 +1800,53 @@ function StatusTab() {
         </div>
       )}
 
-      {/* CPU + RAM + Disk — three rings */}
-      <div className="grid grid-cols-3 gap-3">
-        {/* CPU Ring */}
-        <div className="rounded-2xl p-4 kw-stat-pop" style={{ background: cpuCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${cpuColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Cpu size={14} style={{ color: cpuColor }} />
-            <h3 className="text-xs font-semibold text-white">CPU</h3>
-            <span className="mr-auto text-xs animate-pulse" style={{ color: '#4ade80' }}>● زنده</span>
+      {/* CPU + RAM + Disk — three gauge cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          {
+            label: 'CPU', icon: Cpu, pct: cpuPct, color: cpuColor, crit: cpuCrit,
+            sub: metrics ? `${metrics.cpu.count} هسته` : '—',
+            extra: metrics?.cpu?.model ? metrics.cpu.model.slice(0, 24) : '',
+            delay: '0ms',
+          },
+          {
+            label: 'RAM', icon: HardDrive, pct: ramPct, color: ramColor, crit: ramCrit,
+            sub: metrics ? `${fmtBytes(metrics.memory.used)} / ${fmtBytes(metrics.memory.total)}` : '—',
+            extra: metrics?.process ? `Node: ${fmtBytes(metrics.process.rss)}` : '',
+            delay: '60ms',
+          },
+          {
+            label: 'Disk', icon: Server, pct: diskPct, color: diskColor, crit: diskCrit,
+            sub: metrics?.disk ? `${fmtBytes(metrics.disk.used)} / ${fmtBytes(metrics.disk.total)}` : '—',
+            extra: metrics?.disk ? `آزاد: ${fmtBytes(metrics.disk.free)}` : '',
+            delay: '120ms',
+          },
+        ].map(card => (
+          <div key={card.label} className="rounded-2xl p-4 kw-stat-pop"
+            style={{ animationDelay: card.delay, background: card.crit ? 'rgba(239,68,68,0.12)' : '#0d1525', border: `1px solid ${card.color}30`, transition: 'background 1s ease' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <card.icon size={14} style={{ color: card.color }} />
+              <h3 className="text-xs font-semibold text-white">{card.label}</h3>
+              <span className="mr-auto flex items-center gap-1 text-xs" style={{ color: '#4ade80' }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                زنده
+              </span>
+            </div>
+            {/* Gauge bar */}
+            <div className="mb-2">
+              <div className="flex items-end justify-between mb-1">
+                <span className="text-3xl font-bold" style={{ color: card.color }}>{card.pct}%</span>
+              </div>
+              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${card.pct}%`, background: `linear-gradient(90deg, ${card.color}80, ${card.color})` }} />
+              </div>
+            </div>
+            <p className="text-xs font-medium" style={{ color: 'rgba(156,163,175,0.8)' }}>{card.sub}</p>
+            {card.extra && <p className="text-xs mt-0.5" style={{ color: 'rgba(107,114,128,0.7)' }}>{card.extra}</p>}
+            {card.crit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
           </div>
-          <MiniRing pct={cpuPct} color={cpuColor} label={`${metrics?.cpu?.count ?? '—'} هسته`} />
-          {metrics?.cpu?.loadAvg && <p className="text-xs text-gray-600 mt-2">بار: {metrics.cpu.loadAvg.map((v: number) => v.toFixed(1)).join(' / ')}</p>}
-          {cpuCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
-        </div>
-
-        {/* RAM Ring */}
-        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '60ms', background: ramCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${ramColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <HardDrive size={14} style={{ color: ramColor }} />
-            <h3 className="text-xs font-semibold text-white">RAM</h3>
-          </div>
-          <MiniRing pct={ramPct} color={ramColor} label={metrics ? `${fmtBytes(metrics.memory.used)} / ${fmtBytes(metrics.memory.total)}` : '—'} />
-          {metrics?.process && <p className="text-xs text-gray-600 mt-2">Node RSS: {fmtBytes(metrics.process.rss)}</p>}
-          {ramCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
-        </div>
-
-        {/* Disk Ring */}
-        <div className="rounded-2xl p-4 kw-stat-pop" style={{ animationDelay: '120ms', background: diskCrit ? 'rgba(239,68,68,0.12)' : 'rgba(15,23,42,0.8)', border: `1px solid ${diskColor}25`, backdropFilter: 'blur(12px)', transition: 'background 1s ease' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Server size={14} style={{ color: diskColor }} />
-            <h3 className="text-xs font-semibold text-white">Disk</h3>
-          </div>
-          <MiniRing pct={diskPct} color={diskColor} label={metrics?.disk ? `${fmtBytes(metrics.disk.used)} / ${fmtBytes(metrics.disk.total)}` : '—'} />
-          {metrics?.disk && <p className="text-xs text-gray-600 mt-2">آزاد: {fmtBytes(metrics.disk.free)}</p>}
-          {diskCrit && <p className="text-xs font-bold text-red-400 mt-1 animate-pulse">⚠ بحرانی</p>}
-        </div>
+        ))}
       </div>
 
       {/* Uptime */}

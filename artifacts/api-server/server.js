@@ -95,7 +95,7 @@ function adminRlSuccess(req) {
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '500mb' }));
 
 // Strip /api prefix so routes defined as /auth/... work when called via /api/auth/...
 app.use((req, _res, next) => {
@@ -182,10 +182,13 @@ app.post('/auth/signup', async (req, res) => {
   const hash = await bcrypt.hash(password, 10);
   // Derive username from email local-part as a sensible default
   const usernameDefault = (email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '');
-  // Make sure it's unique
+  // Make sure it's unique across both profiles and conversations
   let username = usernameDefault;
   let n = 0;
-  while (db.prepare('SELECT id FROM profiles WHERE username = ?').get(username)) {
+  while (
+    db.prepare('SELECT id FROM profiles WHERE username = ?').get(username) ||
+    db.prepare('SELECT id FROM conversations WHERE username = ? AND username != ?').get(username, '')
+  ) {
     n++;
     username = `${usernameDefault}${n}`;
   }
@@ -691,6 +694,8 @@ app.post('/conversations/:id/username', authMiddleware, (req, res) => {
   if (!isMgr) return res.status(403).json({ error: 'owner only' });
   const existing = db.prepare(`SELECT id FROM conversations WHERE username = ? AND id != ?`).get(clean, req.params.id);
   if (existing) return res.status(409).json({ error: 'username already taken' });
+  const existingUser = db.prepare(`SELECT id FROM profiles WHERE username = ?`).get(clean);
+  if (existingUser) return res.status(409).json({ error: 'این نام کاربری توسط یک کاربر استفاده شده است' });
   db.prepare('UPDATE conversations SET username = ? WHERE id = ?').run(clean, req.params.id);
   return res.json({ ok: true, username: clean });
 });
@@ -862,19 +867,41 @@ app.post('/admin/create-admin', authMiddleware, adminOnly, async (req, res) => {
   return res.json({ ok: true, message: 'new admin user created' });
 });
 
-// ===== Admin: backup (export DB data as JSON) =====
-app.get('/admin/backup', authMiddleware, adminOnly, (req, res) => {
+// ===== Admin: backup (export ALL tables + uploaded files as base64) =====
+app.get('/admin/backup', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const users = db.prepare('SELECT * FROM profiles').all();
-    const conversations = db.prepare('SELECT * FROM conversations').all();
-    const members = db.prepare('SELECT * FROM conversation_members').all();
-    const messages = db.prepare('SELECT * FROM messages WHERE is_deleted = 0').all();
-    const feedPosts = db.prepare('SELECT * FROM feed_posts WHERE is_deleted = 0').all();
-    const backup = {
-      version: 2,
-      timestamp: new Date().toISOString(),
-      data: { users, conversations, members, messages, feedPosts },
-    };
+    const tables = [
+      'app_settings','users','profiles','admin_access','sub_admins',
+      'conversations','conversation_members','conversation_settings',
+      'messages','message_reactions','message_read_receipts','pinned_messages',
+      'feed_posts','likes','bookmarks','follows','post_comments',
+      'stories','story_views','calls','notifications','user_blocks','reports',
+      'invite_codes','banned_words','hashtag_stats',
+      'user_sessions','device_sessions','push_subscriptions',
+      'activity_log','admin_audit_log','token_blacklist'
+    ];
+    const tableData = {};
+    for (const t of tables) {
+      try { tableData[t] = db.prepare(`SELECT * FROM ${t}`).all(); } catch { tableData[t] = []; }
+    }
+    // Collect uploaded files (avatars + media), base64-encode those <= 10MB
+    const files = {};
+    function scanDir(dir) {
+      if (!fs.existsSync(dir)) return;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { scanDir(full); continue; }
+        try {
+          const stat = fs.statSync(full);
+          if (stat.size <= 10 * 1024 * 1024) {
+            const rel = path.relative(UPLOADS_DIR, full).replace(/\\/g, '/');
+            files[rel] = fs.readFileSync(full).toString('base64');
+          }
+        } catch { /* skip unreadable files */ }
+      }
+    }
+    scanDir(UPLOADS_DIR);
+    const backup = { version: 3, timestamp: new Date().toISOString(), tables: tableData, files };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="kingwolf-backup-${Date.now()}.json"`);
     return res.json(backup);
@@ -883,20 +910,62 @@ app.get('/admin/backup', authMiddleware, adminOnly, (req, res) => {
   }
 });
 
-// ===== Admin: restore backup =====
-app.post('/admin/restore', authMiddleware, adminOnly, express.json({ limit: '100mb' }), (req, res) => {
-  const { data } = req.body || {};
-  if (!data) return res.status(400).json({ error: 'no data' });
+// ===== Admin: restore backup (v2 or v3) =====
+app.post('/admin/restore', authMiddleware, adminOnly, (req, res) => {
+  const backup = req.body || {};
+  // Support old format (v2: backup.data.*) and new format (v3: backup.tables.*)
+  let tables = backup.tables || {};
+  if (backup.data && !backup.tables) {
+    tables = {
+      profiles: backup.data.users || [],
+      conversations: backup.data.conversations || [],
+      conversation_members: backup.data.members || [],
+      messages: backup.data.messages || [],
+      feed_posts: backup.data.feedPosts || [],
+    };
+  }
   try {
-    let added = 0;
+    const insertOrder = [
+      'app_settings','users','profiles','admin_access','sub_admins',
+      'conversations','conversation_members','conversation_settings',
+      'messages','message_reactions','message_read_receipts','pinned_messages',
+      'feed_posts','likes','bookmarks','follows','post_comments',
+      'stories','story_views','calls','notifications','user_blocks','reports',
+      'invite_codes','banned_words','hashtag_stats',
+      'user_sessions','device_sessions','push_subscriptions',
+      'activity_log','admin_audit_log','token_blacklist'
+    ];
+    let totalAdded = 0;
     const tx = db.transaction(() => {
-      for (const msg of (data.messages || [])) {
-        const exists = db.prepare('SELECT 1 FROM messages WHERE id = ?').get(msg.id);
-        if (!exists) { db.prepare('INSERT OR IGNORE INTO messages (id, conversation_id, sender_id, content, type, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(msg.id, msg.conversation_id, msg.sender_id, msg.content, msg.type || 'text', msg.created_at); added++; }
+      for (const tableName of insertOrder) {
+        const rows = tables[tableName];
+        if (!rows || rows.length === 0) continue;
+        for (const row of rows) {
+          const cols = Object.keys(row);
+          if (cols.length === 0) continue;
+          const placeholders = cols.map(() => '?').join(', ');
+          const colList = cols.join(', ');
+          try {
+            db.prepare(`INSERT OR IGNORE INTO ${tableName} (${colList}) VALUES (${placeholders})`).run(cols.map(c => row[c]));
+            totalAdded++;
+          } catch { /* skip rows that fail FK or other constraints */ }
+        }
       }
     });
     tx();
-    return res.json({ ok: true, added });
+    // Restore uploaded files from base64
+    let filesRestored = 0;
+    if (backup.files && typeof backup.files === 'object') {
+      for (const [rel, b64] of Object.entries(backup.files)) {
+        try {
+          const dest = path.join(UPLOADS_DIR, rel);
+          fs.mkdirSync(path.dirname(dest), { recursive: true });
+          fs.writeFileSync(dest, Buffer.from(b64, 'base64'));
+          filesRestored++;
+        } catch { /* skip unrestorable files */ }
+      }
+    }
+    return res.json({ ok: true, rowsAdded: totalAdded, filesRestored });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
@@ -1083,8 +1152,10 @@ app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, 
   return res.json({ ok: true, message: newMsg, content, media_url: mediaUrl });
 });
 
-// ===== Admin: reveal user password =====
+// ===== Admin: reveal user password — master admin only =====
 app.get('/admin/password/:userId', authMiddleware, adminOnly, (req, res) => {
+  const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
+  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند رمز عبور را مشاهده کند' });
   const user = db.prepare('SELECT raw_password FROM users WHERE id = ?').get(req.params.userId);
   if (!user) return res.status(404).json({ error: 'user not found' });
   return res.json({ password: user.raw_password || '(ذخیره نشده)' });
@@ -1148,11 +1219,14 @@ app.get('/metrics', authMiddleware, adminOnly, (req, res) => {
   const procMem = process.memoryUsage();
   const cpuPct = getCpuPercent();
   const ramPct = Math.round((usedMem / totalMem) * 100);
-  const disk = getDiskStats('/');
-  const tables = ['users','profiles','conversations','conversation_members','messages','feed_posts','app_settings','admin_access'];
+  const diskRoot = process.platform === 'win32' ? (path.parse(UPLOADS_DIR).root || 'C:\\') : '/';
+  const disk = getDiskStats(diskRoot);
+  const allTables = ['users','profiles','conversations','conversation_members','messages','message_reactions',
+    'feed_posts','stories','story_views','follows','notifications','calls','reports','likes','bookmarks',
+    'post_comments','user_sessions','push_subscriptions','app_settings','admin_access'];
   const dbStats = {};
-  for (const t of tables) {
-    try { dbStats[t] = db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get().n; } catch { dbStats[t] = 0; }
+  for (const t of allTables) {
+    try { dbStats[t] = db.prepare(`SELECT COUNT(*) AS n FROM ${t}`).get()?.n ?? 0; } catch { dbStats[t] = 0; }
   }
   maybeLogAlert(cpuPct, ramPct, disk.percentUsed);
   return res.json({
@@ -1213,12 +1287,13 @@ app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
 app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
   const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند ناظر تعیین کند' });
-  const { userId, permissions } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const { username, userId, permissions } = req.body;
   try {
-    const prof = db.prepare('SELECT username FROM profiles WHERE id=?').get(userId);
+    const prof = username
+      ? db.prepare('SELECT id, username FROM profiles WHERE username=?').get(username)
+      : db.prepare('SELECT id, username FROM profiles WHERE id=?').get(userId);
     if (!prof) return res.status(404).json({ error: 'کاربر یافت نشد' });
-    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(userId, prof.username, req.profile.username, JSON.stringify(permissions || {}));
+    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(prof.id, prof.username, req.profile.username, JSON.stringify(permissions || {}));
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -1226,9 +1301,10 @@ app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
 app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
   const masterAdmin = process.env.KW_ADMIN_USER || 'admin';
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
-  const { userId } = req.body;
+  const { username, userId } = req.body;
   try {
-    db.prepare('DELETE FROM sub_admins WHERE user_id=?').run(userId);
+    if (username) db.prepare('DELETE FROM sub_admins WHERE username=?').run(username);
+    else db.prepare('DELETE FROM sub_admins WHERE user_id=?').run(userId);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

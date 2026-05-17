@@ -60,7 +60,7 @@ function AppRouter() {
 }
 
 export default function App() {
-  const isAdmin = window.location.pathname === '/admin' || window.location.hash === '#/admin';
+  const isAdmin = window.location.pathname === '/panel' || window.location.hash === '#/panel';
 
   return (
     <ThemeProvider>

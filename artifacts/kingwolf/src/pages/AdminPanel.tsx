@@ -247,7 +247,7 @@ function BotTab() {
   );
 }
 
-function ManagersTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
+function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }: { isMasterAdmin: boolean; isOwner: boolean; ownerUsername: string; onOpenPermModal: (user: any) => void }) {
   const [managers, setManagers] = useState<any[]>([]);
   const [loadingMgr, setLoadingMgr] = useState(true);
   const [promoteUsername, setPromoteUsername] = useState('');
@@ -317,15 +317,25 @@ function ManagersTab({ isMasterAdmin }: { isMasterAdmin: boolean }) {
                     {mgr.created_at && <span>{new Date(mgr.created_at).toLocaleDateString('fa-IR')}</span>}
                   </div>
                 </div>
-                {isMasterAdmin && (
-                  <button onClick={() => demoteManager(mgr.username)}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                    style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
-                    حذف از مدیران
-                  </button>
-                )}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isOwner && mgr.username !== ownerUsername && (
+                    <button
+                      onClick={() => onOpenPermModal(mgr)}
+                      className="px-2 py-1 rounded-lg text-xs border border-purple-500/30 text-purple-400 hover:bg-purple-500/10 transition-all"
+                    >
+                      🔑 دسترسی‌ها
+                    </button>
+                  )}
+                  {isMasterAdmin && (
+                    <button onClick={() => demoteManager(mgr.username)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                      style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
+                      حذف از مدیران
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -426,6 +436,67 @@ export function AdminPanel() {
   const [masterSaveMsg, setMasterSaveMsg] = useState('');
 
   const isMasterAdmin = username === 'admin';
+
+  // Owner/Founder state
+  const [isOwner, setIsOwner] = useState(false);
+  const [myPermissions, setMyPermissions] = useState<any>({});
+
+  // Sub-admin permissions modal state
+  const [permModalUser, setPermModalUser] = useState<any>(null);
+  const [editingPerms, setEditingPerms] = useState<Record<string, boolean>>({});
+  const [savingPerms, setSavingPerms] = useState(false);
+
+  // Load owner/permissions on login
+  useEffect(() => {
+    if (!loggedIn) return;
+    fetch('/api/admin/my-permissions', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('kingwolf_token')}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        setIsOwner(!!data.is_owner);
+        setMyPermissions(data);
+      })
+      .catch(() => {});
+  }, [loggedIn]);
+
+  async function openPermModal(user: any) {
+    const res = await fetch(`/api/admin/permissions/${user.id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('kingwolf_token')}` }
+    });
+    const data = await res.json();
+    setEditingPerms({
+      can_view_users:          !!data.can_view_users,
+      can_ban_users:           !!data.can_ban_users,
+      can_approve_users:       !!data.can_approve_users,
+      can_view_reports:        !!data.can_view_reports,
+      can_resolve_reports:     !!data.can_resolve_reports,
+      can_view_stats:          !!data.can_view_stats,
+      can_manage_content:      !!data.can_manage_content,
+      can_send_announcements:  !!data.can_send_announcements,
+      can_view_emails:         !!data.can_view_emails,
+      can_view_phones:         !!data.can_view_phones,
+      can_manage_admins:       !!data.can_manage_admins,
+      can_view_audit_log:      !!data.can_view_audit_log,
+      can_manage_settings:     !!data.can_manage_settings,
+    });
+    setPermModalUser(user);
+  }
+
+  async function savePermissions() {
+    if (!permModalUser) return;
+    setSavingPerms(true);
+    await fetch(`/api/admin/permissions/${permModalUser.id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('kingwolf_token')}`,
+      },
+      body: JSON.stringify(editingPerms),
+    });
+    setSavingPerms(false);
+    setPermModalUser(null);
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -701,7 +772,7 @@ export function AdminPanel() {
               <div className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.3), transparent)', filter: 'blur(20px)', transform: 'scale(1.5)' }} />
               <WolfLogo size={64} className="relative" />
             </div>
-            <h1 className="text-2xl font-bold text-white mb-1">پنل مدیریت</h1>
+            <h1 className="text-2xl font-bold text-white mb-1">پنل</h1>
             <p className="text-sm" style={{ color: 'rgba(156,163,175,0.7)' }}>دسترسی محدود — فقط مدیران مجاز</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-3 rounded-2xl p-6" style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -756,7 +827,7 @@ export function AdminPanel() {
           </div>
           <div>
             <span className="text-sm font-bold text-white">KingWolf</span>
-            <p className="text-xs" style={{ color: 'rgba(99,102,241,0.9)' }}>پنل مدیریت</p>
+            <p className="text-xs" style={{ color: 'rgba(99,102,241,0.9)' }}>پنل</p>
           </div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
@@ -794,6 +865,17 @@ export function AdminPanel() {
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {(() => { const nav = navItems.find(n => n.id === tab); const Icon = nav?.icon; return Icon ? <Icon size={16} style={{ color: nav?.color }} className="flex-shrink-0" /> : null; })()}
             <h1 className="text-sm md:text-base font-bold text-white truncate">{tabTitle[tab]}</h1>
+            {isOwner && (
+              <div className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold flex-shrink-0"
+                style={{
+                  background: 'linear-gradient(135deg, #f59e0b20, #ef444420)',
+                  color: '#f59e0b',
+                  border: '1px solid #f59e0b40',
+                  filter: 'drop-shadow(0 0 8px #f59e0b40)',
+                }}>
+                👑 سازنده و مالک
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80' }}>
@@ -817,7 +899,7 @@ export function AdminPanel() {
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
             <div className="space-y-5 kw-tab-in">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 kw-stagger">
+              {(isOwner || myPermissions.can_view_stats) && <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 kw-stagger">
                 {[
                   { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',   Icon: Users,         filterKey: 'all' as const },
                   { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', bg: 'rgba(52,211,153,0.12)',   Icon: CheckCircle2,  filterKey: 'active' as const },
@@ -844,7 +926,7 @@ export function AdminPanel() {
                     <p className="text-xs mt-1" style={{ color: `${s.color}70` }}>→ مشاهده لیست</p>
                   </div>
                 ))}
-              </div>
+              </div>}
 
               {/* Live activity bar */}
               <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
@@ -932,6 +1014,13 @@ export function AdminPanel() {
           {/* ── USERS ── */}
           {tab === 'users' && (
             <div className="space-y-3 kw-tab-in">
+              {!(isOwner || myPermissions.can_view_users) && (
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
+                  <Lock size={32} className="text-gray-700" />
+                  <p className="text-sm text-gray-500">دسترسی به این بخش ندارید</p>
+                </div>
+              )}
+              {(isOwner || myPermissions.can_view_users) && <>
               {/* Sub-tabs */}
               <div className="flex gap-2 flex-wrap">
                 <button onClick={() => setUsersSubTab('list')}
@@ -1080,6 +1169,7 @@ export function AdminPanel() {
                   )}
                 </div>
               )}
+              </>}
             </div>
           )}
 
@@ -1516,7 +1606,7 @@ export function AdminPanel() {
           )}
 
           {/* ── MANAGERS ── */}
-          {tab === 'managers' && <ManagersTab isMasterAdmin={isMasterAdmin} />}
+          {tab === 'managers' && <ManagersTab isMasterAdmin={isMasterAdmin} isOwner={isOwner} ownerUsername={username} onOpenPermModal={openPermModal} />}
 
           {/* ── STATUS ── */}
           {tab === 'status' && <StatusTab />}
@@ -1578,9 +1668,9 @@ export function AdminPanel() {
               {/* Info grid */}
               <div className="space-y-2 text-xs">
                 {[
-                  { label: 'ایمیل', value: selectedUser.email },
+                  { label: 'ایمیل', value: (isOwner || myPermissions.can_view_emails) ? selectedUser.email : null },
                   { label: 'بیو', value: selectedUser.bio },
-                  { label: 'شماره', value: selectedUser.phone },
+                  { label: 'شماره', value: (isOwner || myPermissions.can_view_phones) ? selectedUser.phone : null },
                   { label: 'تاریخ تولد', value: selectedUser.birthday },
                   { label: 'عضویت', value: new Date(selectedUser.created_at).toLocaleDateString('fa-IR') },
                   { label: 'آخرین بازدید', value: selectedUser.last_seen ? new Date(selectedUser.last_seen).toLocaleString('fa-IR') : '—' },
@@ -1657,6 +1747,68 @@ export function AdminPanel() {
                     className="flex-1 py-2 bg-blue-800 hover:bg-blue-700 text-white rounded-xl text-xs">رفع مسدود</button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SUB-ADMIN PERMISSIONS MODAL ── */}
+      {permModalUser && isOwner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--border,rgba(255,255,255,0.1))] bg-[rgba(8,15,35,0.97)] p-5 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base text-white">
+                دسترسی‌های @{permModalUser.username}
+              </h3>
+              <button onClick={() => setPermModalUser(null)} className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                { key: 'can_view_users',         labelFa: 'مشاهده کاربران' },
+                { key: 'can_ban_users',          labelFa: 'بن/آنبن کاربران' },
+                { key: 'can_approve_users',      labelFa: 'تأیید ثبت‌نام' },
+                { key: 'can_view_reports',       labelFa: 'مشاهده گزارش‌ها' },
+                { key: 'can_resolve_reports',    labelFa: 'رسیدگی به گزارش‌ها' },
+                { key: 'can_view_stats',         labelFa: 'مشاهده آمار' },
+                { key: 'can_manage_content',     labelFa: 'مدیریت محتوا' },
+                { key: 'can_send_announcements', labelFa: 'ارسال اعلان' },
+                { key: 'can_view_emails',        labelFa: 'مشاهده ایمیل کاربران' },
+                { key: 'can_view_phones',        labelFa: 'مشاهده شماره تلفن‌ها' },
+                { key: 'can_manage_admins',      labelFa: 'مدیریت مدیران' },
+                { key: 'can_view_audit_log',     labelFa: 'مشاهده لاگ فعالیت' },
+                { key: 'can_manage_settings',    labelFa: 'مدیریت تنظیمات اپ' },
+              ].map(perm => (
+                <label key={perm.key} className="flex items-center justify-between p-2.5 rounded-xl border border-white/10 hover:border-purple-500/30 cursor-pointer transition-all" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <span className="text-sm text-gray-300">{perm.labelFa}</span>
+                  <input
+                    type="checkbox"
+                    checked={!!editingPerms[perm.key]}
+                    onChange={e => setEditingPerms(prev => ({ ...prev, [perm.key]: e.target.checked }))}
+                    className="w-4 h-4 cursor-pointer accent-purple-500"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={savePermissions}
+                disabled={savingPerms}
+                className="flex-1 py-2 rounded-xl text-white text-sm font-medium transition-all"
+                style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+              >
+                {savingPerms ? 'در حال ذخیره...' : 'ذخیره'}
+              </button>
+              <button
+                onClick={() => setPermModalUser(null)}
+                className="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-white transition-colors"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                لغو
+              </button>
             </div>
           </div>
         </div>

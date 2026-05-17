@@ -4,13 +4,13 @@ import {
   UserCheck, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
   BadgeCheck, Activity, ChevronDown, Newspaper, Pin, PinOff, Trash2, FileText,
   Flag, MessageSquare, CheckCheck, Download, Upload, Bot, UserPlus, AlertTriangle,
-  Clock, UserCog, Crown, Database,
+  Clock, UserCog, Crown, Database, Globe,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { Profile } from '../types';
 
-type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status' | 'backup' | 'bot' | 'managers';
+type AdminTab = 'dashboard' | 'users' | 'content' | 'reports' | 'settings' | 'status' | 'backup' | 'bot' | 'managers' | 'cms';
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
 async function adminFetch(path: string, opts: RequestInit = {}) {
@@ -374,6 +374,125 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
   );
 }
 
+function CMSTab({ fields, onSave, saving, onLoad, loaded, t, language }: {
+  fields: Array<{key:string;value:string;type:string;label:string;label_fa:string}>;
+  onSave: (key:string, val:string) => void;
+  saving: string | null;
+  onLoad: () => void;
+  loaded: boolean;
+  t: (fa:string, en?:string) => string;
+  language: string;
+}) {
+  const [localValues, setLocalValues] = useState<Record<string,string>>({});
+
+  useEffect(() => {
+    if (!loaded) onLoad();
+  }, [loaded]);
+
+  useEffect(() => {
+    const vals: Record<string,string> = {};
+    fields.forEach(f => { vals[f.key] = f.value; });
+    setLocalValues(vals);
+  }, [fields]);
+
+  const groups = {
+    hero:  fields.filter(f => f.key.startsWith('hero')),
+    cta:   fields.filter(f => f.key.startsWith('cta')),
+    seo:   fields.filter(f => f.key.startsWith('seo')),
+    neon:  fields.filter(f => f.key.startsWith('neon')),
+    other: fields.filter(f => !f.key.startsWith('hero') && !f.key.startsWith('cta') && !f.key.startsWith('seo') && !f.key.startsWith('neon')),
+  };
+
+  const renderGroup = (title: string, items: typeof fields) => (
+    items.length > 0 && (
+      <div key={title} className="mb-6">
+        <div className="kw-section-divider mb-3">
+          <span>{title}</span>
+        </div>
+        <div className="space-y-3">
+          {items.map(field => (
+            <div key={field.key} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+              <label className="block text-xs font-semibold text-purple-400 mb-1.5">
+                {language === 'fa' ? field.label_fa : field.label}
+                <span className="text-gray-500 font-normal mr-1">({field.key})</span>
+              </label>
+              <div className="flex gap-2">
+                {field.type === 'color' ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      type="color"
+                      value={localValues[field.key] || '#a855f7'}
+                      onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      className="w-10 h-8 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={localValues[field.key] || ''}
+                      onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      className="flex-1 kw-input text-sm"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type={field.type === 'url' ? 'url' : 'text'}
+                    value={localValues[field.key] || ''}
+                    onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
+                    className="flex-1 kw-input text-sm"
+                    dir="auto"
+                  />
+                )}
+                <button
+                  onClick={() => onSave(field.key, localValues[field.key] || '')}
+                  disabled={saving === field.key}
+                  className="px-3 py-1 rounded-lg text-xs font-bold text-white transition-all active:scale-95 flex-shrink-0"
+                  style={{
+                    background: saving === field.key ? 'rgba(168,85,247,.3)' : 'linear-gradient(135deg,#7c3aed,#a855f7)',
+                    minWidth: 52,
+                  }}
+                >
+                  {saving === field.key ? '...' : t('ذخیره','Save')}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  );
+
+  if (!loaded) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="p-4 kw-scroll overflow-y-auto max-h-full">
+      {/* Preview link */}
+      <div className="flex items-center justify-between mb-4 p-3 rounded-xl border border-purple-500/20 bg-purple-500/5">
+        <div>
+          <p className="text-sm font-bold text-purple-400">{t('ویرایشگر CMS سایت', 'Website CMS Editor')}</p>
+          <p className="text-xs text-[var(--text-secondary)]">{t('تغییرات بلافاصله روی سایت اعمال می‌شوند', 'Changes apply immediately to the website')}</p>
+        </div>
+        <a
+          href="/landing"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="kw-btn-ghost text-xs px-3 py-1.5"
+        >
+          🌐 {t('مشاهده سایت', 'View Site')}
+        </a>
+      </div>
+
+      {renderGroup(t('بخش Hero', 'Hero Section'), groups.hero)}
+      {renderGroup(t('دکمه‌های CTA', 'CTA Buttons'), groups.cta)}
+      {renderGroup(t('سئو و متا', 'SEO & Meta'), groups.seo)}
+      {renderGroup(t('رنگ‌های نئون', 'Neon Colors'), groups.neon)}
+      {renderGroup(t('سایر', 'Other'), groups.other)}
+    </div>
+  );
+}
+
 export function AdminPanel() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
@@ -445,6 +564,15 @@ export function AdminPanel() {
   const [permModalUser, setPermModalUser] = useState<any>(null);
   const [editingPerms, setEditingPerms] = useState<Record<string, boolean>>({});
   const [savingPerms, setSavingPerms] = useState(false);
+
+  // CMS state
+  const [cmsFields, setCmsFields] = useState<Array<{key:string;value:string;type:string;label:string;label_fa:string}>>([]);
+  const [cmsSaving, setCmsSaving] = useState<string | null>(null);
+  const [cmsLoaded, setCmsLoaded] = useState(false);
+
+  // Inline translation helper (admin panel is mostly Persian, but CMS tab is bilingual)
+  const language = 'fa';
+  function t(fa: string, _en?: string) { return fa; }
 
   // Load owner/permissions on login
   useEffect(() => {
@@ -718,6 +846,30 @@ export function AdminPanel() {
     setTimeout(() => setMasterSaveMsg(''), 3000);
   }
 
+  async function loadCMS() {
+    const token = localStorage.getItem('kingwolf_token');
+    const res = await fetch('/api/cms/admin/all', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      setCmsFields(data);
+      setCmsLoaded(true);
+    }
+  }
+
+  async function saveCMSField(key: string, value: string) {
+    setCmsSaving(key);
+    const token = localStorage.getItem('kingwolf_token');
+    await fetch(`/api/cms/${key}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ value }),
+    });
+    setCmsFields(prev => prev.map(f => f.key === key ? { ...f, value } : f));
+    setCmsSaving(null);
+  }
+
   async function loadFeedReports() {
     setFeedReportsLoading(true);
     const { body } = await adminFetch('/admin/reports?type=feed');
@@ -757,6 +909,7 @@ export function AdminPanel() {
     backup: 'بکاپ و بازیابی',
     bot: 'تنظیمات بات',
     managers: 'مدیریت تیم',
+    cms: 'ویرایشگر CMS سایت',
   };
 
   if (!loggedIn) {
@@ -813,6 +966,7 @@ export function AdminPanel() {
     { id: 'status',    label: 'وضعیت سیستم',      icon: Server,     color: '#4ade80', accent: 'rgba(74,222,128,0.15)' },
     { id: 'backup',    label: 'بکاپ',             icon: Download,   color: '#38bdf8', accent: 'rgba(56,189,248,0.15)' },
     { id: 'bot',       label: 'بات',              icon: Bot,        color: '#c084fc', accent: 'rgba(192,132,252,0.15)' },
+    { id: 'cms',       label: 'سایت CMS',         icon: Globe,      color: '#22d3ee', accent: 'rgba(34,211,238,0.15)' },
   ];
 
   return (
@@ -1613,6 +1767,25 @@ export function AdminPanel() {
 
           {/* ── BOT TAB ── */}
           {tab === 'bot' && <BotTab />}
+
+          {/* ── CMS TAB ── */}
+          {tab === 'cms' && isOwner && (
+            <CMSTab
+              fields={cmsFields}
+              onSave={saveCMSField}
+              saving={cmsSaving}
+              onLoad={loadCMS}
+              loaded={cmsLoaded}
+              t={t}
+              language={language}
+            />
+          )}
+          {tab === 'cms' && !isOwner && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <span className="text-4xl">🔒</span>
+              <p className="text-[var(--text-secondary)] text-sm">{t('فقط سازنده به CMS دسترسی دارد', 'Only the Founder can access CMS')}</p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck, Camera } from 'lucide-react';
 import { Conversation, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
@@ -215,6 +215,19 @@ function TelegramStoriesBar({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+function ConvAvatar({ src, initials, type }: { src?: string | null; initials: string; type: string }) {
+  const [err, setErr] = useState(false);
+  const bg = type === 'group' ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : type === 'channel' ? 'linear-gradient(135deg,#0ea5e9,#2563eb)' : 'linear-gradient(135deg,#2563eb,#1d4ed8)';
+  if (src && !err) {
+    return <img src={src} alt="" className="w-10 h-10 rounded-full object-cover" onError={() => setErr(true)} />;
+  }
+  return (
+    <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ background: bg }}>
+      {initials}
+    </div>
+  );
+}
+
 type Tab = 'direct' | 'groups' | 'channels';
 
 export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, onCreateChannel, onSavedMessages, onOpenStories }: ChatListProps) {
@@ -402,12 +415,12 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-right transition-colors"
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                {u.avatar_url
-                  ? <img src={u.avatar_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
-                  : <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
-                }
+                <ConvAvatar src={u.avatar_url} initials={(u.display_name || u.username || '?').charAt(0).toUpperCase()} type="direct" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{u.display_name || u.username}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{u.display_name || u.username}</p>
+                    {!!u.is_verified && <BadgeCheck size={13} className="text-blue-400 flex-shrink-0" />}
+                  </div>
                   <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{u.username}</p>
                 </div>
                 <MessageSquare size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -521,38 +534,20 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
                   <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg,#1e3a8a,#1d4ed8)' }}>
                     <WolfLogo size={28} />
                   </div>
-                ) : getAvatar(c) ? (
-                  <img src={getAvatar(c)!} alt="" className="w-10 h-10 rounded-full object-cover" />
-                ) : c.type === 'group' ? (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}>
-                    {getInitials(c)}
-                  </div>
                 ) : c.type === 'channel' ? (
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg,#0ea5e9,#2563eb)' }}>
                     <Hash size={16} />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm" style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)' }}>
-                    {getInitials(c)}
-                  </div>
+                  <ConvAvatar src={getAvatar(c)} initials={getInitials(c)} type={c.type} />
                 )}
                 {c.type === 'direct' && c.other_user?.online_status === 'online' && (
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2" style={{ borderColor: 'var(--bg-secondary)' }} />
                 )}
               </div>
-              <div className="flex-1 min-w-0 text-right">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-1">
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-                      {formatTime(c.last_message_at)}
-                    </span>
-                    {!!((c as any).unread_count) && (
-                      <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
-                        {(c as any).unread_count > 99 ? '99+' : (c as any).unread_count}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 min-w-0">
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
                     <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                       {getDisplayName(c)}
                     </span>
@@ -560,10 +555,20 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
                       <BadgeCheck size={14} className="flex-shrink-0 text-blue-400" />
                     )}
                   </div>
+                  <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                    {formatTime(c.last_message_at)}
+                  </span>
                 </div>
-                <p className="text-xs truncate text-right" style={{ color: 'var(--text-secondary)' }}>
-                  {c.last_message_preview || (c.type === 'group' ? t('گروه', 'Group') : c.type === 'channel' ? t('کانال', 'Channel') : t('شروع مکالمه...', 'Start chatting...'))}
-                </p>
+                <div className="flex items-center justify-between gap-1 mt-0.5">
+                  <p className="text-xs truncate flex-1" style={{ color: 'var(--text-secondary)' }}>
+                    {c.last_message_preview || (c.type === 'group' ? t('گروه', 'Group') : c.type === 'channel' ? t('کانال', 'Channel') : t('شروع مکالمه...', 'Start chatting...'))}
+                  </p>
+                  {!!((c as any).unread_count) && (
+                    <span className="min-w-[20px] h-[20px] px-1.5 rounded-full text-[11px] font-bold text-white flex items-center justify-center flex-shrink-0" style={{ background: 'var(--accent)' }}>
+                      {(c as any).unread_count > 99 ? '99+' : (c as any).unread_count}
+                    </span>
+                  )}
+                </div>
               </div>
             </button>
           ))

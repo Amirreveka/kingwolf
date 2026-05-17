@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   Camera, Plus, X, Eye, ChevronLeft, ChevronRight, Trash2,
   Send, Volume2, VolumeX, Smile, Type, Music2, MapPin, AtSign,
@@ -24,15 +24,32 @@ interface StoryGroup {
   stories: Story[];
 }
 
-function avatarBg(name: string) {
-  const init = (name || '?').charAt(0).toUpperCase();
-  return `hsl(${(init.charCodeAt(0) * 17 + 100) % 360},55%,48%)`;
-}
-function Avatar({ src, name, size = 56 }: { src?: string; name: string; size?: number }) {
-  const init = (name || '?').charAt(0).toUpperCase();
-  return src
-    ? <img src={src} className="w-full h-full object-cover" alt="" />
-    : <div className="w-full h-full flex items-center justify-center text-white font-bold" style={{ background: avatarBg(name), fontSize: size * 0.35 }}>{init}</div>;
+function StoryAvatar({ src, name, size = 56 }: { src?: string; name: string; size?: number }) {
+  const [err, setErr] = useState(false);
+  if (src && !err) {
+    return <img src={src} className="w-full h-full object-cover" alt="" onError={() => setErr(true)} />;
+  }
+  return (
+    <div className="w-full h-full flex items-center justify-center" style={{ background: '#1e3a5f' }}>
+      <svg width={size * 0.65} height={size * 0.65} viewBox="0 0 100 100" fill="none">
+        <polygon points="20,45 10,15 35,35" fill="url(#wg)" />
+        <polygon points="80,45 90,15 65,35" fill="url(#wg)" />
+        <ellipse cx="50" cy="55" rx="35" ry="30" fill="url(#wg)" />
+        <ellipse cx="50" cy="68" rx="16" ry="10" fill="#1E40AF" />
+        <ellipse cx="37" cy="50" rx="5" ry="6" fill="#0F172A" />
+        <ellipse cx="63" cy="50" rx="5" ry="6" fill="#0F172A" />
+        <circle cx="39" cy="48" r="2" fill="white" opacity="0.8" />
+        <circle cx="65" cy="48" r="2" fill="white" opacity="0.8" />
+        <polygon points="50,8 44,22 38,16 42,28 50,24 58,28 62,16 56,22" fill="#F59E0B" />
+        <defs>
+          <linearGradient id="wg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#1D4ED8" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  );
 }
 
 function StoryRing({ allViewed, size = 64 }: { allViewed: boolean; size?: number }) {
@@ -314,7 +331,7 @@ export function StoriesPage() {
             <button onClick={() => myHasStories ? openGroup(groups.findIndex(g => g.author_id === user?.id)) : setShowCreator(true)}
               className="flex-shrink-0 relative" style={{ width: 64, height: 64 }}>
               <div className="w-full h-full rounded-full overflow-hidden" style={{ border: '2px solid var(--bg-primary)' }}>
-                <Avatar src={profile?.avatar_url} name={profile?.display_name || profile?.username || '?'} size={64} />
+                <StoryAvatar src={profile?.avatar_url} name={profile?.display_name || profile?.username || '?'} size={64} />
               </div>
               {myHasStories
                 ? <StoryRing allViewed={false} size={68} />
@@ -357,7 +374,7 @@ export function StoriesPage() {
                     onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}>
                     <div className="relative flex-shrink-0" style={{ width: 52, height: 52 }}>
                       <div className="w-full h-full rounded-full overflow-hidden" style={{ border: '2px solid var(--bg-primary)' }}>
-                        <Avatar src={group.avatar_url} name={group.display_name || group.username} size={52} />
+                        <StoryAvatar src={group.avatar_url} name={group.display_name || group.username} size={52} />
                       </div>
                       <StoryRing allViewed={allViewed} size={56} />
                     </div>
@@ -624,7 +641,7 @@ export function StoriesPage() {
           <div className="absolute top-0 inset-x-0 z-20 flex items-center gap-2.5 px-3"
             style={{ paddingTop: 'max(24px, calc(env(safe-area-inset-top) + 16px))' }}>
             <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 border-2 border-white/40">
-              <Avatar src={currentGroup.avatar_url} name={currentGroup.display_name || currentGroup.username} size={36} />
+              <StoryAvatar src={currentGroup.avatar_url} name={currentGroup.display_name || currentGroup.username} size={36} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-white font-bold text-sm truncate">{currentGroup.display_name || currentGroup.username}</p>

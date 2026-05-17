@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, Zap, MessageCircle, Server, ShieldCheck } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, Zap, MessageCircle, Video, ShieldCheck, Users, BookImage, Newspaper } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
 import { WolfLogo } from '../components/ui/WolfLogo';
+import { Avatar } from '../components/Avatar';
 
 type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices' | 'about';
 
@@ -39,6 +40,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   // Notification state
   const [notifSound, setNotifSound] = useState(profile?.settings?.notification_sound ?? true);
   const [msgPreview, setMsgPreview] = useState(profile?.settings?.message_preview ?? true);
+  const [notifVibrate, setNotifVibrate] = useState(profile?.settings?.notification_vibrate ?? true);
+  const [notifGroups, setNotifGroups] = useState(profile?.settings?.notification_groups ?? true);
+  const [notifCalls, setNotifCalls] = useState(profile?.settings?.notification_calls ?? true);
+  const [notifShowName, setNotifShowName] = useState(profile?.settings?.notification_show_name ?? true);
 
   // Devices state
   const [sessionInfo, setSessionInfo] = useState<{ ip: string; device_name: string; user_agent: string; created_at: string | null } | null>(null);
@@ -120,7 +125,15 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   async function saveNotifications() {
     if (!user) return;
     await supabase.from('profiles').update({
-      settings: { ...profile?.settings, notification_sound: notifSound, message_preview: msgPreview },
+      settings: {
+        ...profile?.settings,
+        notification_sound: notifSound,
+        message_preview: msgPreview,
+        notification_vibrate: notifVibrate,
+        notification_groups: notifGroups,
+        notification_calls: notifCalls,
+        notification_show_name: notifShowName,
+      },
     }).eq('id', user.id);
     await refreshProfile();
   }
@@ -142,14 +155,14 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   }
 
   const menuItems = [
-    { id: 'profile' as Section, label: t('ویرایش پروفایل', 'Edit Profile'), icon: User, color: '#3b82f6' },
-    { id: 'appearance' as Section, label: t('ظاهر', 'Appearance'), icon: Palette, color: '#8b5cf6' },
-    { id: 'language' as Section, label: t('زبان', 'Language'), icon: Globe, color: '#10b981' },
-    { id: 'notifications' as Section, label: t('اعلان‌ها', 'Notifications'), icon: Bell, color: '#f59e0b' },
-    { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444' },
-    { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b' },
-    { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4' },
-    { id: 'about' as Section, label: t('درباره ما', 'About Us'), icon: Info, color: '#f59e0b' },
+    { id: 'profile' as Section, label: t('ویرایش پروفایل', 'Edit Profile'), icon: User, color: '#3b82f6', grad: 'linear-gradient(135deg,#3b82f6,#6366f1)' },
+    { id: 'appearance' as Section, label: t('ظاهر', 'Appearance'), icon: Palette, color: '#a855f7', grad: 'linear-gradient(135deg,#a855f7,#ec4899)' },
+    { id: 'language' as Section, label: t('زبان', 'Language'), icon: Globe, color: '#10b981', grad: 'linear-gradient(135deg,#10b981,#06b6d4)' },
+    { id: 'notifications' as Section, label: t('اعلان‌ها', 'Notifications'), icon: Bell, color: '#f59e0b', grad: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
+    { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444', grad: 'linear-gradient(135deg,#ef4444,#b91c1c)' },
+    { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b', grad: 'linear-gradient(135deg,#475569,#1e293b)' },
+    { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4', grad: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' },
+    { id: 'about' as Section, label: t('درباره ما', 'About Us'), icon: Info, color: '#f59e0b', grad: 'linear-gradient(135deg,#f59e0b,#d97706)' },
   ];
 
   function Back() {
@@ -191,15 +204,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             {/* Profile Card */}
             <div className="rounded-2xl p-4 flex items-center gap-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
               <div className="relative">
-                <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0">
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                  ) : (
-                    <div className="w-full h-full bg-blue-600 flex items-center justify-center">
-                      <span className="text-white text-2xl font-bold">{(profile?.display_name || profile?.username || '?').charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-                </div>
+                <Avatar src={profile?.avatar_url} name={profile?.display_name} username={profile?.username} size={64} />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center border-2"
@@ -221,13 +226,13 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 <button
                   key={item.id}
                   onClick={() => setSection(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-right transition-colors hover:bg-white/5"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-right transition-colors hover:bg-white/5 active:bg-white/10"
                   style={{ borderBottom: idx < menuItems.length - 1 ? '1px solid var(--border-color)' : 'none' }}
                 >
                   <ChevronLeft size={16} style={{ color: 'var(--text-muted)' }} />
-                  <span className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${item.color}20` }}>
-                    <item.icon size={16} style={{ color: item.color }} />
+                  <span className="flex-1 text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
+                  <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: item.grad }}>
+                    <item.icon size={17} color="white" />
                   </div>
                 </button>
               ))}
@@ -251,15 +256,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
             {/* Avatar */}
             <div className="flex justify-center">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full overflow-hidden">
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
-                  ) : (
-                    <div className="w-full h-full bg-blue-600 flex items-center justify-center">
-                      <span className="text-white text-3xl font-bold">{(profile?.display_name || profile?.username || '?').charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-                </div>
+                <Avatar src={profile?.avatar_url} name={profile?.display_name} username={profile?.username} size={96} />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute bottom-0 right-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 shadow-lg"
@@ -427,30 +424,60 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         )}
 
         {/* NOTIFICATIONS */}
-        {section === 'notifications' && (
-          <div className="p-4 space-y-3">
-            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              {[
-                { label: t('صدای اعلان', 'Notification Sound'), sublabel: t('صدا هنگام دریافت پیام', 'Play sound on new message'), value: notifSound, onChange: setNotifSound },
-                { label: t('پیش‌نمایش پیام', 'Message Preview'), sublabel: t('نمایش محتوای پیام در اعلان', 'Show message content in notification'), value: msgPreview, onChange: setMsgPreview },
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < 1 ? '1px solid var(--border-color)' : 'none' }}>
-                  <button
-                    onClick={() => { item.onChange(!item.value); setTimeout(saveNotifications, 100); }}
-                    className="w-12 h-6 rounded-full transition-all flex-shrink-0 relative"
-                    style={{ background: item.value ? 'var(--accent)' : 'var(--bg-input)' }}
-                  >
-                    <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${item.value ? 'left-6' : 'left-0.5'}`} />
-                  </button>
-                  <div className="flex-1 text-right">
-                    <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{item.label}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.sublabel}</p>
+        {section === 'notifications' && (() => {
+          const notifRows = [
+            {
+              group: t('پیام‌ها', 'Messages'),
+              items: [
+                { label: t('اعلان پیام', 'Message Notifications'), sublabel: t('دریافت اعلان برای پیام‌های جدید', 'Get notified for new messages'), value: notifSound, onChange: (v: boolean) => { setNotifSound(v); setTimeout(saveNotifications, 100); } },
+                { label: t('اعلان گروه‌ها', 'Group Notifications'), sublabel: t('اعلان برای پیام‌های گروهی', 'Notifications for group messages'), value: notifGroups, onChange: (v: boolean) => { setNotifGroups(v); setTimeout(saveNotifications, 100); } },
+              ],
+            },
+            {
+              group: t('تماس', 'Calls'),
+              items: [
+                { label: t('اعلان تماس ورودی', 'Incoming Call Alerts'), sublabel: t('صدا و اعلان هنگام تماس', 'Sound & notification on call'), value: notifCalls, onChange: (v: boolean) => { setNotifCalls(v); setTimeout(saveNotifications, 100); } },
+              ],
+            },
+            {
+              group: t('محتوای اعلان', 'Notification Content'),
+              items: [
+                { label: t('نمایش نام فرستنده', 'Show Sender Name'), sublabel: t('نام فرستنده در اعلان قفل‌صفحه', 'Sender name on lock screen notification'), value: notifShowName, onChange: (v: boolean) => { setNotifShowName(v); setTimeout(saveNotifications, 100); } },
+                { label: t('پیش‌نمایش پیام', 'Message Preview'), sublabel: t('نمایش متن پیام در اعلان', 'Show message text in notification'), value: msgPreview, onChange: (v: boolean) => { setMsgPreview(v); setTimeout(saveNotifications, 100); } },
+                { label: t('لرزش', 'Vibration'), sublabel: t('لرزش هنگام دریافت اعلان', 'Vibrate on notification'), value: notifVibrate, onChange: (v: boolean) => { setNotifVibrate(v); setTimeout(saveNotifications, 100); } },
+              ],
+            },
+          ];
+          return (
+            <div className="p-4 space-y-4">
+              {notifRows.map((group) => (
+                <div key={group.group}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: 'var(--text-muted)' }}>{group.group}</p>
+                  <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+                    {group.items.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: idx < group.items.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                        <button
+                          onClick={() => item.onChange(!item.value)}
+                          className="w-12 h-6 rounded-full transition-all flex-shrink-0 relative"
+                          style={{ background: item.value ? '#2563eb' : 'var(--bg-input)' }}
+                        >
+                          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${item.value ? 'left-6' : 'left-0.5'}`} />
+                        </button>
+                        <div className="flex-1 text-right">
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{item.label}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.sublabel}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
+              <p className="text-xs text-center px-4" style={{ color: 'var(--text-muted)' }}>
+                {t('برای دریافت اعلان روی صفحه قفل، مطمئن شوید مرورگر اجازه اعلان دارد.', 'To receive lock screen notifications, ensure the browser has notification permission.')}
+              </p>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* SECURITY */}
         {section === 'security' && (
@@ -593,9 +620,11 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color:'var(--text-muted)' }}>{t('ویژگی‌ها', 'Features')}</p>
               {[
                 { icon: <MessageCircle size={16} style={{ color:'#60a5fa' }} />, title: t('پیام‌رسانی آنی', 'Real-time Messaging'), desc: t('ارتباط فوری با WebSocket', 'Instant communication via WebSocket'), delay: '0ms' },
-                { icon: <ShieldCheck size={16} style={{ color:'#4ade80' }} />, title: t('ایزولاسیون انتها-به-انتها', 'End-to-end Isolation'), desc: t('امنیت کامل داده‌های شما', 'Complete security for your data'), delay: '80ms' },
-                { icon: <Server size={16} style={{ color:'#c084fc' }} />, title: t('هسته آماده داکر', 'Docker-ready Core'), desc: t('استقرار سریع روی هر سرور', 'Fast deployment on any server'), delay: '160ms' },
-                { icon: <Zap size={16} style={{ color:'#fbbf24' }} />, title: t('عملکرد بالا', 'High Performance'), desc: t('معماری سبک و واکنش‌گرا', 'Lightweight and responsive architecture'), delay: '240ms' },
+                { icon: <Video size={16} style={{ color:'#c084fc' }} />, title: t('تماس صوتی و تصویری', 'Voice & Video Calls'), desc: t('تماس با کیفیت بالا از هر مکان', 'High-quality calls from anywhere'), delay: '80ms' },
+                { icon: <BookImage size={16} style={{ color:'#f472b6' }} />, title: t('استوری', 'Stories'), desc: t('اشتراک لحظات با دنبال‌کنندگان', 'Share moments with followers'), delay: '160ms' },
+                { icon: <Newspaper size={16} style={{ color:'#34d399' }} />, title: t('فید و شبکه اجتماعی', 'Feed & Social'), desc: t('پست، لایک، کامنت و دنبال‌کردن', 'Posts, likes, comments & follow'), delay: '240ms' },
+                { icon: <ShieldCheck size={16} style={{ color:'#4ade80' }} />, title: t('حریم خصوصی کامل', 'Full Privacy'), desc: t('امنیت کامل داده‌های شما', 'Complete security for your data'), delay: '320ms' },
+                { icon: <Zap size={16} style={{ color:'#fbbf24' }} />, title: t('عملکرد بالا', 'High Performance'), desc: t('معماری سبک و واکنش‌گرا', 'Lightweight and responsive architecture'), delay: '400ms' },
               ].map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-3" style={{ animation:`kw-feat-in 0.35s ease both`, animationDelay: feat.delay }}>
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background:'var(--bg-input)' }}>

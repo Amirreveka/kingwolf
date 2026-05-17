@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Phone, Video, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall, Search, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { Avatar } from '../components/Avatar';
+import { Conversation } from '../types';
 
 interface CallRecord {
   id: string;
@@ -17,6 +19,11 @@ interface CallRecord {
   receiver_name: string;
   receiver_username: string;
   receiver_avatar: string;
+}
+
+interface CallsPageProps {
+  onCall?: (userId: string, type: 'voice' | 'video') => void;
+  contacts?: Conversation[];
 }
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
@@ -39,18 +46,17 @@ function formatCallTime(iso: string, fa: boolean): string {
   return d.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
-export function CallsPage() {
+export function CallsPage({ onCall, contacts = [] }: CallsPageProps) {
   const { user } = useAuth();
   const { t, language } = useTheme();
   const fa = language === 'fa';
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeCallUser, setActiveCallUser] = useState<{ name: string; avatar: string; type: 'voice' | 'video' } | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
 
-  useEffect(() => {
-    loadCalls();
-  }, []);
+  useEffect(() => { loadCalls(); }, []);
 
   async function loadCalls() {
     setLoading(true);
@@ -69,9 +75,9 @@ export function CallsPage() {
 
   function getOtherPerson(call: CallRecord) {
     if (call.caller_id === user?.id) {
-      return { name: call.receiver_name || call.receiver_username, avatar: call.receiver_avatar, username: call.receiver_username };
+      return { name: call.receiver_name || call.receiver_username, avatar: call.receiver_avatar, username: call.receiver_username, userId: call.receiver_id };
     }
-    return { name: call.caller_name || call.caller_username, avatar: call.caller_avatar, username: call.caller_username };
+    return { name: call.caller_name || call.caller_username, avatar: call.caller_avatar, username: call.caller_username, userId: call.caller_id };
   }
 
   function getCallDirection(call: CallRecord): 'outgoing' | 'incoming' | 'missed' {
@@ -86,6 +92,12 @@ export function CallsPage() {
     return other.name.toLowerCase().includes(search.toLowerCase()) || other.username.toLowerCase().includes(search.toLowerCase());
   });
 
+  const filteredContacts = contacts.filter(c => {
+    if (!pickerSearch.trim()) return true;
+    const name = c.other_user?.display_name || c.other_user?.username || '';
+    return name.toLowerCase().includes(pickerSearch.toLowerCase());
+  });
+
   return (
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-secondary)' }}>
       {/* Header */}
@@ -95,7 +107,7 @@ export function CallsPage() {
           <button
             className="w-8 h-8 rounded-xl flex items-center justify-center"
             style={{ background: 'var(--bg-input)', color: 'var(--accent)' }}
-            onClick={() => setActiveCallUser({ name: t('تماس جدید', 'New Call'), avatar: '', type: 'voice' })}
+            onClick={() => setShowPicker(true)}
             title={t('تماس جدید', 'New Call')}
           >
             <PhoneCall size={16} />
@@ -146,20 +158,14 @@ export function CallsPage() {
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               >
                 <div className="relative flex-shrink-0">
-                  {other.avatar ? (
-                    <img src={other.avatar} className="w-11 h-11 rounded-full object-cover" alt="" />
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-blue-600 flex items-center justify-center">
-                      <span className="text-white text-sm font-bold">{(other.name || '?').charAt(0).toUpperCase()}</span>
-                    </div>
-                  )}
-                  <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--bg-secondary)' }}>
+                  <Avatar src={other.avatar} name={other.name} size={44} />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2" style={{ background: 'var(--bg-secondary)', borderColor: 'var(--bg-secondary)' }}>
                     {call.type === 'video' ? <Video size={10} style={{ color: 'var(--accent)' }} /> : <Phone size={10} style={{ color: 'var(--accent)' }} />}
                   </div>
                 </div>
-                <div className="flex-1 min-w-0 text-right">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{other.name || other.username}</p>
-                  <div className="flex items-center gap-1 justify-end mt-0.5">
+                  <div className="flex items-center gap-1 mt-0.5">
                     {isMissed ? <PhoneMissed size={12} className="text-red-400 flex-shrink-0" />
                       : isOutgoing ? <PhoneOutgoing size={12} className="text-blue-400 flex-shrink-0" />
                       : <PhoneIncoming size={12} className="text-green-400 flex-shrink-0" />}
@@ -173,13 +179,15 @@ export function CallsPage() {
                 </div>
                 <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{formatCallTime(call.created_at, fa)}</span>
-                  <button
-                    className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
-                    style={{ background: 'rgba(37,99,235,0.1)', color: 'var(--accent)' }}
-                    onClick={(e) => { e.stopPropagation(); setActiveCallUser({ name: other.name, avatar: other.avatar, type: call.type }); }}
-                  >
-                    {call.type === 'video' ? <Video size={13} /> : <Phone size={13} />}
-                  </button>
+                  {onCall && (
+                    <button
+                      className="w-7 h-7 rounded-full flex items-center justify-center transition-colors"
+                      style={{ background: 'rgba(37,99,235,0.1)', color: 'var(--accent)' }}
+                      onClick={(e) => { e.stopPropagation(); onCall(other.userId, call.type); }}
+                    >
+                      {call.type === 'video' ? <Video size={13} /> : <Phone size={13} />}
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -187,33 +195,75 @@ export function CallsPage() {
         )}
       </div>
 
-      {/* Simulated Call Overlay */}
-      {activeCallUser && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-between py-16"
-          style={{ background: activeCallUser.type === 'video' ? '#0a0a0a' : 'linear-gradient(135deg,#1e3a5f,#0f1b2d)' }}>
-          <div className="text-center">
-            <p className="text-white/60 text-sm mb-1">{activeCallUser.type === 'voice' ? `🎙️ ${t('تماس صوتی','Voice call')}` : `📹 ${t('تماس تصویری','Video call')}`}</p>
-            <h2 className="text-white text-2xl font-bold">{activeCallUser.name}</h2>
-            <p className="text-white/60 text-sm mt-1">{t('در حال برقراری ارتباط...', 'Connecting...')}</p>
-          </div>
-          <div className="flex flex-col items-center">
-            {activeCallUser.avatar ? (
-              <img src={activeCallUser.avatar} className="w-32 h-32 rounded-full object-cover border-4 border-white/20" alt="" />
-            ) : (
-              <div className="w-32 h-32 rounded-full bg-blue-700 flex items-center justify-center border-4 border-white/20">
-                <span className="text-white text-5xl font-bold">{activeCallUser.name.charAt(0)}</span>
-              </div>
-            )}
-            <div className="mt-4 flex gap-1">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="w-2 h-2 rounded-full bg-white/40 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
-              ))}
+      {/* Contact Picker Modal */}
+      {showPicker && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }}>
+          <div className="w-full max-w-sm rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slideUp" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-color)' }}>
+              <button onClick={() => setShowPicker(false)} style={{ color: 'var(--text-secondary)' }}>
+                <X size={20} />
+              </button>
+              <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>{t('تماس جدید', 'New Call')}</h3>
+              <div className="w-6" />
             </div>
-          </div>
-          <div className="flex items-center gap-6">
-            <button onClick={() => setActiveCallUser(null)} className="w-16 h-16 rounded-full flex items-center justify-center bg-red-600 hover:bg-red-500 transition-colors">
-              <X size={26} className="text-white" />
-            </button>
+            {/* Search */}
+            <div className="px-3 pt-3 flex-shrink-0">
+              <div className="relative">
+                <Search size={14} className={`absolute ${fa ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2`} style={{ color: 'var(--text-muted)' }} />
+                <input
+                  value={pickerSearch}
+                  onChange={(e) => setPickerSearch(e.target.value)}
+                  placeholder={t('جستجوی مخاطب...', 'Search contacts...')}
+                  className={`w-full ${fa ? 'pr-8 pl-3' : 'pl-8 pr-3'} py-2 rounded-xl text-sm outline-none`}
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            {/* Contacts list */}
+            <div className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+              {filteredContacts.length === 0 ? (
+                <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>{t('مخاطبی یافت نشد', 'No contacts found')}</p>
+              ) : (
+                filteredContacts.map((c) => {
+                  const other = c.other_user!;
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'transparent' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                      <Avatar src={other.avatar_url} name={other.display_name} username={other.username} size={42} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{other.display_name || other.username}</p>
+                        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>@{other.username}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        {onCall && (
+                          <>
+                            <button
+                              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                              style={{ background: 'rgba(37,99,235,0.12)', color: 'var(--accent)' }}
+                              onClick={() => { setShowPicker(false); onCall(other.id, 'voice'); }}
+                              title={t('تماس صوتی', 'Voice Call')}
+                            >
+                              <Phone size={16} />
+                            </button>
+                            <button
+                              className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                              style={{ background: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}
+                              onClick={() => { setShowPicker(false); onCall(other.id, 'video'); }}
+                              title={t('تماس تصویری', 'Video Call')}
+                            >
+                              <Video size={16} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}

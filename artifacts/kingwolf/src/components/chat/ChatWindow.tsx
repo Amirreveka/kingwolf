@@ -6,6 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Conversation, Message, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { WolfLogo } from '../ui/WolfLogo';
+import { Avatar } from '../Avatar';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -101,7 +102,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const { user, profile } = useAuth();
   const { language } = useTheme();
   const fa = language === 'fa';
-  const { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, readMessageIds } = useMessages(conversation?.id ?? null);
+  const { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, readMessageIds, reactions, toggleReaction } = useMessages(conversation?.id ?? null);
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -145,6 +146,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -458,9 +461,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
             else if (conversation.other_user && conversation.name !== '__saved__') { setShowUserProfile(conversation.other_user as any); }
           }}>
             {conversation.type === 'direct' && conversation.name !== '__saved__' ? (
-              conversation.other_user?.avatar_url
-                ? <img src={conversation.other_user.avatar_url} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="" />
-                : <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0"><span className="text-white font-bold text-sm">{getDisplayName().charAt(0).toUpperCase()}</span></div>
+              <Avatar src={conversation.other_user?.avatar_url} name={conversation.other_user?.display_name} username={conversation.other_user?.username} size={40} />
             ) : <ConvAvatar conversation={conversation} size={10} />}
             <div className="min-w-0 text-right">
               <div className="flex items-center gap-1.5">
@@ -606,12 +607,9 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                 )}
                 <div className={`flex items-end gap-2 mb-0.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isOwn && (
-                    <div className={`w-7 h-7 flex-shrink-0 ${showAvatar ? 'cursor-pointer' : 'invisible'}`}
+                    <div className={`flex-shrink-0 ${showAvatar ? 'cursor-pointer' : 'invisible'}`}
                       onClick={e => { e.stopPropagation(); if (showAvatar && msg.sender) setShowUserProfile(msg.sender as any); }}>
-                      {msg.sender?.avatar_url
-                        ? <img src={msg.sender.avatar_url} className="w-7 h-7 rounded-full object-cover" alt="" />
-                        : <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center"><span className="text-white text-xs font-bold">{(msg.sender?.display_name || msg.sender?.username || '?').charAt(0).toUpperCase()}</span></div>
-                      }
+                      <Avatar src={msg.sender?.avatar_url} name={msg.sender?.display_name} username={msg.sender?.username} size={28} />
                     </div>
                   )}
                   <div
@@ -622,13 +620,30 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     }}
                     onContextMenu={e => { e.preventDefault(); setContextMenu({ msg, x: e.clientX, y: e.clientY }); }}
                     onDoubleClick={() => startReply(msg)}
+                    onTouchStart={e => {
+                      longPressFired.current = false;
+                      const touch = e.touches[0];
+                      longPressTimer.current = setTimeout(() => {
+                        longPressFired.current = true;
+                        setContextMenu({ msg, x: touch.clientX, y: touch.clientY });
+                      }, 500);
+                    }}
+                    onTouchEnd={() => {
+                      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                    }}
+                    onTouchMove={() => {
+                      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                    }}
                   >
                     {/* Group sender name */}
                     {!isOwn && conversation.type === 'group' && showAvatar && (
-                      <p className="text-xs font-semibold mb-1 cursor-pointer" style={{ color: '#93c5fd' }}
+                      <div className="flex items-center gap-1 mb-1 cursor-pointer"
                         onClick={e => { e.stopPropagation(); if (msg.sender) setShowUserProfile(msg.sender as any); }}>
-                        {msg.sender?.display_name || msg.sender?.username}
-                      </p>
+                        <p className="text-xs font-semibold" style={{ color: '#93c5fd' }}>
+                          {msg.sender?.display_name || msg.sender?.username}
+                        </p>
+                        {!!(msg.sender as any)?.is_verified && <BadgeCheck size={11} className="text-blue-400 flex-shrink-0" />}
+                      </div>
                     )}
                     {/* Reply preview */}
                     {repliedMsg && (
@@ -711,7 +726,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     )}
                     {/* Footer */}
                     <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? 'justify-start flex-row-reverse' : 'justify-end'}`}>
-                      {!!msg.is_edited && <span className="text-xs opacity-40">ویرایش‌شده</span>}
+                      {!!msg.is_edited && <span className="text-xs opacity-40">{fa ? 'ویرایش‌شده' : 'edited'}</span>}
                       <span className="text-xs opacity-60">{formatTime(msg.created_at)}</span>
                       {isOwn && (
                         readMessageIds.has(msg.id)
@@ -720,6 +735,27 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                       )}
                     </div>
                   </div>
+                  {/* Reactions display */}
+                  {reactions[msg.id]?.length > 0 && (
+                    <div className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
+                      style={{ paddingLeft: isOwn ? 0 : 0 }}>
+                      {reactions[msg.id].map(r => (
+                        <button
+                          key={r.emoji}
+                          onClick={e => { e.stopPropagation(); toggleReaction(msg.id, r.emoji); }}
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition-all"
+                          style={{
+                            background: r.myReaction ? 'rgba(37,99,235,0.25)' : 'var(--bg-card)',
+                            border: `1px solid ${r.myReaction ? 'rgba(37,99,235,0.5)' : 'var(--border-color)'}`,
+                            fontSize: '13px',
+                          }}
+                        >
+                          <span>{r.emoji}</span>
+                          {r.count > 1 && <span style={{ color: 'var(--text-secondary)', fontSize: '10px' }}>{r.count}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -727,29 +763,52 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
           <div ref={bottomRef} />
         </div>
 
-        {/* Context Menu */}
-        {contextMenu && (
-          <div
-            className="fixed z-50 rounded-xl py-1 shadow-xl overflow-hidden w-44"
-            style={{ left: Math.min(contextMenu.x, window.innerWidth - 180), top: Math.min(contextMenu.y, window.innerHeight - 200), background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            {[
-              { icon: Reply,  label: fa ? 'ریپلای'  : 'Reply',   color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
-              ...(contextMenu.msg.sender_id === user?.id ? [{ icon: Edit2, label: fa ? 'ویرایش' : 'Edit', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
-              { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMsg(contextMenu.msg); setContextMenu(null); } },
-              { icon: Copy,   label: fa ? 'کپی متن' : 'Copy',    color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
-              ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
-            ].map(item => (
-              <button key={item.label}
-                className="flex items-center gap-2.5 px-3 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5"
-                style={{ color: item.color }}
-                onClick={item.action}>
-                <item.icon size={14} /><span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Telegram-style Context Menu */}
+        {contextMenu && (() => {
+          const x = Math.min(Math.max(contextMenu.x - 96, 8), window.innerWidth - 208);
+          const y = contextMenu.y > window.innerHeight - 280 ? contextMenu.y - 280 : contextMenu.y + 8;
+          const QUICK_EMOJIS = ['❤️', '👍', '😂', '😮', '😢', '👎'];
+          const actions = [
+            { icon: Reply, label: fa ? 'ریپلای' : 'Reply', color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
+            ...(contextMenu.msg.sender_id === user?.id && contextMenu.msg.type === 'text' ? [{ icon: Edit2, label: fa ? 'ویرایش' : 'Edit', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
+            { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMsg(contextMenu.msg); setContextMenu(null); } },
+            { icon: Copy, label: fa ? 'کپی متن' : 'Copy', color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
+            ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
+          ];
+          return (
+            <div
+              className="fixed z-[60] rounded-2xl shadow-2xl overflow-hidden"
+              style={{ left: x, top: y, width: 200, background: 'var(--bg-card)', border: '1px solid var(--border-color)', backdropFilter: 'blur(12px)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Quick emoji reactions */}
+              <div className="flex items-center justify-around px-2 py-2.5" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                {QUICK_EMOJIS.map(emoji => {
+                  const myR = reactions[contextMenu.msg.id]?.find(r => r.emoji === emoji && r.myReaction);
+                  return (
+                    <button key={emoji}
+                      onClick={() => { toggleReaction(contextMenu.msg.id, emoji); setContextMenu(null); }}
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-xl transition-all hover:scale-125 active:scale-110"
+                      style={{ background: myR ? 'rgba(37,99,235,0.2)' : 'transparent', transform: myR ? 'scale(1.15)' : undefined }}
+                      title={emoji}
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Action items */}
+              {actions.map(item => (
+                <button key={item.label}
+                  className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5 active:bg-white/10"
+                  style={{ color: item.color }}
+                  onClick={item.action}>
+                  <item.icon size={15} /><span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Copied toast */}
         {copied && (

@@ -944,6 +944,43 @@ app.put('/messages/:id', authMiddleware, async (req, res) => {
   return res.json({ ok: true });
 });
 
+// ===== Message Reactions =====
+app.get('/messages/reactions', authMiddleware, (req, res) => {
+  const { conversation_id } = req.query;
+  if (!conversation_id) return res.status(400).json({ error: 'conversation_id required' });
+  try {
+    const rows = db.prepare(`
+      SELECT mr.message_id, mr.emoji, mr.user_id
+      FROM message_reactions mr
+      JOIN messages m ON m.id = mr.message_id
+      WHERE m.conversation_id = ?
+    `).all(conversation_id);
+    return res.json({ data: rows });
+  } catch (e) {
+    return res.json({ data: [] });
+  }
+});
+
+app.post('/messages/:id/react', authMiddleware, (req, res) => {
+  const { emoji } = req.body || {};
+  if (!emoji) return res.status(400).json({ error: 'emoji required' });
+  try {
+    const existing = db.prepare('SELECT 1 FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
+      .get(req.params.id, req.userId, emoji);
+    if (existing) {
+      db.prepare('DELETE FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?')
+        .run(req.params.id, req.userId, emoji);
+      return res.json({ ok: true, action: 'removed' });
+    } else {
+      db.prepare("INSERT OR IGNORE INTO message_reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, datetime('now'))")
+        .run(req.params.id, req.userId, emoji);
+      return res.json({ ok: true, action: 'added' });
+    }
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== Message forward =====
 app.post('/messages/forward', authMiddleware, async (req, res) => {
   const { messageId, targetConversationId } = req.body || {};
@@ -1669,6 +1706,30 @@ app.get('/calls', authMiddleware, (req, res) => {
     return res.json({ data: calls });
   } catch (e) {
     return res.json({ data: [] });
+  }
+});
+
+app.post('/calls', authMiddleware, (req, res) => {
+  try {
+    const { id, receiver_id, type, status } = req.body;
+    if (!receiver_id || !type || !status) return res.status(400).json({ error: 'missing fields' });
+    const callId = id || nanoid();
+    db.prepare('INSERT OR IGNORE INTO calls (id, caller_id, receiver_id, type, status, duration, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)')
+      .run(callId, req.userId, receiver_id, type, status, new Date().toISOString().replace('T', ' ').split('.')[0]);
+    return res.json({ ok: true, id: callId });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/calls/:id', authMiddleware, (req, res) => {
+  try {
+    const { duration, status } = req.body;
+    db.prepare('UPDATE calls SET duration = COALESCE(?, duration), status = COALESCE(?, status) WHERE id = ? AND (caller_id = ? OR receiver_id = ?)')
+      .run(duration ?? null, status ?? null, req.params.id, req.userId, req.userId);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
 });
 

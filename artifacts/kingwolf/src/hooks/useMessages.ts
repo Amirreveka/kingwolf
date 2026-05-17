@@ -13,25 +13,41 @@ async function apiCall(path: string, opts: RequestInit = {}) {
   try { return await res.json(); } catch { return {}; }
 }
 
+export type ReactionGroup = { emoji: string; count: number; myReaction: boolean };
+
 export function useMessages(conversationId: string | null) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
+  const [reactions, setReactions] = useState<Record<string, ReactionGroup[]>>({});
 
   const fetchMessages = useCallback(async () => {
-    if (!conversationId) { setMessages([]); return; }
+    if (!conversationId) { setMessages([]); setReactions({}); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from('messages')
-      .select('*, sender:profiles!sender_id(*)')
-      .eq('conversation_id', conversationId)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: true })
-      .limit(200);
-    if (data) setMessages(data as Message[]);
+    const [msgResult, reactResult] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('*, sender:profiles!sender_id(*)')
+        .eq('conversation_id', conversationId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .limit(200),
+      apiCall(`/messages/reactions?conversation_id=${conversationId}`),
+    ]);
+    if (msgResult.data) setMessages(msgResult.data as Message[]);
+    if (reactResult.data) {
+      const grouped: Record<string, ReactionGroup[]> = {};
+      for (const row of reactResult.data as { message_id: string; emoji: string; user_id: string }[]) {
+        if (!grouped[row.message_id]) grouped[row.message_id] = [];
+        const g = grouped[row.message_id].find(r => r.emoji === row.emoji);
+        if (g) { g.count++; if (row.user_id === user?.id) g.myReaction = true; }
+        else grouped[row.message_id].push({ emoji: row.emoji, count: 1, myReaction: row.user_id === user?.id });
+      }
+      setReactions(grouped);
+    }
     setLoading(false);
-  }, [conversationId]);
+  }, [conversationId, user?.id]);
 
   const markAsRead = useCallback(async () => {
     if (!conversationId || !user) return;
@@ -195,5 +211,31 @@ export function useMessages(conversationId: string | null) {
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }
 
-  return { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, refresh: fetchMessages, readMessageIds, markAsRead };
+  async function toggleReaction(messageId: string, emoji: string): Promise<void> {
+    const result = await apiCall(`/messages/${messageId}/react`, {
+      method: 'POST',
+      body: JSON.stringify({ emoji }),
+    });
+    if (!result.ok) return;
+    setReactions(prev => {
+      const msgReactions = [...(prev[messageId] || [])];
+      const idx = msgReactions.findIndex(r => r.emoji === emoji);
+      if (result.action === 'added') {
+        if (idx >= 0) {
+          msgReactions[idx] = { ...msgReactions[idx], count: msgReactions[idx].count + 1, myReaction: true };
+        } else {
+          msgReactions.push({ emoji, count: 1, myReaction: true });
+        }
+      } else {
+        if (idx >= 0) {
+          const newCount = msgReactions[idx].count - 1;
+          if (newCount <= 0) msgReactions.splice(idx, 1);
+          else msgReactions[idx] = { ...msgReactions[idx], count: newCount, myReaction: false };
+        }
+      }
+      return { ...prev, [messageId]: msgReactions };
+    });
+  }
+
+  return { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, refresh: fetchMessages, readMessageIds, markAsRead, reactions, toggleReaction };
 }

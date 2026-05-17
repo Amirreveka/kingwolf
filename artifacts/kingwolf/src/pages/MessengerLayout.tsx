@@ -11,6 +11,7 @@ import { SettingsPage } from './SettingsPage';
 import { Conversation } from '../types';
 import { supabase, onSignal, offSignal, sendSignal } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
+import { Avatar } from '../components/Avatar';
 import { CallsPage } from './CallsPage';
 import { StoriesPage } from './StoriesPage';
 
@@ -77,7 +78,33 @@ export function MessengerLayout() {
   const callTargetRef = useRef<string | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callStateRef = useRef<CallState | null>(null);
+  const callIdRef = useRef<string | null>(null);
+  const callStartTimeRef = useRef<number | null>(null);
   useEffect(() => { callStateRef.current = callState; }, [callState]);
+
+  function getToken() { return localStorage.getItem('kingwolf_token') || ''; }
+
+  async function saveCallRecord(receiverId: string, type: 'voice' | 'video', status: string): Promise<string | null> {
+    try {
+      const res = await fetch('/api/calls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ receiver_id: receiverId, type, status }),
+      });
+      const data = await res.json();
+      return data.id || null;
+    } catch { return null; }
+  }
+
+  async function updateCallRecord(callId: string, duration: number, status?: string) {
+    try {
+      await fetch(`/api/calls/${callId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+        body: JSON.stringify({ duration, status }),
+      });
+    } catch {}
+  }
 
   // Call duration timer
   useEffect(() => {
@@ -131,7 +158,10 @@ export function MessengerLayout() {
     const avatar = conv?.other_user?.avatar_url;
     callTargetRef.current = targetUserId;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
+      const videoConstraints = type === 'video'
+        ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        : false;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints });
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       const pc = buildPc();
@@ -147,6 +177,10 @@ export function MessengerLayout() {
         offer,
       });
       setCallState({ type, status: 'calling', targetUserId, displayName, avatar });
+      // Record outgoing call
+      const cid = await saveCallRecord(targetUserId, type, 'outgoing');
+      callIdRef.current = cid;
+      callStartTimeRef.current = Date.now();
     } catch {
       cleanupCall();
     }
@@ -157,7 +191,10 @@ export function MessengerLayout() {
     const { fromUserId, callType, offer, fromName, fromAvatar } = incomingCall;
     callTargetRef.current = fromUserId;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' });
+      const videoConstraints = callType === 'video'
+        ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+        : false;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: videoConstraints });
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       const pc = buildPc();
@@ -173,6 +210,7 @@ export function MessengerLayout() {
       sendSignal(fromUserId, { type: 'call-answer', answer });
       setCallState({ type: callType, status: 'active', targetUserId: fromUserId, displayName: fromName, avatar: fromAvatar });
       setIncomingCall(null);
+      callStartTimeRef.current = Date.now();
     } catch {
       cleanupCall();
       setIncomingCall(null);
@@ -186,6 +224,12 @@ export function MessengerLayout() {
   }
 
   function endCall() {
+    const duration = callStartTimeRef.current ? Math.round((Date.now() - callStartTimeRef.current) / 1000) : 0;
+    if (callIdRef.current) {
+      updateCallRecord(callIdRef.current, duration, callState?.status === 'active' ? 'outgoing' : 'missed');
+    }
+    callIdRef.current = null;
+    callStartTimeRef.current = null;
     if (callTargetRef.current) sendSignal(callTargetRef.current, { type: 'call-end' });
     cleanupCall();
   }
@@ -253,6 +297,13 @@ export function MessengerLayout() {
   }
 
   async function handleSavedMessages() {
+    const existing = conversations.find(c => c.name === '__saved__');
+    if (existing) {
+      setSelectedConvId(existing.id);
+      setShowChatOnMobile(true);
+      setPage('messages');
+      return;
+    }
     const convId = await getSavedMessagesConversation();
     if (convId) {
       setSelectedConvId(convId);
@@ -346,15 +397,7 @@ export function MessengerLayout() {
             className="w-full h-10 rounded-xl flex items-center justify-center transition-colors overflow-hidden mt-1"
             title={profile?.display_name || profile?.username}
           >
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} className="w-8 h-8 rounded-full object-cover" alt="" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {(profile?.display_name || profile?.username || '?').charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
+            <Avatar src={profile?.avatar_url} name={profile?.display_name} username={profile?.username} size={32} />
           </button>
         </div>
       </div>
@@ -434,7 +477,7 @@ export function MessengerLayout() {
               onStartCall={startCall}
             />
           ) : page === 'calls' ? (
-            <CallsPage />
+            <CallsPage onCall={startCall} contacts={conversations.filter(c => c.type === 'direct' && c.other_user)} />
           ) : page === 'feed' ? (
             <FeedPage />
           ) : page === 'stories' ? (

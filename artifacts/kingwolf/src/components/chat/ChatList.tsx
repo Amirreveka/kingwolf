@@ -266,6 +266,20 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
   const longPressFired = useRef(false);
   const deleteCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Intersection Observer-based lazy loading for long conversation lists
+  const [visibleCount, setVisibleCount] = useState(30);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) {
+        setVisibleCount(n => n + 20);
+      }
+    }, { threshold: 0.1 });
+    if (sentinelRef.current) obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, []);
+
   function openPeek(conv: Conversation) {
     setPeekConv(conv);
     supabase.from('messages').select('*, sender:profiles!sender_id(display_name,username)')
@@ -333,6 +347,9 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
       if (deleteCountdownRef.current) clearInterval(deleteCountdownRef.current);
     }
   }, [deletePending?.countdown]);
+
+  // Reset visible count when tab or search changes
+  useEffect(() => { setVisibleCount(30); }, [tab, search]);
 
   const tabs = [
     { id: 'direct' as Tab, label: t('شخصی', 'Direct'), icon: MessageSquare },
@@ -599,7 +616,7 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             </button>
           </div>
         ) : (
-          filtered.filter(c => !deletedIds.has(c.id)).map((c) => (
+          filtered.filter(c => !deletedIds.has(c.id)).slice(0, visibleCount).map((c) => (
             <button
               key={c.id}
               onClick={() => { if (!longPressFired.current) onSelect(c.id); }}
@@ -667,6 +684,8 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             </button>
           ))
         )}
+        {/* Sentinel: triggers loading more items when scrolled into view */}
+        <div ref={sentinelRef} className="h-1" />
       </div>
 
       {/* Modals */}

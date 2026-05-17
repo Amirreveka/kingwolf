@@ -101,6 +101,9 @@ export function StoriesPage() {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
 
+  // Dual mode
+  const [dualMode, setDualMode] = useState(false);
+
   // Creator
   const [showCreator, setShowCreator] = useState(false);
   const [creatorMode, setCreatorMode] = useState<'text' | 'media'>('media');
@@ -165,7 +168,7 @@ export function StoriesPage() {
     markViewed(groups[groupIdx]?.stories[storyIdx]?.id);
   }
 
-  function closeViewer() { setViewing(null); setProgress(0); }
+  function closeViewer() { setViewing(null); setProgress(0); setDualMode(false); }
 
   function nextStory() {
     if (!viewing || !currentGroup) return;
@@ -773,6 +776,16 @@ export function StoriesPage() {
                 <Trash2 size={20} />
               </button>
             )}
+            {currentGroup.stories.length > 1 && (
+              <button
+                onClick={() => setDualMode(d => !d)}
+                className={`p-2 rounded-full transition-all ${dualMode ? 'text-purple-400' : 'text-white/60 hover:text-white'}`}
+                style={dualMode ? { filter: 'drop-shadow(0 0 8px #a855f7)' } : {}}
+                title="Dual Stories"
+              >
+                <span className="text-sm font-bold">⊞</span>
+              </button>
+            )}
             <button onClick={closeViewer} className="text-white/80 p-1.5">
               <X size={22} />
             </button>
@@ -780,21 +793,83 @@ export function StoriesPage() {
 
           {/* Media */}
           <div className="absolute inset-0 flex items-center justify-center">
-            {currentStory.media_type === 'video'
-              ? (
-                <video
-                  ref={videoRef}
-                  src={currentStory.media_url}
-                  className="w-full h-full object-contain"
-                  autoPlay playsInline muted={muted}
-                  onEnded={nextStory}
-                  onTimeUpdate={e => {
-                    const v = e.currentTarget;
-                    if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+            {dualMode && currentGroup.stories.length > 1 ? (
+              <div className="flex h-full w-full">
+                {/* Left story — current */}
+                <div
+                  className="flex-1 relative overflow-hidden"
+                  style={{ borderRight: '1px solid rgba(168,85,247,0.3)', boxShadow: '2px 0 20px rgba(168,85,247,0.12)' }}
+                  onClick={e => { e.stopPropagation(); }}
+                >
+                  {currentStory.media_type === 'video'
+                    ? (
+                      <video
+                        ref={videoRef}
+                        src={currentStory.media_url}
+                        className="w-full h-full object-cover"
+                        autoPlay playsInline muted={muted}
+                        onEnded={nextStory}
+                        onTimeUpdate={e => {
+                          const v = e.currentTarget;
+                          if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+                        }}
+                      />
+                    )
+                    : <img src={currentStory.media_url} className="w-full h-full object-cover" alt="" />}
+                  {/* Progress bar overlay */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-white/20 pointer-events-none">
+                    <div className="h-full bg-purple-400 transition-none" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
+                {/* Right story — next */}
+                <div
+                  className="flex-1 relative overflow-hidden cursor-pointer"
+                  onClick={e => { e.stopPropagation(); nextStory(); }}
+                >
+                  {(() => {
+                    const nextIdx = (viewing.storyIdx + 1) % currentGroup.stories.length;
+                    const nextStory = currentGroup.stories[nextIdx];
+                    return nextStory ? (
+                      nextStory.media_type === 'video'
+                        ? <video src={nextStory.media_url} className="w-full h-full object-cover opacity-75" autoPlay playsInline muted loop />
+                        : <img src={nextStory.media_url} className="w-full h-full object-cover opacity-75" alt="" />
+                    ) : null;
+                  })()}
+                  {/* "Tap to switch" hint */}
+                  <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">
+                    <span className="text-white/50 text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                      {fa ? 'ضربه برای بعدی' : 'Tap to go next'}
+                    </span>
+                  </div>
+                </div>
+                {/* Neon divider glow */}
+                <div
+                  className="absolute top-0 bottom-0 pointer-events-none"
+                  style={{
+                    left: '50%',
+                    width: 1,
+                    background: 'linear-gradient(to bottom, transparent, #a855f7, transparent)',
+                    boxShadow: '0 0 12px 3px #a855f7',
                   }}
                 />
-              )
-              : <img src={currentStory.media_url} className="w-full h-full object-contain" alt="" />}
+              </div>
+            ) : (
+              currentStory.media_type === 'video'
+                ? (
+                  <video
+                    ref={videoRef}
+                    src={currentStory.media_url}
+                    className="w-full h-full object-contain"
+                    autoPlay playsInline muted={muted}
+                    onEnded={nextStory}
+                    onTimeUpdate={e => {
+                      const v = e.currentTarget;
+                      if (v.duration) setProgress((v.currentTime / v.duration) * 100);
+                    }}
+                  />
+                )
+                : <img src={currentStory.media_url} className="w-full h-full object-contain" alt="" />
+            )}
           </div>
 
           {/* Caption */}

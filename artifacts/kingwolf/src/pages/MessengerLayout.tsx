@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Settings, Sun, Moon, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, PhoneIncoming, PhoneMissed } from 'lucide-react';
+import { MessageSquare, Settings, Sun, Moon, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, PhoneIncoming, PhoneMissed, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useConversations } from '../hooks/useConversations';
@@ -14,8 +14,9 @@ import { WolfLogo } from '../components/ui/WolfLogo';
 import { Avatar } from '../components/Avatar';
 import { CallsPage } from './CallsPage';
 import { StoriesPage } from './StoriesPage';
+import { ContactsPage } from './ContactsPage';
 
-type Page = 'messages' | 'calls' | 'feed' | 'stories' | 'settings';
+type Page = 'messages' | 'calls' | 'contacts' | 'feed' | 'stories' | 'settings';
 
 // Instagram-style Stories icon
 function StoriesIcon({ size = 22, active = false }: { size?: number; active?: boolean }) {
@@ -377,10 +378,11 @@ export function MessengerLayout() {
   const fa = language === 'fa';
 
   const navItems = [
-    { id: 'messages' as Page, label: fa ? 'پیام‌ها' : 'Messages', icon: MessageSquare },
-    { id: 'calls'   as Page, label: fa ? 'تماس‌ها' : 'Calls',    icon: Phone },
-    { id: 'feed'    as Page, label: fa ? 'توییت'    : 'Tweet',    icon: null /* uses TwitterBird */ },
-    { id: 'settings'as Page, label: fa ? 'تنظیمات'  : 'Settings', icon: Settings },
+    { id: 'messages'  as Page, label: fa ? 'پیام‌ها'   : 'Messages',  icon: MessageSquare },
+    { id: 'calls'     as Page, label: fa ? 'تماس‌ها'   : 'Calls',     icon: Phone },
+    { id: 'contacts'  as Page, label: fa ? 'مخاطبین'   : 'Contacts',  icon: Users },
+    { id: 'feed'      as Page, label: fa ? 'توییت'      : 'Tweet',     icon: null /* uses TwitterBird */ },
+    { id: 'settings'  as Page, label: fa ? 'تنظیمات'   : 'Settings',  icon: Settings },
   ];
 
   // Bottom nav height: 56px + safe-area; add as paddingBottom to content so input isn't hidden
@@ -489,7 +491,7 @@ export function MessengerLayout() {
         }}
       >
         {/* Mobile header for non-messages pages */}
-        {page !== 'messages' && page !== 'calls' && page !== 'settings' && (
+        {page !== 'messages' && page !== 'calls' && page !== 'contacts' && page !== 'settings' && (
           <div
             className="flex-shrink-0 flex items-center gap-3 px-4 py-3 md:hidden"
             style={{
@@ -531,6 +533,8 @@ export function MessengerLayout() {
             />
           ) : page === 'calls' ? (
             <CallsPage onCall={startCall} contacts={conversations.filter(c => c.type === 'direct' && c.other_user)} />
+          ) : page === 'contacts' ? (
+            <ContactsPage onOpenChat={(userId) => handleSelectConversation(`direct:${userId}`)} />
           ) : page === 'feed' ? (
             <FeedPage />
           ) : page === 'stories' ? (

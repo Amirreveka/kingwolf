@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Avatar } from '../components/Avatar';
+import { NeonBadge } from '../components/NeonBadge';
 
 function getToken() { try { return localStorage.getItem('kingwolf_token'); } catch { return null; } }
 async function apiPost(path: string, body?: any) {
@@ -229,6 +230,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
               {effectiveProfile.is_admin && <BadgeCheck size={18} className="text-blue-400" />}
             </div>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>@{effectiveProfile.username}</p>
+            <NeonBadge userId={effectiveProfile.id} size="sm" language={language} />
             {effectiveProfile.bio && (
               <p className="text-sm mt-2 leading-relaxed" style={{ color: 'var(--text-primary)' }}>{effectiveProfile.bio}</p>
             )}
@@ -304,6 +306,7 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{effectiveProfile.display_name || effectiveProfile.username}</span>
                         {effectiveProfile.is_admin && <BadgeCheck size={14} className="text-blue-400" />}
+                        <NeonBadge userId={effectiveProfile.id} size="xs" language={language} />
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>@{effectiveProfile.username}</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>·</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtTime(post.created_at, fa)}</span>

@@ -66,6 +66,174 @@
   --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
 }
 
+/* ===== AMOLED THEME (pure black, perfect for OLED) ===== */
+.amoled {
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-card: rgba(12, 12, 12, 0.95);
+  --bg-input: rgba(20, 20, 20, 0.9);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(255, 255, 255, 0.07);
+  --text-primary: #ffffff;
+  --text-secondary: #888888;
+  --text-muted: #444444;
+  --border-color: rgba(255, 255, 255, 0.04);
+  --border-input: rgba(255, 255, 255, 0.07);
+  --accent: #0088cc;
+  --accent-hover: #00a6ed;
+  --msg-own-bg: #0088cc;
+  --msg-own-text: #ffffff;
+  --msg-other-bg: #1a1a1a;
+  --msg-other-text: #e5e5e5;
+  --sidebar-bg: rgba(5, 5, 5, 0.9);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== OCEAN THEME (deep sea blue) ===== */
+.ocean {
+  --bg-primary: #020c1b;
+  --bg-secondary: #0a192f;
+  --bg-card: rgba(10, 25, 47, 0.85);
+  --bg-input: rgba(17, 34, 64, 0.7);
+  --bg-hover: rgba(100, 255, 218, 0.04);
+  --bg-active: rgba(100, 255, 218, 0.08);
+  --text-primary: #ccd6f6;
+  --text-secondary: #8892b0;
+  --text-muted: #4a5568;
+  --border-color: rgba(100, 255, 218, 0.07);
+  --border-input: rgba(100, 255, 218, 0.1);
+  --accent: #64ffda;
+  --accent-hover: #00e5c0;
+  --msg-own-bg: #1a6e56;
+  --msg-own-text: #e0fff8;
+  --msg-other-bg: #112240;
+  --msg-other-text: #ccd6f6;
+  --sidebar-bg: rgba(2, 12, 27, 0.9);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== SUNSET THEME (warm orange-pink) ===== */
+.sunset {
+  --bg-primary: #1a0a00;
+  --bg-secondary: #2d1200;
+  --bg-card: rgba(40, 18, 5, 0.9);
+  --bg-input: rgba(55, 25, 8, 0.8);
+  --bg-hover: rgba(255, 140, 0, 0.05);
+  --bg-active: rgba(255, 140, 0, 0.1);
+  --text-primary: #ffe8cc;
+  --text-secondary: #c9956a;
+  --text-muted: #7a5030;
+  --border-color: rgba(255, 140, 0, 0.08);
+  --border-input: rgba(255, 140, 0, 0.12);
+  --accent: #ff6b2b;
+  --accent-hover: #ff8a50;
+  --msg-own-bg: #cc4e00;
+  --msg-own-text: #fff3e8;
+  --msg-other-bg: #2d1800;
+  --msg-other-text: #ffe0c0;
+  --sidebar-bg: rgba(26, 10, 0, 0.9);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== FOREST THEME (dark emerald green) ===== */
+.forest {
+  --bg-primary: #020d08;
+  --bg-secondary: #061a0e;
+  --bg-card: rgba(8, 24, 14, 0.88);
+  --bg-input: rgba(12, 35, 20, 0.75);
+  --bg-hover: rgba(52, 211, 153, 0.04);
+  --bg-active: rgba(52, 211, 153, 0.08);
+  --text-primary: #d1fae5;
+  --text-secondary: #6ee7b7;
+  --text-muted: #2d6a4f;
+  --border-color: rgba(52, 211, 153, 0.06);
+  --border-input: rgba(52, 211, 153, 0.1);
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --msg-own-bg: #065f46;
+  --msg-own-text: #d1fae5;
+  --msg-other-bg: #064e3b;
+  --msg-other-text: #a7f3d0;
+  --sidebar-bg: rgba(2, 13, 8, 0.92);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== PURPLE NIGHT THEME ===== */
+.purple {
+  --bg-primary: #0d0016;
+  --bg-secondary: #160022;
+  --bg-card: rgba(22, 0, 34, 0.88);
+  --bg-input: rgba(35, 5, 55, 0.75);
+  --bg-hover: rgba(168, 85, 247, 0.05);
+  --bg-active: rgba(168, 85, 247, 0.1);
+  --text-primary: #f3e8ff;
+  --text-secondary: #c084fc;
+  --text-muted: #6b21a8;
+  --border-color: rgba(168, 85, 247, 0.07);
+  --border-input: rgba(168, 85, 247, 0.12);
+  --accent: #a855f7;
+  --accent-hover: #c084fc;
+  --msg-own-bg: #7e22ce;
+  --msg-own-text: #f5e6ff;
+  --msg-other-bg: #1e0033;
+  --msg-other-text: #e9d5ff;
+  --sidebar-bg: rgba(13, 0, 22, 0.93);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== GOLDEN THEME (warm amber) ===== */
+.golden {
+  --bg-primary: #120c00;
+  --bg-secondary: #1e1400;
+  --bg-card: rgba(28, 20, 0, 0.9);
+  --bg-input: rgba(42, 30, 0, 0.8);
+  --bg-hover: rgba(251, 191, 36, 0.05);
+  --bg-active: rgba(251, 191, 36, 0.1);
+  --text-primary: #fef3c7;
+  --text-secondary: #d97706;
+  --text-muted: #78450a;
+  --border-color: rgba(251, 191, 36, 0.07);
+  --border-input: rgba(251, 191, 36, 0.12);
+  --accent: #f59e0b;
+  --accent-hover: #fbbf24;
+  --msg-own-bg: #b45309;
+  --msg-own-text: #fffbeb;
+  --msg-other-bg: #1c1400;
+  --msg-other-text: #fef3c7;
+  --sidebar-bg: rgba(18, 12, 0, 0.93);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
+/* ===== ROSE THEME (elegant pink) ===== */
+.rose {
+  --bg-primary: #0f0008;
+  --bg-secondary: #1a0011;
+  --bg-card: rgba(24, 4, 18, 0.88);
+  --bg-input: rgba(38, 8, 28, 0.78);
+  --bg-hover: rgba(244, 63, 94, 0.05);
+  --bg-active: rgba(244, 63, 94, 0.09);
+  --text-primary: #ffe4ef;
+  --text-secondary: #f9a8c9;
+  --text-muted: #9d174d;
+  --border-color: rgba(244, 63, 94, 0.07);
+  --border-input: rgba(244, 63, 94, 0.12);
+  --accent: #f43f5e;
+  --accent-hover: #fb7185;
+  --msg-own-bg: #be123c;
+  --msg-own-text: #fff1f5;
+  --msg-other-bg: #1e0014;
+  --msg-other-text: #fecdd3;
+  --sidebar-bg: rgba(15, 0, 8, 0.93);
+  --app-font-sans: 'Vazirmatn', system-ui, sans-serif;
+  --radius: 0.75rem;
+}
+
 @layer base {
   * {
     box-sizing: border-box;

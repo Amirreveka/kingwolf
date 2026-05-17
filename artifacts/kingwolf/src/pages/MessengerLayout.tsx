@@ -82,6 +82,29 @@ export function MessengerLayout() {
   const callStartTimeRef = useRef<number | null>(null);
   useEffect(() => { callStateRef.current = callState; }, [callState]);
 
+  // Swipe-to-go-back gesture (like Telegram)
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  function onMainTouchStart(e: React.TouchEvent) {
+    swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }
+  function onMainTouchEnd(e: React.TouchEvent) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = Math.abs(e.changedTouches[0].clientY - start.y);
+    if (dx > 80 && dy < dx * 0.7) {
+      if (page === 'messages' && showChatOnMobile) {
+        setShowChatOnMobile(false);
+        setSelectedConvId(null);
+        setActiveConversation(null);
+      } else if (page !== 'messages') {
+        setPage('messages');
+        setShowChatOnMobile(false);
+      }
+    }
+  }
+
   function getToken() { return localStorage.getItem('kingwolf_token') || ''; }
 
   async function saveCallRecord(receiverId: string, type: 'voice' | 'video', status: string): Promise<string | null> {
@@ -340,6 +363,8 @@ export function MessengerLayout() {
       className="flex overflow-hidden"
       style={{ background: 'var(--bg-primary)', height: '100dvh', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box' }}
       dir={fa ? 'rtl' : 'ltr'}
+      onTouchStart={onMainTouchStart}
+      onTouchEnd={onMainTouchEnd}
     >
       {/* ── Desktop sidebar ─────────────────────────────── */}
       <div

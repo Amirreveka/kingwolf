@@ -130,6 +130,19 @@ export function StoriesPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const STORY_DURATION = 5000;
+  // Swipe-to-close for story viewer
+  const viewerSwipe = useRef<{ x: number; y: number } | null>(null);
+  // Android back button: push history state when emoji picker opens, pop to close
+  useEffect(() => {
+    if (showEmojiPicker) {
+      history.pushState({ emojiPicker: true }, '');
+      const handler = (e: PopStateEvent) => {
+        if (e.state?.emojiPicker !== true) setShowEmojiPicker(false);
+      };
+      window.addEventListener('popstate', handler);
+      return () => window.removeEventListener('popstate', handler);
+    }
+  }, [showEmojiPicker]);
 
   const load = useCallback(async () => {
     const res = await apiFetch('/stories');
@@ -421,7 +434,8 @@ export function StoriesPage() {
       {showCreator && (
         <div className="fixed inset-0 z-[998] flex flex-col" style={{ background: '#000' }}>
           {/* Creator top bar */}
-          <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 z-10">
+          <div className="flex items-center justify-between px-4 flex-shrink-0 z-10"
+            style={{ paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 8px))', paddingBottom: 12 }}>
             <button onClick={resetCreator} className="p-2 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }}>
               <X size={20} className="text-white" />
             </button>
@@ -566,7 +580,8 @@ export function StoriesPage() {
             )}
 
             {/* Tool bar */}
-            <div className="flex items-center justify-around px-6 py-3 pb-6">
+            <div className="flex items-center justify-around px-6 py-3"
+              style={{ paddingBottom: 'max(24px, calc(env(safe-area-inset-bottom) + 12px))' }}>
               {/* Emoji picker toggle */}
               <button onClick={() => setShowEmojiPicker(p => !p)}
                 className="flex flex-col items-center gap-1"
@@ -605,7 +620,7 @@ export function StoriesPage() {
           {/* Emoji picker panel */}
           {showEmojiPicker && (
             <div className="absolute bottom-0 inset-x-0 z-20 rounded-t-3xl p-4"
-              style={{ background: 'rgba(15,15,15,0.95)', maxHeight: '45vh', overflowY: 'auto' }}>
+              style={{ background: 'rgba(15,15,15,0.97)', maxHeight: '52vh', overflowY: 'auto', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
               <div className="flex flex-wrap gap-3 justify-center">
                 {EMOJI_LIST.map(em => (
                   <button key={em} onClick={() => { setOverlayEmojis(prev => [...prev.slice(-5), em]); }}
@@ -621,7 +636,19 @@ export function StoriesPage() {
 
       {/* ─────────────────── Story Viewer ─────────────────── */}
       {viewing && currentGroup && currentStory && (
-        <div className="fixed inset-0 z-[999] flex flex-col" style={{ background: '#000', touchAction: 'none' }}>
+        <div
+          className="fixed inset-0 z-[999] flex flex-col"
+          style={{ background: '#000', touchAction: 'none' }}
+          onTouchStart={e => { viewerSwipe.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+          onTouchEnd={e => {
+            const s = viewerSwipe.current;
+            viewerSwipe.current = null;
+            if (!s) return;
+            const dx = e.changedTouches[0].clientX - s.x;
+            const dy = Math.abs(e.changedTouches[0].clientY - s.y);
+            if (dx > 80 && dy < dx * 0.7) closeViewer();
+          }}
+        >
 
           {/* Progress bars */}
           <div className="absolute top-0 inset-x-0 z-20 flex gap-1 px-2 pt-2"

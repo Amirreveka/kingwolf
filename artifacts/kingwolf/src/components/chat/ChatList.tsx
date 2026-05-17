@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck, Camera } from 'lucide-react';
+import { Search, Plus, MessageSquare, Users, Radio, Bookmark, X, Check, Hash, UserPlus, BadgeCheck, Camera, CheckCheck, BellOff, Bell, Pin, PinOff, Trash2, AlertTriangle } from 'lucide-react';
 import { Conversation, Profile } from '../../types';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -250,6 +250,89 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
   const [memberSearch, setMemberSearch] = useState('');
   const [memberResults, setMemberResults] = useState<Profile[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Long-press peek + context menu
+  const [peekConv, setPeekConv] = useState<Conversation | null>(null);
+  const [peekMessages, setPeekMessages] = useState<any[]>([]);
+  const [deletePending, setDeletePending] = useState<{ conv: Conversation; timer: ReturnType<typeof setTimeout>; countdown: number } | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('kw_pinned') || '[]')); } catch { return new Set(); }
+  });
+  const [mutedIds, setMutedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('kw_muted') || '[]')); } catch { return new Set(); }
+  });
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = useRef(false);
+  const deleteCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function openPeek(conv: Conversation) {
+    setPeekConv(conv);
+    supabase.from('messages').select('*, sender:profiles!sender_id(display_name,username)')
+      .eq('conversation_id', conv.id).eq('is_deleted', false)
+      .order('created_at', { ascending: false }).limit(6)
+      .then(({ data }) => setPeekMessages((data || []).reverse()));
+  }
+
+  function closePeek() { setPeekConv(null); setPeekMessages([]); }
+
+  function markAsRead(conv: Conversation) {
+    const token = localStorage.getItem('kingwolf_token');
+    fetch('/api/messages/read', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ conversation_id: conv.id }) }).catch(() => {});
+    closePeek();
+  }
+
+  function togglePin(conv: Conversation) {
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(conv.id)) next.delete(conv.id); else next.add(conv.id);
+      localStorage.setItem('kw_pinned', JSON.stringify([...next]));
+      return next;
+    });
+    closePeek();
+  }
+
+  function toggleMute(conv: Conversation) {
+    setMutedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(conv.id)) next.delete(conv.id); else next.add(conv.id);
+      localStorage.setItem('kw_muted', JSON.stringify([...next]));
+      return next;
+    });
+    closePeek();
+  }
+
+  function initiateDelete(conv: Conversation) {
+    closePeek();
+    // Hide immediately
+    setDeletedIds(prev => new Set([...prev, conv.id]));
+    // Start 20s countdown for undo
+    let count = 20;
+    const timer = setTimeout(async () => {
+      // Actually delete
+      await supabase.from('conversations').delete().eq('id', conv.id);
+      setDeletePending(null);
+      if (deleteCountdownRef.current) clearInterval(deleteCountdownRef.current);
+    }, 20000);
+    setDeletePending({ conv, timer, countdown: 20 });
+    deleteCountdownRef.current = setInterval(() => {
+      setDeletePending(prev => prev ? { ...prev, countdown: prev.countdown - 1 } : null);
+    }, 1000);
+  }
+
+  function undoDelete() {
+    if (!deletePending) return;
+    clearTimeout(deletePending.timer);
+    if (deleteCountdownRef.current) clearInterval(deleteCountdownRef.current);
+    setDeletedIds(prev => { const n = new Set(prev); n.delete(deletePending.conv.id); return n; });
+    setDeletePending(null);
+  }
+
+  useEffect(() => {
+    if (deletePending?.countdown <= 0) {
+      if (deleteCountdownRef.current) clearInterval(deleteCountdownRef.current);
+    }
+  }, [deletePending?.countdown]);
 
   const tabs = [
     { id: 'direct' as Tab, label: t('شخصی', 'Direct'), icon: MessageSquare },
@@ -516,10 +599,21 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
             </button>
           </div>
         ) : (
-          filtered.map((c) => (
+          filtered.filter(c => !deletedIds.has(c.id)).map((c) => (
             <button
               key={c.id}
-              onClick={() => onSelect(c.id)}
+              onClick={() => { if (!longPressFired.current) onSelect(c.id); }}
+              onContextMenu={e => { e.preventDefault(); openPeek(c); }}
+              onTouchStart={e => {
+                longPressFired.current = false;
+                const touch = e.touches[0];
+                longPressTimer.current = setTimeout(() => {
+                  longPressFired.current = true;
+                  openPeek(c);
+                }, 500);
+              }}
+              onTouchEnd={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
+              onTouchMove={() => { if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; } }}
               className="w-full px-3 py-2.5 rounded-xl flex items-center gap-3 text-right kw-chat-item animate-fadeIn"
               style={{
                 background: selectedId === c.id ? 'var(--bg-active)' : 'transparent',
@@ -749,6 +843,102 @@ export function ChatList({ conversations, selectedId, onSelect, onCreateGroup, o
                 {t('ساخت کانال', 'Create Channel')}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Long-press Peek Modal ───────────────────────────── */}
+      {peekConv && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}
+          onClick={closePeek}>
+          <div
+            className="w-full max-w-sm rounded-t-3xl overflow-hidden animate-slideUp"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Peek header */}
+            <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--border-color)' }}>
+              <ConvAvatar src={getAvatar(peekConv)} initials={getInitials(peekConv)} type={peekConv.type} />
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{getDisplayName(peekConv)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {peekConv.type === 'direct' ? (fa ? 'گفتگوی شخصی' : 'Direct message') : peekConv.type === 'group' ? (fa ? 'گروه' : 'Group') : (fa ? 'کانال' : 'Channel')}
+                </p>
+              </div>
+            </div>
+
+            {/* Mini message preview */}
+            <div className="px-4 py-3 max-h-52 overflow-y-auto space-y-2" style={{ direction: fa ? 'rtl' : 'ltr' }}>
+              {peekMessages.length === 0
+                ? <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>{fa ? 'هنوز پیامی نیست' : 'No messages yet'}</p>
+                : peekMessages.map(msg => {
+                    const isOwn = msg.sender_id === user?.id;
+                    return (
+                      <div key={msg.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                        <div className="max-w-[75%] rounded-2xl px-3 py-1.5 text-xs"
+                          style={{ background: isOwn ? 'var(--msg-own-bg)' : 'var(--msg-other-bg)', color: isOwn ? 'var(--msg-own-text)' : 'var(--msg-other-text)' }}>
+                          {!isOwn && <p className="text-[10px] font-semibold mb-0.5 opacity-70">{msg.sender?.display_name || msg.sender?.username}</p>}
+                          <p className="break-words line-clamp-2">{msg.type === 'image' ? '📷' : msg.type === 'video' ? '🎬' : msg.type === 'audio' ? '🎙️' : msg.content}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+              }
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ borderTop: '1px solid var(--border-color)' }}>
+              <button className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors"
+                style={{ color: 'var(--text-primary)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => markAsRead(peekConv)}>
+                <CheckCheck size={18} />
+                <span className="text-sm">{fa ? 'علامت‌گذاری به عنوان خوانده‌شده' : 'Mark as read'}</span>
+              </button>
+              <button className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors"
+                style={{ color: 'var(--text-primary)', borderTop: '1px solid var(--border-color)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => toggleMute(peekConv)}>
+                {mutedIds.has(peekConv.id) ? <Bell size={18} /> : <BellOff size={18} />}
+                <span className="text-sm">{mutedIds.has(peekConv.id) ? (fa ? 'لغو بی‌صدا' : 'Unmute') : (fa ? 'بی‌صدا' : 'Mute')}</span>
+              </button>
+              <button className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors"
+                style={{ color: 'var(--text-primary)', borderTop: '1px solid var(--border-color)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => togglePin(peekConv)}>
+                {pinnedIds.has(peekConv.id) ? <PinOff size={18} /> : <Pin size={18} />}
+                <span className="text-sm">{pinnedIds.has(peekConv.id) ? (fa ? 'لغو پین' : 'Unpin') : (fa ? 'پین کردن' : 'Pin')}</span>
+              </button>
+              <button className="w-full flex items-center gap-3 px-4 py-3.5 transition-colors"
+                style={{ color: '#ef4444', borderTop: '1px solid var(--border-color)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => initiateDelete(peekConv)}>
+                <Trash2 size={18} />
+                <span className="text-sm font-medium">{fa ? 'حذف گفتگو' : 'Delete chat'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Undo Toast ───────────────────────────────── */}
+      {deletePending && (
+        <div className="fixed bottom-20 inset-x-0 flex justify-center z-[70] px-4"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl max-w-sm w-full"
+            style={{ background: '#1f2937', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <AlertTriangle size={16} className="text-amber-400 flex-shrink-0" />
+            <span className="flex-1 text-sm text-white/90">
+              {fa ? 'گفتگو حذف خواهد شد' : 'Chat will be deleted'} ({deletePending.countdown}s)
+            </span>
+            <button onClick={undoDelete} className="text-sm font-bold px-3 py-1 rounded-lg flex-shrink-0"
+              style={{ background: 'var(--accent)', color: 'white' }}>
+              {fa ? 'بازگردانی' : 'Undo'}
+            </button>
           </div>
         </div>
       )}

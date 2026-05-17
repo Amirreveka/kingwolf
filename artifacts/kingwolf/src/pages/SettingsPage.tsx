@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, Zap, MessageCircle, Video, ShieldCheck, Users, BookImage, Newspaper } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, MessageCircle, Video, ShieldCheck, Users, Move } from 'lucide-react';
+import { THEMES } from '../contexts/ThemeContext';
+import type { Theme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -8,6 +11,134 @@ import { WolfLogo } from '../components/ui/WolfLogo';
 import { Avatar } from '../components/Avatar';
 
 type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices' | 'about';
+
+const CROP_SIZE = 290;
+
+function AvatarCropModal({ src, onConfirm, onCancel, fa }: {
+  src: string;
+  onConfirm: (blob: Blob) => void;
+  onCancel: () => void;
+  fa: boolean;
+}) {
+  const [imgEl, setImgEl] = useState<HTMLImageElement | null>(null);
+  const posRef = useRef({ x: 0, y: 0, scale: 1 });
+  const [, rerender] = useState(0);
+
+  function updatePos(next: { x: number; y: number; scale: number }) {
+    if (!imgEl) return;
+    const iw = imgEl.naturalWidth * next.scale;
+    const ih = imgEl.naturalHeight * next.scale;
+    posRef.current = {
+      x: Math.min(0, Math.max(CROP_SIZE - iw, next.x)),
+      y: Math.min(0, Math.max(CROP_SIZE - ih, next.y)),
+      scale: next.scale,
+    };
+    rerender(n => n + 1);
+  }
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      setImgEl(img);
+      const s = CROP_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      const x = (CROP_SIZE - img.naturalWidth * s) / 2;
+      const y = (CROP_SIZE - img.naturalHeight * s) / 2;
+      posRef.current = { x, y, scale: s };
+      rerender(n => n + 1);
+    };
+    img.src = src;
+  }, [src]);
+
+  const drag = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  const pinch = useRef<{ dist: number; scale: number } | null>(null);
+
+  function onTouchStart(e: React.TouchEvent) {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      drag.current = { sx: e.touches[0].clientX, sy: e.touches[0].clientY, px: posRef.current.x, py: posRef.current.y };
+    } else if (e.touches.length === 2) {
+      const d = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+      pinch.current = { dist: d, scale: posRef.current.scale };
+      drag.current = null;
+    }
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    e.preventDefault();
+    if (e.touches.length === 1 && drag.current) {
+      updatePos({ x: drag.current.px + e.touches[0].clientX - drag.current.sx, y: drag.current.py + e.touches[0].clientY - drag.current.sy, scale: posRef.current.scale });
+    } else if (e.touches.length === 2 && pinch.current) {
+      const d = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+      const s = Math.max(0.3, Math.min(6, pinch.current.scale * (d / pinch.current.dist)));
+      updatePos({ x: posRef.current.x, y: posRef.current.y, scale: s });
+    }
+  }
+
+  function onTouchEnd() { drag.current = null; pinch.current = null; }
+
+  const mouse = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+  function onMouseDown(e: React.MouseEvent) { mouse.current = { sx: e.clientX, sy: e.clientY, px: posRef.current.x, py: posRef.current.y }; }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!mouse.current) return;
+    updatePos({ x: mouse.current.px + e.clientX - mouse.current.sx, y: mouse.current.py + e.clientY - mouse.current.sy, scale: posRef.current.scale });
+  }
+  function onMouseUp() { mouse.current = null; }
+  function onWheel(e: React.WheelEvent) {
+    e.preventDefault();
+    updatePos({ x: posRef.current.x, y: posRef.current.y, scale: Math.max(0.3, Math.min(6, posRef.current.scale - e.deltaY * 0.002)) });
+  }
+
+  function confirm() {
+    if (!imgEl) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = CROP_SIZE;
+    canvas.height = CROP_SIZE;
+    const ctx = canvas.getContext('2d')!;
+    const { x, y, scale } = posRef.current;
+    ctx.drawImage(imgEl, x, y, imgEl.naturalWidth * scale, imgEl.naturalHeight * scale);
+    canvas.toBlob(blob => { if (blob) onConfirm(blob); }, 'image/jpeg', 0.92);
+  }
+
+  const { x, y, scale } = posRef.current;
+
+  return createPortal(
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 px-4" style={{ background: 'rgba(0,0,0,0.93)', zIndex: 10000 }}>
+      <p className="text-white font-bold text-lg">{fa ? 'انتخاب عکس پروفایل' : 'Crop Profile Photo'}</p>
+      <div
+        style={{ width: CROP_SIZE, height: CROP_SIZE, borderRadius: '50%', overflow: 'hidden', background: '#111', touchAction: 'none', cursor: 'grab', position: 'relative', flexShrink: 0, boxShadow: '0 0 0 3px rgba(255,255,255,0.25)' }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onWheel={onWheel}
+      >
+        {imgEl && (
+          <img
+            src={src}
+            style={{ position: 'absolute', left: x, top: y, width: imgEl.naturalWidth * scale, height: imgEl.naturalHeight * scale, userSelect: 'none', pointerEvents: 'none', maxWidth: 'none' }}
+            alt=""
+            draggable={false}
+          />
+        )}
+      </div>
+      <p className="text-white/50 text-sm text-center flex items-center gap-2">
+        <Move size={14} />{fa ? 'بکش تا جابجا کنی · اسکرول برای زوم' : 'Drag to move · Scroll / pinch to zoom'}
+      </p>
+      <div className="flex gap-4">
+        <button onClick={onCancel} className="px-6 py-2.5 rounded-full text-white text-sm font-medium" style={{ background: 'rgba(255,255,255,0.15)' }}>
+          {fa ? 'لغو' : 'Cancel'}
+        </button>
+        <button onClick={confirm} className="px-6 py-2.5 rounded-full text-white text-sm font-bold" style={{ background: 'var(--accent)' }}>
+          {fa ? 'تأیید' : 'Confirm'}
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 interface SettingsPageProps {
   onClose: () => void;
@@ -20,6 +151,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Profile form state
@@ -59,34 +191,42 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     }
   }, [profile]);
 
-  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
-    // reset so same file can be re-selected
     e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      if (dataUrl) setCropSource(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    setCropSource(null);
+    if (!user) return;
     setUploadingAvatar(true);
+    const croppedFile = new File([blob], `avatar-${Date.now()}.jpg`, { type: 'image/jpeg' });
     try {
-      const { data: uploadData, error: upErr } = await supabase.storage.from('avatars').upload('', file, { upsert: true });
+      const { data: uploadData, error: upErr } = await supabase.storage.from('avatars').upload(`${user.id}/${Date.now()}.jpg`, croppedFile, { upsert: true });
       if (!upErr && uploadData) {
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(uploadData.path);
         const avatarUrl = urlData.publicUrl + `?t=${Date.now()}`;
         await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id);
         await refreshProfile();
       } else {
-        // Fallback: convert to base64 data URL
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-          const dataUrl = ev.target?.result as string;
+        const fr = new FileReader();
+        fr.onload = async ev2 => {
+          const dataUrl = ev2.target?.result as string;
           if (dataUrl) {
             await supabase.from('profiles').update({ avatar_url: dataUrl }).eq('id', user.id);
             await refreshProfile();
           }
         };
-        reader.readAsDataURL(file);
+        fr.readAsDataURL(croppedFile);
       }
-    } catch (err) {
-      console.error('Avatar upload failed', err);
-    }
+    } catch {}
     setUploadingAvatar(false);
   }
 
@@ -177,6 +317,14 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-primary)' }} dir={language === 'fa' ? 'rtl' : 'ltr'}>
       {/* Hidden file input — always mounted so fileInputRef works in any section */}
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+      {cropSource && (
+        <AvatarCropModal
+          src={cropSource}
+          fa={language === 'fa'}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropSource(null)}
+        />
+      )}
       {/* Header */}
       <div className="flex-shrink-0 flex items-center gap-3 px-4 py-4" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}>
         {section !== 'main' ? <Back /> : (
@@ -327,69 +475,50 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
         {section === 'appearance' && (
           <div className="p-4 space-y-4">
             <div className="rounded-2xl p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{t('تم رنگی', 'Color Theme')}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {/* Dark */}
-                <button
-                  onClick={() => setTheme('dark')}
-                  className="relative rounded-2xl overflow-hidden border-2 transition-all"
-                  style={{ borderColor: theme === 'dark' ? 'var(--accent)' : 'var(--border-color)', aspectRatio: '3/2' }}
-                >
-                  <div className="w-full h-full p-2 flex flex-col gap-1" style={{ background: '#030712' }}>
-                    <div className="flex gap-1">
-                      <div className="w-4 h-2 rounded" style={{ background: '#1f2937' }} />
-                      <div className="flex-1 h-2 rounded" style={{ background: '#374151' }} />
+              <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>{t('تم رنگی', 'Color Theme')}</p>
+              <div className="grid grid-cols-3 gap-3">
+                {THEMES.map(th => (
+                  <button
+                    key={th.id}
+                    onClick={() => setTheme(th.id as Theme)}
+                    className="relative flex flex-col items-center gap-2 transition-all"
+                    style={{ outline: 'none' }}
+                  >
+                    {/* Theme preview swatch */}
+                    <div
+                      className="w-full rounded-2xl overflow-hidden relative"
+                      style={{
+                        aspectRatio: '1/1',
+                        border: theme === th.id ? `2.5px solid ${th.preview[1]}` : '2px solid rgba(255,255,255,0.08)',
+                        background: th.preview[0],
+                        boxShadow: theme === th.id ? `0 0 12px ${th.preview[1]}55` : 'none',
+                        transition: 'border 0.2s, box-shadow 0.2s',
+                      }}
+                    >
+                      {/* Mini chat mockup */}
+                      <div className="absolute inset-0 p-2 flex flex-col justify-end gap-1">
+                        <div className="flex justify-start">
+                          <div className="rounded-xl px-2 py-0.5" style={{ background: th.preview[2], width: '55%', height: 8 }} />
+                        </div>
+                        <div className="flex justify-end">
+                          <div className="rounded-xl px-2 py-0.5" style={{ background: th.preview[1], width: '45%', height: 8 }} />
+                        </div>
+                        <div className="flex justify-start">
+                          <div className="rounded-xl px-2 py-0.5" style={{ background: th.preview[2], width: '65%', height: 8 }} />
+                        </div>
+                      </div>
+                      {theme === th.id && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+                          style={{ background: th.preview[1] }}>
+                          <Check size={10} color="white" />
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1 flex items-end gap-1">
-                      <div className="h-4 w-16 rounded-lg" style={{ background: '#2563eb' }} />
-                    </div>
-                    <div className="flex gap-1 items-end justify-end">
-                      <div className="h-4 w-12 rounded-lg" style={{ background: '#1f2937' }} />
-                    </div>
-                  </div>
-                  {theme === 'dark' && (
-                    <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                      <Check size={10} className="text-white" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-1 text-center">
-                    <span className="text-xs font-medium" style={{ color: '#9ca3af' }}>
-                      <Moon size={10} className="inline-block ml-1" />
-                      {t('تاریک', 'Dark')}
+                    <span className="text-[11px] font-medium text-center truncate w-full" style={{ color: 'var(--text-secondary)' }}>
+                      {language === 'fa' ? th.labelFa : th.label}
                     </span>
-                  </div>
-                </button>
-
-                {/* Light */}
-                <button
-                  onClick={() => setTheme('light')}
-                  className="relative rounded-2xl overflow-hidden border-2 transition-all"
-                  style={{ borderColor: theme === 'light' ? 'var(--accent)' : 'var(--border-color)', aspectRatio: '3/2' }}
-                >
-                  <div className="w-full h-full p-2 flex flex-col gap-1" style={{ background: '#f8fafc' }}>
-                    <div className="flex gap-1">
-                      <div className="w-4 h-2 rounded" style={{ background: '#e2e8f0' }} />
-                      <div className="flex-1 h-2 rounded" style={{ background: '#cbd5e1' }} />
-                    </div>
-                    <div className="flex-1 flex items-end gap-1">
-                      <div className="h-4 w-16 rounded-lg" style={{ background: '#2563eb' }} />
-                    </div>
-                    <div className="flex gap-1 items-end justify-end">
-                      <div className="h-4 w-12 rounded-lg" style={{ background: '#e2e8f0' }} />
-                    </div>
-                  </div>
-                  {theme === 'light' && (
-                    <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                      <Check size={10} className="text-white" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 inset-x-0 p-1 text-center">
-                    <span className="text-xs font-medium" style={{ color: '#64748b' }}>
-                      <Sun size={10} className="inline-block ml-1" />
-                      {t('روشن', 'Light')}
-                    </span>
-                  </div>
-                </button>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

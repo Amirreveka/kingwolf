@@ -1,7 +1,19 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type Theme = 'dark' | 'light';
+type Theme = 'dark' | 'light' | 'amoled' | 'ocean' | 'sunset' | 'forest' | 'purple' | 'golden' | 'rose';
 type Language = 'fa' | 'en';
+
+export const THEMES: { id: Theme; label: string; labelFa: string; preview: string[] }[] = [
+  { id: 'dark',   labelFa: 'تاریک',        label: 'Dark',         preview: ['#030712','#2563eb','#1f2937'] },
+  { id: 'light',  labelFa: 'روشن',         label: 'Light',        preview: ['#f8fafc','#2563eb','#e2e8f0'] },
+  { id: 'amoled', labelFa: 'آمولد',        label: 'AMOLED',       preview: ['#000000','#0088cc','#1a1a1a'] },
+  { id: 'ocean',  labelFa: 'اقیانوس',     label: 'Ocean',        preview: ['#020c1b','#64ffda','#112240'] },
+  { id: 'sunset', labelFa: 'غروب',         label: 'Sunset',       preview: ['#1a0a00','#ff6b2b','#2d1800'] },
+  { id: 'forest', labelFa: 'جنگل',         label: 'Forest',       preview: ['#020d08','#10b981','#064e3b'] },
+  { id: 'purple', labelFa: 'شب بنفش',      label: 'Purple Night', preview: ['#0d0016','#a855f7','#1e0033'] },
+  { id: 'golden', labelFa: 'طلایی',        label: 'Golden',       preview: ['#120c00','#f59e0b','#1c1400'] },
+  { id: 'rose',   labelFa: 'رز',           label: 'Rose',         preview: ['#0f0008','#f43f5e','#1e0014'] },
+];
 
 // Comprehensive Persian→English dictionary. t() falls back to this when only fa is passed.
 const AUTO_EN: Record<string, string> = {
@@ -143,6 +155,8 @@ const AUTO_EN: Record<string, string> = {
   "KingWolf Messenger": "KingWolf Messenger",
 };
 
+export type { Theme };
+
 interface ThemeContextType {
   theme: Theme;
   language: Language;
@@ -171,7 +185,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.remove('dark', 'light');
+    root.classList.remove('dark', 'light', 'amoled', 'ocean', 'sunset', 'forest', 'purple', 'golden', 'rose');
     root.classList.add(theme);
     localStorage.setItem('kw_theme', theme);
   }, [theme]);

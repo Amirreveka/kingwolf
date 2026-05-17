@@ -3,6 +3,7 @@ import { ArrowRight, BadgeCheck, UserPlus, UserMinus, MessageSquare, BarChart2, 
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { Avatar } from '../components/Avatar';
 
 function getToken() { try { return localStorage.getItem('kingwolf_token'); } catch { return null; } }
 async function apiPost(path: string, body?: any) {
@@ -174,12 +175,15 @@ export function ProfilePage({ userId, onBack, onMessageUser }: ProfilePageProps)
         <div className="px-4 pb-4 relative" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)' }}>
           {/* Avatar */}
           <div className="flex items-end justify-between" style={{ marginTop: -44 }}>
-            <div className="w-20 h-20 rounded-full border-4 overflow-hidden flex-shrink-0"
+            <div className="border-4 rounded-full flex-shrink-0"
               style={{ borderColor: 'var(--bg-card)', background: avatarColor }}>
-              {effectiveProfile.avatar_url
-                ? <img src={effectiveProfile.avatar_url} className="w-full h-full object-cover" alt="" />
-                : <div className="w-full h-full flex items-center justify-center text-white text-2xl font-bold">{initials}</div>
-              }
+              <Avatar
+                src={effectiveProfile.avatar_url}
+                name={effectiveProfile.display_name}
+                username={effectiveProfile.username}
+                size={80}
+                viewable
+              />
             </div>
 
             {/* Action buttons */}

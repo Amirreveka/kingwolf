@@ -461,7 +461,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
             else if (conversation.other_user && conversation.name !== '__saved__') { setShowUserProfile(conversation.other_user as any); }
           }}>
             {conversation.type === 'direct' && conversation.name !== '__saved__' ? (
-              <Avatar src={conversation.other_user?.avatar_url} name={conversation.other_user?.display_name} username={conversation.other_user?.username} size={40} />
+              <Avatar src={conversation.other_user?.avatar_url} name={conversation.other_user?.display_name} username={conversation.other_user?.username} size={40} viewable />
             ) : <ConvAvatar conversation={conversation} size={10} />}
             <div className="min-w-0 text-right">
               <div className="flex items-center gap-1.5">

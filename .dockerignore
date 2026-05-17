@@ -1,6 +1,7 @@
-**/node_modules
+artifacts/kingwolf/node_modules
 artifacts/kingwolf/dist
 artifacts/api-server/data/kingwolf.db
+artifacts/api-server/data/kingwolf.db.bak
 artifacts/api-server/data/.jwt-secret
 artifacts/api-server/data/kingwolf.db.lock
 .git

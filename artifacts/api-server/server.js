@@ -203,6 +203,17 @@ app.post('/auth/signup', async (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(id, username, email, username, '/icon-192.png', isApproved ? 1 : 0);
 
+    // Notify contacts who have this phone number
+    try {
+      const phone = req.body?.phone || '';
+      if (phone) {
+        const normalizedPhone = phone.replace(/\D/g, '');
+        if (normalizedPhone) {
+          db.prepare('UPDATE user_contacts SET matched_user_id = ? WHERE phone = ?').run(id, normalizedPhone);
+        }
+      }
+    } catch (_) {}
+
     // Auto-join the default KingWolf group + channel if they exist
     const defaults = db.prepare(`SELECT id FROM conversations WHERE type IN ('group','channel') AND name = 'KingWolf'`).all();
     for (const conv of defaults) {
@@ -1897,6 +1908,148 @@ app.patch('/calls/:id', authMiddleware, (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+// ── Contact Sync ─────────────────────────────────────────────────────────────
+app.post('/contacts/sync', authMiddleware, (req, res) => {
+  const { contacts } = req.body; // [{ phone, name }]
+  if (!Array.isArray(contacts)) return res.status(400).json({ error: 'contacts array required' });
+  const userId = req.profile.id;
+
+  // Upsert contacts
+  const upsert = db.prepare(`INSERT OR REPLACE INTO user_contacts (owner_id, phone, name, matched_user_id) VALUES (?,?,?,?)`);
+  const findUser = db.prepare(`SELECT id FROM profiles WHERE phone = ? LIMIT 1`);
+
+  let matched = 0;
+  for (const c of contacts.slice(0, 2000)) {
+    if (!c.phone) continue;
+    const normalized = c.phone.replace(/\D/g, '');
+    if (!normalized) continue;
+    const found = findUser.get(normalized);
+    const matchedId = found ? found.id : null;
+    if (matchedId) matched++;
+    upsert.run(userId, normalized, c.name || '', matchedId);
+  }
+
+  // Check if any of MY contacts just joined → send notifications (handled separately)
+  res.json({ synced: contacts.length, matched });
+});
+
+app.get('/contacts', authMiddleware, (req, res) => {
+  const userId = req.profile.id;
+  const rows = db.prepare(`
+    SELECT uc.phone, uc.name, uc.matched_user_id,
+           p.username, p.display_name, p.avatar_url, p.online_status, p.bio
+    FROM user_contacts uc
+    LEFT JOIN profiles p ON p.id = uc.matched_user_id
+    WHERE uc.owner_id = ?
+    ORDER BY p.display_name ASC, uc.name ASC
+  `).all(userId);
+
+  const onKingWolf = rows.filter(r => r.matched_user_id);
+  const notOnKingWolf = rows.filter(r => !r.matched_user_id);
+  res.json({ onKingWolf, notOnKingWolf });
+});
+
+// When a new user registers, notify users who have their phone in contacts
+// This is called from the signup flow - we expose it as internal endpoint too
+app.post('/contacts/notify-joined', authMiddleware, (req, res) => {
+  const newUserId = req.profile.id;
+  const newUserPhone = req.profile.phone;
+  if (!newUserPhone) return res.json({ notified: 0 });
+
+  const normalized = newUserPhone.replace(/\D/g, '');
+  // Find all users who have this phone in their contacts
+  const contactOwners = db.prepare(`
+    SELECT DISTINCT owner_id FROM user_contacts WHERE phone = ?
+  `).all(normalized);
+
+  // Update matched_user_id for them
+  db.prepare(`UPDATE user_contacts SET matched_user_id = ? WHERE phone = ?`).run(newUserId, normalized);
+
+  // Create notifications
+  const notifId = () => Math.random().toString(36).slice(2);
+  const insertNotif = db.prepare(`INSERT OR IGNORE INTO notifications (id,user_id,type,actor_id,message) VALUES (?,?,?,?,?)`);
+  for (const owner of contactOwners) {
+    if (owner.owner_id === newUserId) continue;
+    insertNotif.run(notifId(), owner.owner_id, 'contact_joined', newUserId, 'به KingWolf پیوست!');
+  }
+
+  res.json({ notified: contactOwners.length });
+});
+
+// Generate referral/invite link
+app.post('/invite/generate', authMiddleware, (req, res) => {
+  const code = req.profile.username + '_' + Math.random().toString(36).slice(2,8);
+  db.prepare(`INSERT OR IGNORE INTO invite_codes (code, created_by) VALUES (?,?)`).run(code, req.profile.id);
+  res.json({ code, link: `/join/${code}` });
+});
+
+// ── Howl (Wolf reaction) ──────────────────────────────────────────────────────
+app.post('/feed/howl/:postId', authMiddleware, (req, res) => {
+  const { postId } = req.params;
+  const userId = req.profile.id;
+  const existing = db.prepare('SELECT 1 FROM howls WHERE user_id=? AND post_id=?').get(userId, postId);
+  if (existing) {
+    db.prepare('DELETE FROM howls WHERE user_id=? AND post_id=?').run(userId, postId);
+    db.prepare('UPDATE feed_posts SET howls_count = MAX(0, howls_count - 1) WHERE id=?').run(postId);
+    return res.json({ howled: false });
+  }
+  db.prepare('INSERT OR IGNORE INTO howls (user_id, post_id) VALUES (?,?)').run(userId, postId);
+  db.prepare('UPDATE feed_posts SET howls_count = howls_count + 1 WHERE id=?').run(postId);
+
+  // Award badge progress
+  const howlCount = db.prepare('SELECT COUNT(*) AS n FROM howls WHERE user_id=?').get(userId).n;
+  if (howlCount >= 100) db.prepare('INSERT OR IGNORE INTO user_badges (user_id, badge) VALUES (?,?)').run(userId, 'howl_master');
+
+  res.json({ howled: true });
+});
+
+app.get('/feed/howled', authMiddleware, (req, res) => {
+  const { postIds } = req.query; // comma-separated
+  if (!postIds) return res.json([]);
+  const ids = String(postIds).split(',').slice(0, 100);
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT post_id FROM howls WHERE user_id=? AND post_id IN (${placeholders})`).all([req.profile.id, ...ids]);
+  res.json(rows.map(r => r.post_id));
+});
+
+// ── Stealth Mode ─────────────────────────────────────────────────────────────
+app.post('/profile/stealth', authMiddleware, (req, res) => {
+  const { enabled } = req.body;
+  db.prepare('UPDATE profiles SET stealth_mode=? WHERE id=?').run(enabled ? 1 : 0, req.profile.id);
+  res.json({ stealth_mode: enabled });
+});
+
+app.get('/profile/stealth', authMiddleware, (req, res) => {
+  const p = db.prepare('SELECT stealth_mode FROM profiles WHERE id=?').get(req.profile.id);
+  res.json({ stealth_mode: !!(p?.stealth_mode) });
+});
+
+// ── Badges ────────────────────────────────────────────────────────────────────
+app.get('/badges/:userId', authMiddleware, (req, res) => {
+  const badges = db.prepare('SELECT badge, awarded_at FROM user_badges WHERE user_id=?').all(req.params.userId);
+  // Calculate level
+  const profile = db.prepare('SELECT * FROM profiles WHERE id=?').get(req.params.userId);
+  const postCount = db.prepare('SELECT COUNT(*) AS n FROM feed_posts WHERE author_id=? AND is_deleted=0').get(req.params.userId)?.n || 0;
+  const followerCount = db.prepare('SELECT COUNT(*) AS n FROM follows WHERE followed_id=?').get(req.params.userId)?.n || 0;
+  const howlCount = db.prepare('SELECT COUNT(*) AS n FROM howls WHERE user_id=?').get(req.params.userId)?.n || 0;
+
+  const score = postCount * 10 + followerCount * 5 + howlCount * 2;
+  let level = 'Wolf Pup';
+  let levelFa = 'گرگ نوپا';
+  if (score >= 5000) { level = 'Alpha Wolf'; levelFa = 'گرگ آلفا'; }
+  else if (score >= 2000) { level = 'Pack Leader'; levelFa = 'سرگله'; }
+  else if (score >= 800) { level = 'Night Rider'; levelFa = 'شبگرد'; }
+  else if (score >= 300) { level = 'Wild Wolf'; levelFa = 'گرگ وحشی'; }
+  else if (score >= 100) { level = 'Young Wolf'; levelFa = 'گرگ جوان'; }
+
+  res.json({ badges, level, levelFa, score });
+});
+
+// Award badge on various activities (called internally)
+function awardBadge(userId, badge) {
+  try { db.prepare('INSERT OR IGNORE INTO user_badges (user_id, badge) VALUES (?,?)').run(userId, badge); } catch(_) {}
+}
 
 // SPA fallback — serve index.html for any non-API route
 if (fs.existsSync(FRONTEND_DIST)) {

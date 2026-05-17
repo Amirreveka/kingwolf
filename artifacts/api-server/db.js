@@ -396,6 +396,32 @@ CREATE TABLE IF NOT EXISTS token_blacklist (
   user_id TEXT,
   blacklisted_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS user_contacts (
+  owner_id TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  name TEXT DEFAULT '',
+  matched_user_id TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (owner_id, phone)
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_owner ON user_contacts(owner_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_phone ON user_contacts(phone);
+
+CREATE TABLE IF NOT EXISTS howls (
+  user_id TEXT NOT NULL,
+  post_id TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, post_id)
+);
+CREATE INDEX IF NOT EXISTS idx_howls_post ON howls(post_id);
+
+CREATE TABLE IF NOT EXISTS user_badges (
+  user_id TEXT NOT NULL,
+  badge TEXT NOT NULL,
+  awarded_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, badge)
+);
 `);
 
 // Default settings
@@ -443,6 +469,10 @@ const colMigrations = [
   ['feed_posts', 'is_shadowbanned', 'INTEGER DEFAULT 0'],
   ['feed_posts', 'shadowbanned_by', "TEXT DEFAULT ''"],
   ['profiles', 'is_shadowbanned', 'INTEGER DEFAULT 0'],
+  ['profiles', 'stealth_mode', 'INTEGER DEFAULT 0'],
+  ['profiles', 'howls_count', 'INTEGER DEFAULT 0'],
+  ['profiles', 'badge_level', "TEXT DEFAULT 'wolf_pup'"],
+  ['feed_posts', 'howls_count', 'INTEGER DEFAULT 0'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

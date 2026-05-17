@@ -40,6 +40,14 @@ import webpush from 'web-push';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3001;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
+function getMasterAdmin() {
+  try {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
+    if (row?.value) return row.value;
+  } catch {}
+  return process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
   const secretFile = path.join(__dirname, 'data', '.jwt-secret');
   if (fs.existsSync(secretFile)) return fs.readFileSync(secretFile, 'utf8').trim();
@@ -431,6 +439,7 @@ function profileToClient(p) {
   if (!p) return null;
   return {
     ...p,
+    avatar_url: p.avatar_url || '/icon-192.png',
     is_approved: !!p.is_approved,
     is_active: !!p.is_active,
     is_banned: !!p.is_banned,
@@ -1278,7 +1287,7 @@ app.post('/messages/upload', authMiddleware, upload.single('file'), async (req, 
 
 // ===== Admin: reveal user password — master admin only =====
 app.get('/admin/password/:userId', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = getMasterAdmin();
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند رمز عبور را مشاهده کند' });
   const user = db.prepare('SELECT raw_password FROM users WHERE id = ?').get(req.params.userId);
   if (!user) return res.status(404).json({ error: 'user not found' });
@@ -1409,7 +1418,7 @@ app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
 });
 
 app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = getMasterAdmin();
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند ناظر تعیین کند' });
   const { username, userId, permissions } = req.body;
   try {
@@ -1423,7 +1432,7 @@ app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
 });
 
 app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = getMasterAdmin();
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
   const { username, userId } = req.body;
   try {
@@ -1450,7 +1459,7 @@ app.get('/admin/entity-users', authMiddleware, adminOnly, (req, res) => {
 
 // ── Admin: Nuclear Wipe (requires master admin password) ──────────────────
 app.post('/admin/nuclear-wipe', authMiddleware, adminOnly, async (req, res) => {
-  const masterAdmin = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const masterAdmin = getMasterAdmin();
   if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
   const { password, confirm } = req.body;
   if (confirm !== 'WIPE_ALL_DATA') return res.status(400).json({ error: 'کد تأیید اشتباه است' });
@@ -1491,14 +1500,14 @@ app.get('/admin/conversations', authMiddleware, adminOnly, (req, res) => {
 
 // ── Admin: Device Sessions (Force Logout) ────────────────────────────────────
 app.get('/admin/sessions/:userId', authMiddleware, adminOnly, (req, res) => {
-  const isMaster = req.profile.username === (process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin');
+  const isMaster = req.profile.username === getMasterAdmin();
   if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
   const sessions = db.prepare(`SELECT id, device_name, device_type, ip, last_seen, created_at, is_active FROM device_sessions WHERE user_id = ? AND is_active = 1 ORDER BY last_seen DESC`).all(req.params.userId);
   res.json({ data: sessions });
 });
 
 app.post('/admin/sessions/:sessionId/logout', authMiddleware, adminOnly, (req, res) => {
-  const isMaster = req.profile.username === (process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin');
+  const isMaster = req.profile.username === getMasterAdmin();
   if (!isMaster) return res.status(403).json({ error: 'مدیر اصلی فقط' });
   const session = db.prepare('SELECT * FROM device_sessions WHERE id = ?').get(req.params.sessionId);
   if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -2285,7 +2294,7 @@ app.get('/api/profile/storage', authMiddleware, (req, res) => {
 
 // Founder: set quota for specific user
 app.patch('/api/admin/users/:userId/quota', authMiddleware, adminOnly, (req, res) => {
-  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const founderUsername = getMasterAdmin();
   if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده' });
   const { quota_gb } = req.body;
   const bytes = Math.round((parseFloat(quota_gb) || 2) * 1024 * 1024 * 1024);
@@ -2300,7 +2309,7 @@ app.get('/api/admin/maintenance', (req, res) => {
 });
 
 app.post('/api/admin/maintenance', authMiddleware, adminOnly, (req, res) => {
-  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const founderUsername = getMasterAdmin();
   if (req.profile.username !== founderUsername) {
     return res.status(403).json({ error: 'فقط سازنده می‌تواند حالت تعمیر را تغییر دهد' });
   }
@@ -2320,7 +2329,7 @@ app.get('/api/cms', (req, res) => {
 
 // Founder only: update a CMS field
 app.patch('/api/cms/:key', authMiddleware, adminOnly, (req, res) => {
-  const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+  const founderUsername = getMasterAdmin();
   if (req.profile.username !== founderUsername) {
     return res.status(403).json({ error: 'فقط سازنده می‌تواند محتوای سایت را ویرایش کند' });
   }

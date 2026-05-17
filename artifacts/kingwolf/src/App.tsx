@@ -61,6 +61,43 @@ function AppRouter() {
 
 export default function App() {
   const isAdmin = window.location.pathname === '/panel' || window.location.hash === '#/panel';
+  const [maintenance, setMaintenance] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/maintenance')
+      .then(r => r.json())
+      .then(d => {
+        if (d.maintenance) {
+          // Check if current user has a valid token (founder bypass done server-side)
+          const token = localStorage.getItem('kingwolf_token');
+          if (!token) { setMaintenance(true); return; }
+          try {
+            JSON.parse(atob(token.split('.')[1]));
+            // Token exists and is decodable — allow through
+            setMaintenance(false);
+          } catch { setMaintenance(true); }
+        }
+      })
+      .catch(() => {}); // Ignore errors — don't block app if API unreachable
+  }, []);
+
+  if (maintenance) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-[#030712] z-[9999]"
+           style={{
+             backgroundImage: 'linear-gradient(rgba(168,85,247,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(168,85,247,.04) 1px,transparent 1px)',
+             backgroundSize: '32px 32px',
+           }}>
+        <div className="text-center p-12 rounded-3xl max-w-sm mx-4"
+             style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(168,85,247,.2)', backdropFilter: 'blur(20px)' }}>
+          <div className="text-6xl mb-6 kw-float">🐺</div>
+          <div className="w-12 h-12 mx-auto mb-6 rounded-full border-2 border-purple-500/20 border-t-purple-500 animate-spin" />
+          <h1 className="text-xl font-bold text-purple-400 mb-3">در حال بروزرسانی</h1>
+          <p className="text-[var(--text-secondary)] text-sm">KingWolf در حال ارتقاء است.<br/>به زودی برمی‌گردیم!</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ThemeProvider>

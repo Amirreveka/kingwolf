@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="KingWolf Messenger — پیام‌رسان سایبر-نئون | امن، سریع، بومی">
+<title>KingWolf Messenger</title>
+<style>
+/* Reset */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Vazirmatn',Tahoma,system-ui,sans-serif;
+  background:#030712;
+  color:#f9fafb;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* Neon tokens */
+:root{
+  --neon-purple:#a855f7;
+  --neon-cyan:#06b6d4;
+  --neon-amber:#f59e0b;
+  --neon-green:#10b981;
+  --bg-glass:rgba(255,255,255,0.04);
+  --border-glass:rgba(168,85,247,0.2);
+}
+
+/* Animated background grid */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(168,85,247,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(168,85,247,.03) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* Floating orbs */
+.orb{
+  position:fixed;border-radius:50%;filter:blur(80px);
+  pointer-events:none;z-index:0;will-change:transform;
+}
+.orb1{width:400px;height:400px;background:rgba(168,85,247,.15);top:-100px;right:-100px;animation:float1 8s ease-in-out infinite}
+.orb2{width:300px;height:300px;background:rgba(6,182,212,.1);bottom:-50px;left:-50px;animation:float2 10s ease-in-out infinite}
+.orb3{width:200px;height:200px;background:rgba(245,158,11,.08);top:40%;left:20%;animation:float1 12s ease-in-out infinite reverse}
+
+@keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,30px)}}
+@keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-20px)}}
+@keyframes breathe{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes pulse-ring{0%{transform:scale(.9);opacity:.8}70%{transform:scale(1.4);opacity:0}100%{transform:scale(.9);opacity:0}}
+@keyframes rotate360{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes glow-text{0%,100%{filter:drop-shadow(0 0 8px rgba(168,85,247,.6))}50%{filter:drop-shadow(0 0 20px rgba(168,85,247,.9))}}
+
+/* Particles canvas */
+canvas{position:fixed;inset:0;pointer-events:none;z-index:0}
+
+/* Nav */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 32px;
+  background:rgba(3,7,18,.7);
+  border-bottom:1px solid rgba(168,85,247,.15);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.nav-logo{display:flex;align-items:center;gap:10px;font-size:1.2rem;font-weight:700}
+.nav-logo .wolf{font-size:1.8rem;animation:glow-text 3s ease-in-out infinite;will-change:filter}
+.nav-actions{display:flex;gap:12px;align-items:center}
+.btn-lang{
+  padding:6px 14px;border-radius:99px;font-size:.82rem;cursor:pointer;
+  background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);
+  color:#a855f7;transition:transform .15s;
+}
+.btn-lang:hover{transform:scale(1.05)}
+.btn-enter{
+  padding:8px 20px;border-radius:99px;font-size:.9rem;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#7c3aed,#a855f7);
+  border:none;color:#fff;
+  filter:drop-shadow(0 0 12px rgba(168,85,247,.5));
+  transition:transform .15s,opacity .15s;
+  text-decoration:none;display:inline-block;
+}
+.btn-enter:hover{opacity:.9}
+.btn-enter:active{transform:scale(.96)}
+
+/* Sections */
+section{position:relative;z-index:1}
+.hero{
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+  padding:100px 24px 60px;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 16px;border-radius:99px;font-size:.78rem;
+  background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.3);
+  color:#a855f7;margin-bottom:24px;
+  animation:slideUp .6s cubic-bezier(.4,0,.2,1) both;
+}
+.hero-title{
+  font-size:clamp(2.5rem,7vw,5rem);font-weight:900;line-height:1.1;
+  margin-bottom:20px;
+  animation:slideUp .6s .1s cubic-bezier(.4,0,.2,1) both;
+}
+.hero-title .gradient{
+  background:linear-gradient(135deg,#a855f7,#06b6d4,#f59e0b);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-sub{
+  font-size:1.1rem;color:rgba(249,250,251,.6);max-width:500px;
+  line-height:1.7;margin-bottom:40px;
+  animation:slideUp .6s .2s cubic-bezier(.4,0,.2,1) both;
+}
+.hero-cta{
+  display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+  animation:slideUp .6s .3s cubic-bezier(.4,0,.2,1) both;
+}
+.btn-primary{
+  padding:14px 32px;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;
+  background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;color:#fff;
+  filter:drop-shadow(0 0 16px rgba(168,85,247,.5));
+  transition:transform .15s,opacity .15s;
+  text-decoration:none;display:inline-block;
+}
+.btn-primary:hover{opacity:.9}
+.btn-primary:active{transform:scale(.96)}
+.btn-secondary{
+  padding:14px 32px;border-radius:14px;font-size:1rem;font-weight:700;cursor:pointer;
+  background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.35);color:#a855f7;
+  transition:transform .15s,background .15s;
+}
+.btn-secondary:hover{background:rgba(168,85,247,.2)}
+.btn-secondary:active{transform:scale(.96)}
+
+/* Stats bar */
+.stats-bar{
+  display:flex;gap:40px;flex-wrap:wrap;justify-content:center;
+  margin-top:60px;padding:24px 32px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(168,85,247,.15);
+  border-radius:20px;backdrop-filter:blur(10px);
+  animation:slideUp .6s .4s cubic-bezier(.4,0,.2,1) both;
+}
+.stat{text-align:center}
+.stat-num{font-size:1.8rem;font-weight:900;color:#a855f7;display:block}
+.stat-label{font-size:.78rem;color:rgba(249,250,251,.5)}
+
+/* Features section */
+.features{padding:80px 24px;max-width:1100px;margin:0 auto}
+.section-title{text-align:center;font-size:2rem;font-weight:800;margin-bottom:60px}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.feature-card{
+  padding:28px;border-radius:20px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(168,85,247,.12);
+  backdrop-filter:blur(8px);
+  transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s;
+  will-change:transform;
+}
+.feature-card:hover{transform:translateY(-4px);border-color:rgba(168,85,247,.4)}
+.feature-icon{font-size:2.4rem;margin-bottom:14px;display:block}
+.feature-title{font-size:1.05rem;font-weight:700;margin-bottom:8px}
+.feature-desc{font-size:.88rem;color:rgba(249,250,251,.55);line-height:1.6}
+
+/* Tech showcase */
+.tech{padding:80px 24px;max-width:800px;margin:0 auto;text-align:center}
+.tech-grid{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:30px}
+.tech-badge{
+  padding:8px 18px;border-radius:99px;font-size:.82rem;font-weight:600;
+  border:1px solid;
+}
+.tech-purple{background:rgba(168,85,247,.1);border-color:rgba(168,85,247,.3);color:#a855f7}
+.tech-cyan{background:rgba(6,182,212,.1);border-color:rgba(6,182,212,.3);color:#06b6d4}
+.tech-amber{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:#f59e0b}
+.tech-green{background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3);color:#10b981}
+
+/* CTA section */
+.cta-section{
+  padding:100px 24px;text-align:center;
+}
+.cta-card{
+  max-width:600px;margin:0 auto;padding:48px;border-radius:28px;
+  background:linear-gradient(135deg,rgba(168,85,247,.1),rgba(6,182,212,.05));
+  border:1px solid rgba(168,85,247,.25);
+  backdrop-filter:blur(16px);
+}
+.cta-card h2{font-size:1.8rem;font-weight:800;margin-bottom:12px}
+.cta-card p{color:rgba(249,250,251,.6);margin-bottom:28px;line-height:1.6}
+
+/* Footer */
+footer{
+  padding:32px 24px;text-align:center;border-top:1px solid rgba(168,85,247,.1);
+  color:rgba(249,250,251,.35);font-size:.82rem;position:relative;z-index:1;
+}
+
+/* RTL/LTR */
+[dir="ltr"]{font-family:system-ui,sans-serif}
+
+@media(max-width:640px){
+  nav{padding:12px 16px}
+  .hero{padding:80px 16px 40px}
+  .stats-bar{gap:20px;padding:16px}
+}
+</style>
+</head>
+<body>
+<!-- Orbs -->
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<!-- Particles -->
+<canvas id="particles"></canvas>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <span class="wolf">🐺</span>
+    <span>KingWolf</span>
+  </div>
+  <div class="nav-actions">
+    <button class="btn-lang" onclick="toggleLang()" id="langBtn">EN</button>
+    <a href="/app" class="btn-enter" id="enterBtn">ورود به اپ</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge" id="badge">⚡ پیام‌رسان بومی نسل بعدی</div>
+  <h1 class="hero-title">
+    <span id="heroTitle1">ارتباط بی‌مرز</span><br>
+    <span class="gradient" id="heroTitle2">در دنیای سایبر-نئون</span>
+  </h1>
+  <p class="hero-sub" id="heroSub">پیام‌رسان KingWolf — امن، سریع، و کاملاً بومی. رمزنگاری سرتاسری، گروه‌های قدرتمند، و استوری‌های تعاملی در یک بستر زیبا.</p>
+  <div class="hero-cta">
+    <a href="/app" class="btn-primary" id="ctaMain">🚀 شروع کن — رایگان</a>
+    <button class="btn-secondary" onclick="scrollTo({top:document.querySelector('.features').offsetTop,behavior:'smooth'})" id="ctaLearn">بیشتر بدان ↓</button>
+  </div>
+  <div class="stats-bar">
+    <div class="stat"><span class="stat-num">E2EE</span><span class="stat-label" id="s1">رمزنگاری سرتاسری</span></div>
+    <div class="stat"><span class="stat-num">60FPS</span><span class="stat-label" id="s2">روان و بی‌نقص</span></div>
+    <div class="stat"><span class="stat-num">100%</span><span class="stat-label" id="s3">زیرساخت بومی</span></div>
+    <div class="stat"><span class="stat-num">9+</span><span class="stat-label" id="s4">تم رنگی</span></div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <h2 class="section-title" id="featTitle">ویژگی‌های کلیدی</h2>
+  <div class="features-grid" id="featGrid">
+    <div class="feature-card"><span class="feature-icon">🔒</span><h3 class="feature-title">رمزنگاری E2EE</h3><p class="feature-desc">چت‌های خصوصی با رمزنگاری سرتاسری. کلید رمزگشایی فقط روی دستگاه شماست.</p></div>
+    <div class="feature-card"><span class="feature-icon">📡</span><h3 class="feature-title">تماس WebRTC</h3><p class="feature-desc">تماس صوتی و تصویری P2P با تأخیر صفر. استریم مستقیم بدون واسطه سرور.</p></div>
+    <div class="feature-card"><span class="feature-icon">🐺</span><h3 class="feature-title">فید هاول Wolf</h3><p class="feature-desc">توییتر اختصاصی با سیستم هاول گرگ، هشتگ‌های ترند بومی، و فالوورها.</p></div>
+    <div class="feature-card"><span class="feature-icon">📸</span><h3 class="feature-title">استوری تعاملی</h3><p class="feature-desc">استوری‌های دو‌تایی split-screen، استیکر، ایموجی متحرک، و پاسخ مستقیم.</p></div>
+    <div class="feature-card"><span class="feature-icon">👑</span><h3 class="feature-title">مدیریت Telegram-grade</h3><p class="feature-desc">دسترسی‌های دقیق برای ادمین‌ها، بج سازنده، و حفاظت کامل از سازنده.</p></div>
+    <div class="feature-card"><span class="feature-icon">🌙</span><h3 class="feature-title">۹ تم نئونی</h3><p class="feature-desc">Dark, AMOLED, Ocean, Sunset, Forest, Purple Night, Golden, Rose و Light.</p></div>
+    <div class="feature-card"><span class="feature-icon">🛡️</span><h3 class="feature-title">پنل فرماندهی</h3><p class="feature-desc">پنل مدیریت سایبر-نئون با آمار زنده، مدیریت کاربران، و سیستم دسترسی چندسطحی.</p></div>
+    <div class="feature-card"><span class="feature-icon">📱</span><h3 class="feature-title">PWA نصب‌پذیر</h3><p class="feature-desc">نصب روی iOS و Android مثل اپ بومی. اعلان push حتی روی قفل صفحه.</p></div>
+    <div class="feature-card"><span class="feature-icon">⚡</span><h3 class="feature-title">۶۰FPS همیشه</h3><p class="feature-desc">انیمیشن‌های GPU-accelerated، React.memo، و اسکرول بدون لگ روی همه دستگاه‌ها.</p></div>
+  </div>
+</section>
+
+<!-- Tech -->
+<section class="tech">
+  <h2 class="section-title" id="techTitle">فناوری‌های استفاده‌شده</h2>
+  <div class="tech-grid">
+    <span class="tech-badge tech-purple">React 18 + TypeScript</span>
+    <span class="tech-badge tech-cyan">Node.js + Express</span>
+    <span class="tech-badge tech-amber">SQLite / MariaDB</span>
+    <span class="tech-badge tech-green">WebRTC P2P</span>
+    <span class="tech-badge tech-purple">WebSocket Realtime</span>
+    <span class="tech-badge tech-cyan">PWA + Service Worker</span>
+    <span class="tech-badge tech-amber">JWT + bcrypt E2EE</span>
+    <span class="tech-badge tech-green">Tailwind CSS 4</span>
+    <span class="tech-badge tech-purple">Docker + Liara</span>
+    <span class="tech-badge tech-cyan">Web Push Notifications</span>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-card">
+    <h2 id="ctaTitle">همین الان شروع کن</h2>
+    <p id="ctaDesc">بدون نیاز به شماره تلفن خارجی. بدون وابستگی به سرورهای خارج از کشور.</p>
+    <a href="/app" class="btn-primary" id="ctaBtn">🐺 ورود به KingWolf</a>
+  </div>
+</section>
+
+<footer>
+  <p>© ۱۴۰۳ KingWolf Messenger — ساخته شده با ❤️ در ایران</p>
+</footer>
+
+<script>
+// ── Particles ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('particles');
+const ctx = canvas.getContext('2d');
+let particles = [];
+function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+window.addEventListener('resize', resize); resize();
+function createParticle() {
+  return {
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: (Math.random() - 0.5) * 0.3,
+    r: Math.random() * 1.5 + 0.5,
+    a: Math.random() * 0.4 + 0.1,
+    c: Math.random() > 0.5 ? '#a855f7' : '#06b6d4',
+  };
+}
+for (let i = 0; i < 80; i++) particles.push(createParticle());
+function drawParticles() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let p of particles) {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = canvas.width;
+    if (p.x > canvas.width) p.x = 0;
+    if (p.y < 0) p.y = canvas.height;
+    if (p.y > canvas.height) p.y = 0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.c + Math.round(p.a * 255).toString(16).padStart(2,'0');
+    ctx.fill();
+  }
+  // Draw connections
+  for (let i = 0; i < particles.length; i++) {
+    for (let j = i + 1; j < particles.length; j++) {
+      const dx = particles[i].x - particles[j].x;
+      const dy = particles[i].y - particles[j].y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 100) {
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x, particles[i].y);
+        ctx.lineTo(particles[j].x, particles[j].y);
+        ctx.strokeStyle = 'rgba(168,85,247,' + (0.06 * (1 - dist/100)) + ')';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+// ── Language toggle ────────────────────────────────────────────────────────
+let isFA = true;
+const T = {
+  badge: ['⚡ پیام‌رسان بومی نسل بعدی', '⚡ Next-Gen Domestic Messenger'],
+  heroTitle1: ['ارتباط بی‌مرز', 'Connect Beyond Limits'],
+  heroTitle2: ['در دنیای سایبر-نئون', 'In the Cyber-Neon World'],
+  heroSub: ['پیام‌رسان KingWolf — امن، سریع، و کاملاً بومی. رمزنگاری سرتاسری، گروه‌های قدرتمند، و استوری‌های تعاملی در یک بستر زیبا.', 'KingWolf Messenger — secure, fast, and fully domestic. E2EE encryption, powerful groups, and interactive stories in a beautiful platform.'],
+  ctaMain: ['🚀 شروع کن — رایگان', '🚀 Get Started — Free'],
+  ctaLearn: ['بیشتر بدان ↓', 'Learn More ↓'],
+  enterBtn: ['ورود به اپ', 'Enter App'],
+  langBtn: ['EN', 'FA'],
+  s1: ['رمزنگاری سرتاسری', 'End-to-End Encrypted'],
+  s2: ['روان و بی‌نقص', 'Silky Smooth'],
+  s3: ['زیرساخت بومی', 'Domestic Infrastructure'],
+  s4: ['تم رنگی', 'Color Themes'],
+  featTitle: ['ویژگی‌های کلیدی', 'Key Features'],
+  techTitle: ['فناوری‌های استفاده‌شده', 'Technology Stack'],
+  ctaTitle: ['همین الان شروع کن', 'Start Right Now'],
+  ctaDesc: ['بدون نیاز به شماره تلفن خارجی. بدون وابستگی به سرورهای خارج از کشور.', 'No foreign phone number required. No dependency on overseas servers.'],
+  ctaBtn: ['🐺 ورود به KingWolf', '🐺 Enter KingWolf'],
+};
+function toggleLang() {
+  isFA = !isFA;
+  const i = isFA ? 0 : 1;
+  document.documentElement.dir = isFA ? 'rtl' : 'ltr';
+  document.documentElement.lang = isFA ? 'fa' : 'en';
+  for (const [id, vals] of Object.entries(T)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = vals[i];
+  }
+}
+
+// ── Redirect /app to the app subdomain/path ───────────────────────────────
+document.querySelectorAll('a[href="/app"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    // In production: window.location.href = 'https://app.kingwolf.ir';
+    // In dev/staging: just go to the app route
+    window.location.href = window.location.origin + '/';
+  });
+});
+</script>
+</body>
+</html>

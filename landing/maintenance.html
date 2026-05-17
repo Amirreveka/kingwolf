@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KingWolf — در حال بروزرسانی</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Vazirmatn',Tahoma,system-ui,sans-serif;
+  background:#030712;color:#f9fafb;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(168,85,247,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(168,85,247,.04) 1px,transparent 1px);
+  background-size:32px 32px;pointer-events:none;
+}
+.orb{position:fixed;border-radius:50%;filter:blur(80px);pointer-events:none}
+.orb1{width:500px;height:500px;background:rgba(168,85,247,.12);top:-150px;right:-150px;animation:float 8s ease-in-out infinite}
+.orb2{width:400px;height:400px;background:rgba(6,182,212,.08);bottom:-100px;left:-100px;animation:float 10s ease-in-out infinite reverse}
+@keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(-20px,20px)}}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.1);opacity:1}}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.card{
+  position:relative;z-index:1;
+  max-width:480px;width:90%;padding:48px;border-radius:28px;text-align:center;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(168,85,247,.2);
+  backdrop-filter:blur(20px);
+}
+.wolf-icon{font-size:4rem;display:block;margin:0 auto 24px;animation:pulse 2s ease-in-out infinite;will-change:transform}
+.spinner{
+  width:60px;height:60px;margin:0 auto 24px;position:relative;
+}
+.spinner::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  border:3px solid rgba(168,85,247,.2);
+  border-top-color:#a855f7;
+  animation:spin 1s linear infinite;will-change:transform;
+}
+.spinner::after{
+  content:'';position:absolute;inset:8px;border-radius:50%;
+  border:2px solid rgba(6,182,212,.15);
+  border-bottom-color:#06b6d4;
+  animation:spin .7s linear infinite reverse;will-change:transform;
+}
+h1{font-size:1.5rem;font-weight:800;margin-bottom:8px;color:#a855f7}
+.fa-text{display:block;margin-bottom:6px}
+.en-text{display:block;font-size:.85em;opacity:.6}
+p{color:rgba(249,250,251,.5);margin:16px 0;line-height:1.7;font-size:.9rem}
+.divider{
+  display:flex;align-items:center;gap:12px;margin:24px 0;
+  color:rgba(168,85,247,.5);font-size:.7rem;letter-spacing:.1em;
+}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:rgba(168,85,247,.2)}
+.status-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#f59e0b;animation:blink 1.5s ease-in-out infinite;
+  margin-left:6px;vertical-align:middle;
+}
+</style>
+</head>
+<body>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="card">
+  <span class="wolf-icon">🐺</span>
+  <div class="spinner"></div>
+  <h1>
+    <span class="fa-text">در حال بروزرسانی</span>
+    <span class="en-text">Under Maintenance</span>
+  </h1>
+  <p>
+    <span class="fa-text">KingWolf در حال ارتقاء و بهبود است. به زودی برمی‌گردیم!</span>
+    <span class="en-text">KingWolf is being upgraded. We'll be back shortly!</span>
+  </p>
+  <div class="divider">─── ❖ ───</div>
+  <p style="font-size:.8rem">
+    <span class="status-dot"></span>
+    <span class="fa-text" style="display:inline">وضعیت: در حال کار</span>
+    <span style="opacity:.4"> / </span>
+    <span class="en-text" style="display:inline">Status: In Progress</span>
+  </p>
+</div>
+</body>
+</html>

@@ -2725,8 +2725,8 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
 
   // Auto-seed default admin on first run
   try {
-    const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
-    const founderPassword = process.env.FOUNDER_ROOT_PASSWORD || process.env.KW_ADMIN_PASS || 'admin1234';
+    const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'Amirreveka';
+    const founderPassword = process.env.FOUNDER_ROOT_PASSWORD || process.env.KW_ADMIN_PASS || 'Apps76417@amir';
 
     const anyAdmin = db.prepare('SELECT 1 FROM profiles WHERE is_admin = 1 LIMIT 1').get();
     if (!anyAdmin && process.env.KW_DEFAULT_ADMIN !== 'false') {

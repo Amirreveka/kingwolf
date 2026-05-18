@@ -91,7 +91,7 @@ const QUICK_REACT_EMOJIS = ['❤️', '🔥', '😂', '😮', '😢', '👏', '�
 const STICKER_EMOJIS = ['😂', '❤️', '🔥', '👏', '😍', '🎉', '😭', '🤣', '✨', '💯', '🙏', '😊', '😎', '💪', '🥳', '🤩', '😢', '😡', '👀', '💀', '🫶', '🤯', '🫡', '🤝'];
 
 
-export function StoriesPage() {
+export function StoriesPage({ onClose }: { onClose?: () => void } = {}) {
   const { user, profile } = useAuth();
   const { language } = useTheme();
   const fa = language === 'fa';
@@ -370,8 +370,15 @@ export function StoriesPage() {
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-primary)' }} dir={fa ? 'rtl' : 'ltr'}>
       {/* ── Header ── */}
       <div className="flex items-center justify-between px-4 py-3 flex-shrink-0 kw-header-accent"
-        style={{ borderBottom: '1px solid rgba(168,85,247,0.15)', background: 'var(--bg-card)' }}>
-        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{fa ? 'استوری‌ها' : 'Stories'}</span>
+        style={{ borderBottom: '1px solid rgba(168,85,247,0.15)', background: 'var(--bg-card)', paddingTop: onClose ? 'max(12px, env(safe-area-inset-top))' : undefined }}>
+        <div className="flex items-center gap-2">
+          {onClose && (
+            <button onClick={onClose} className="p-1.5 rounded-full transition-colors" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}>
+              <X size={18} />
+            </button>
+          )}
+          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{fa ? 'استوری‌ها' : 'Stories'}</span>
+        </div>
         <button
           onClick={() => setShowCreator(true)}
           className="flex items-center gap-2 px-3 py-2 rounded-full font-semibold"

@@ -1,0 +1,22 @@
+{
+  "id": "/admin",
+  "name": "KingWolf Admin Panel",
+  "short_name": "KW Admin",
+  "description": "پنل مدیریت KingWolf",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#020817",
+  "theme_color": "#7c3aed",
+  "lang": "fa",
+  "dir": "rtl",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/admin-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-192.png",   "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png",   "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["productivity", "utilities"]
+}

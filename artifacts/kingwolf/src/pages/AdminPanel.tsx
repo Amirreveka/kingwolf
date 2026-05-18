@@ -1517,8 +1517,8 @@ export function AdminPanel() {
                           <td style={{ padding: '10px 14px' }}>
                             <div className="flex items-center gap-2">
                               {u.avatar_url
-                                ? <img src={u.avatar_url} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
-                                : <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
+                                ? <img src={u.avatar_url} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" onError={e => { (e.target as HTMLImageElement).src='/icon-192.png'; }} />
+                                : <img src="/icon-192.png" className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
                               }
                               <span className="text-gray-200 font-medium">@{u.username}</span>
                               {(u as any).is_verified && <BadgeCheck size={12} className="text-blue-400 flex-shrink-0" />}
@@ -1572,11 +1572,11 @@ export function AdminPanel() {
               {/* Filter bar for list sub-tab */}
               {usersSubTab === 'list' && (
                 <div className="flex gap-2 flex-wrap items-center">
-                  {(['all', 'active', 'pending', 'banned'] as const).map(f => (
+                  {(['all', 'active', 'pending', 'banned', 'online'] as const).map(f => (
                     <button key={f} onClick={() => setUsersFilter(f)}
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
-                      style={{ background: usersFilter === f ? 'rgba(59,130,246,0.15)' : '#161b22', color: usersFilter === f ? '#60a5fa' : '#6b7280', border: usersFilter === f ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent' }}>
-                      {f === 'all' ? 'همه' : f === 'active' ? 'فعال' : f === 'pending' ? 'منتظر' : 'مسدود'}
+                      style={{ background: usersFilter === f ? (f === 'online' ? 'rgba(74,222,128,0.15)' : 'rgba(59,130,246,0.15)') : '#161b22', color: usersFilter === f ? (f === 'online' ? '#4ade80' : '#60a5fa') : '#6b7280', border: usersFilter === f ? `1px solid ${f === 'online' ? 'rgba(74,222,128,0.3)' : 'rgba(59,130,246,0.3)'}` : '1px solid transparent' }}>
+                      {f === 'all' ? 'همه' : f === 'active' ? 'فعال' : f === 'pending' ? 'منتظر' : f === 'banned' ? 'مسدود' : '● آنلاین'}
                     </button>
                   ))}
                   {(isOwner || myPermissions?.can_approve_users) && (
@@ -1592,7 +1592,8 @@ export function AdminPanel() {
               {/* List sub-tab — TABLE VIEW */}
               {usersSubTab === 'list' && (() => {
                 const filtered = users.filter(u => {
-                  const matchFilter = usersFilter === 'all' || (usersFilter === 'active' ? u.is_approved && !u.is_banned : usersFilter === 'pending' ? !u.is_approved && !u.is_banned : usersFilter === 'banned' ? u.is_banned : true);
+                  const isOnlineUser = onlineUsers[u.id]?.online_status === 'online';
+                  const matchFilter = usersFilter === 'all' || (usersFilter === 'active' ? u.is_approved && !u.is_banned : usersFilter === 'pending' ? !u.is_approved && !u.is_banned : usersFilter === 'banned' ? u.is_banned : usersFilter === 'online' ? isOnlineUser : true);
                   const q = userSearch.toLowerCase();
                   const matchSearch = !q || (u.username || '').toLowerCase().includes(q) || (u.display_name || '').toLowerCase().includes(q) || ((u as any).email || '').toLowerCase().includes(q);
                   return matchFilter && matchSearch;
@@ -1630,10 +1631,10 @@ export function AdminPanel() {
                               {/* Avatar + name */}
                               <td style={{ padding: '10px 12px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  {u.avatar_url
-                                    ? <img src={u.avatar_url} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
-                                    : <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#1d4ed8,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
-                                  }
+                                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    <img src={u.avatar_url || '/icon-192.png'} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', display: 'block' }} alt="" onError={e => { (e.target as HTMLImageElement).src='/icon-192.png'; }} />
+                                    <span style={{ position: 'absolute', bottom: 0, right: 0, width: 9, height: 9, borderRadius: '50%', background: onlineUsers[u.id]?.online_status === 'online' ? '#4ade80' : '#374151', border: '1.5px solid #080c18', boxShadow: onlineUsers[u.id]?.online_status === 'online' ? '0 0 4px #4ade80' : 'none' }} />
+                                  </div>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                       <span style={{ color: '#f9fafb', fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{u.display_name || u.username}</span>
@@ -2610,21 +2611,6 @@ export function AdminPanel() {
         </div>
       )}
 
-      {/* ── MOBILE BOTTOM NAV ── */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-1 overflow-x-auto"
-        style={{ background: 'rgba(5,10,25,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.07)', paddingBottom: 'max(6px, env(safe-area-inset-bottom))', paddingTop: 6 }}>
-        {navItems.map(item => {
-          const isActive = tab === item.id;
-          return (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-xl flex-shrink-0 transition-all kw-btn-press min-w-[48px]${!isActive ? ' hover:text-purple-400 transition-all duration-150' : ''}`}
-              style={{ color: isActive ? item.color : 'rgba(75,85,99,1)', background: isActive ? item.accent : 'transparent', ...(isActive ? { filter: 'drop-shadow(0 0 6px rgba(168,85,247,0.5))' } : {}) }}>
-              <item.icon size={18} style={{ color: isActive ? item.color : undefined }} />
-              <span className="text-[9px] font-medium leading-none">{item.label.split(' ')[0]}</span>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

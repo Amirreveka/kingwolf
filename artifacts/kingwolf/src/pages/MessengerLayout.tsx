@@ -59,6 +59,7 @@ export function MessengerLayout() {
   const [page, setPage] = useState<Page>('messages');
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
+  const [showStoriesOverlay, setShowStoriesOverlay] = useState(false);
 
   // PWA install prompt
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -490,7 +491,7 @@ export function MessengerLayout() {
             onCreateGroup={handleCreateGroup}
             onCreateChannel={handleCreateChannel}
             onSavedMessages={handleSavedMessages}
-            onOpenStories={() => setPage('stories')}
+            onOpenStories={() => setShowStoriesOverlay(true)}
           />
         </div>
       )}
@@ -700,6 +701,13 @@ export function MessengerLayout() {
           </button>
           <button onClick={() => { setShowInstallBanner(false); sessionStorage.setItem('kw_install_dismissed', '1'); }}
             className="p-1 text-gray-500 flex-shrink-0">✕</button>
+        </div>
+      )}
+
+      {/* ── Stories overlay (Telegram-style) ────────────── */}
+      {showStoriesOverlay && (
+        <div className="fixed inset-0 z-[80]" style={{ background: 'var(--bg-primary)' }}>
+          <StoriesPage onClose={() => setShowStoriesOverlay(false)} />
         </div>
       )}
 

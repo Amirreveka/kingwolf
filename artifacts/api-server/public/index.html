@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>KingWolf Messenger — پیام‌رسان امن</title>
+    <meta name="description" content="KingWolf Messenger — پیام‌رسان خصوصی و امن. چت، استوری، فید و تماس تصویری در یک اپلیکیشن." />
+    <meta name="keywords" content="messenger, پیام رسان, KingWolf, chat, امن, خصوصی" />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="KingWolf" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="KingWolf Messenger" />
+    <meta property="og:description" content="پیام‌رسان خصوصی و امن — چت، استوری، فید" />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta property="og:locale" content="fa_IR" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="KingWolf Messenger" />
+    <meta name="twitter:description" content="پیام‌رسان خصوصی و امن" />
+    <meta name="twitter:image" content="/icon-512.png" />
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0b0f1a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KingWolf" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      * { -webkit-tap-highlight-color: transparent; }
+      html { margin:0; padding:0; height:100%; height:100dvh; background:#0b0f1a; overscroll-behavior:none; }
+      body { margin:0; padding:0; height:100%; height:100dvh; background:#0b0f1a; color:#fff; overscroll-behavior:none; overflow:hidden; }
+      #root { height:100%; overflow:hidden; }
+      #kw-splash {
+        position:fixed; inset:0; z-index:9999;
+        background: radial-gradient(circle at 50% 40%, #1a1f33 0%, #0b0f1a 70%);
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        transition: opacity .3s ease;
+      }
+      #kw-splash.hidden { opacity:0; pointer-events:none; }
+      #kw-splash .logo {
+        width:96px; height:96px; border-radius:24px;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        display:flex; align-items:center; justify-content:center;
+        box-shadow: 0 12px 40px rgba(79,70,229,.4); font-size:48px;
+      }
+      #kw-splash .title {
+        margin-top:24px; font-family:'Inter',sans-serif; font-size:24px; font-weight:700;
+        background: linear-gradient(90deg, #fff 0%, #c4b5fd 100%);
+        -webkit-background-clip:text; background-clip:text; color:transparent;
+      }
+      #kw-splash .sub { margin-top:8px; opacity:.6; font-size:13px; }
+      #kw-splash .dots { margin-top:32px; display:flex; gap:8px; }
+      #kw-splash .dots span {
+        width:8px; height:8px; border-radius:50%; background:#7c3aed;
+        animation: kw-pulse 1.2s infinite ease-in-out;
+      }
+      #kw-splash .dots span:nth-child(2){ animation-delay:.15s; }
+      #kw-splash .dots span:nth-child(3){ animation-delay:.3s; }
+      @keyframes kw-pulse {
+        0%,80%,100%{ opacity:.3; transform:scale(.8); }
+        40%{ opacity:1; transform:scale(1.1); }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-HADdWQd6.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DY9cMk1v.css">
+  </head>
+  <body>
+    <div id="kw-splash">
+      <div class="logo">🐺</div>
+      <div class="title">KingWolf Messenger</div>
+      <div class="sub">در حال بارگذاری…</div>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+    <div id="root"></div>
+    <script>
+      const splash = document.getElementById('kw-splash');
+      const root = document.getElementById('root');
+      let attempts = 0;
+      const check = () => {
+        if (root.children.length > 0 || attempts > 100) {
+          splash.classList.add('hidden');
+          setTimeout(() => splash.remove(), 400);
+        } else { attempts++; setTimeout(check, 100); }
+      };
+      check();
+
+      // Register service worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

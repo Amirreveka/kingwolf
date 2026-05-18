@@ -817,6 +817,18 @@ export function AdminPanel() {
   const [isOwner, setIsOwner] = useState(false);
   const [myPermissions, setMyPermissions] = useState<any>({});
 
+  // Online status map for users tab
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, { online_status: string; last_seen: string }>>({});
+
+  async function loadOnlineUsers() {
+    const { body } = await adminFetch('/admin/online-users');
+    if (body?.data) {
+      const map: Record<string, { online_status: string; last_seen: string }> = {};
+      for (const u of body.data) map[u.id] = { online_status: u.online_status, last_seen: u.last_seen };
+      setOnlineUsers(map);
+    }
+  }
+
   // Sub-admin permissions modal state
   const [permModalUser, setPermModalUser] = useState<any>(null);
   const [editingPerms, setEditingPerms] = useState<Record<string, boolean>>({});
@@ -865,6 +877,15 @@ export function AdminPanel() {
         setMyPermissions(data);
       })
       .catch(() => {});
+  }, [loggedIn]);
+
+  // Poll online status for users tab
+  useEffect(() => {
+    if (!loggedIn) return;
+    loadOnlineUsers();
+    const timer = setInterval(loadOnlineUsers, 10000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn]);
 
   // Swap manifest to admin-specific PWA when admin panel is open

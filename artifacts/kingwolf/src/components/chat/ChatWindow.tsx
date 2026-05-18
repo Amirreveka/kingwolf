@@ -184,8 +184,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const [mediaViewer, setMediaViewer] = useState<{ src: string; type: 'image' | 'video'; caption?: string } | null>(null);
   const [profileOverlay, setProfileOverlay] = useState<{ userId: string; username: string; displayName: string; avatarUrl?: string; bio?: string } | null>(null);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
-  const [showExpiry, setShowExpiry] = useState(false);
   const [showSticker, setShowSticker] = useState(false);
+  const [showSendMenu, setShowSendMenu] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<string>('');
+  const [scheduleInput, setScheduleInput] = useState(false);
 
   const [showReport, setShowReport] = useState<{ type: 'user' | 'group' | 'channel'; targetId: string; name: string } | null>(null);
   const [reportReason, setReportReason] = useState('');
@@ -210,6 +212,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
   const ignoreNextClickRef = useRef(false);
+  const sendLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sendLongFired = useRef(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -237,7 +241,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   useEffect(() => {
     function handleClick() {
       if (ignoreNextClickRef.current) { ignoreNextClickRef.current = false; return; }
-      setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); setShowAttach(false);
+      setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); setShowAttach(false); setShowSendMenu(false); setScheduleInput(false);
     }
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
@@ -735,7 +739,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1" onClick={() => { setContextMenu(null); setShowHeaderMenu(false); }}>
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1" onClick={() => { setContextMenu(null); setShowHeaderMenu(false); setShowSendMenu(false); setScheduleInput(false); }}>
           {loading && (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -1076,48 +1080,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     : <Paperclip size={26} />}
                 </button>
               </div>
-              {/* Ephemeral timer button */}
-              <div className="relative flex-shrink-0">
-                <button
-                  onClick={e => { e.stopPropagation(); setShowExpiry(v => !v); setShowSticker(false); }}
-                  className="w-9 h-9 flex items-center justify-center rounded-xl mb-1.5"
-                  style={{ color: expiresIn ? '#f59e0b' : 'var(--text-muted)', background: expiresIn ? 'rgba(245,158,11,0.12)' : 'transparent' }}
-                  title={fa ? 'پیام موقت' : 'Ephemeral'}
-                >
-                  <Clock size={18} />
-                </button>
-                {showExpiry && (
-                  <div
-                    className="absolute bottom-full left-0 mb-1 rounded-2xl shadow-2xl overflow-hidden z-50"
-                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', minWidth: 160 }}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    {[
-                      { label: fa ? 'خاموش' : 'Off', value: null },
-                      { label: fa ? '۳۰ ثانیه' : '30s', value: 30 },
-                      { label: fa ? '۱ دقیقه' : '1 min', value: 60 },
-                      { label: fa ? '۵ دقیقه' : '5 min', value: 300 },
-                      { label: fa ? '۱ ساعت' : '1 hr', value: 3600 },
-                      { label: fa ? '۲۴ ساعت' : '24 hr', value: 86400 },
-                    ].map(opt => (
-                      <button
-                        key={String(opt.value)}
-                        onClick={() => { setExpiresIn(opt.value); setShowExpiry(false); }}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-right transition-colors hover:bg-white/5"
-                        style={{ color: expiresIn === opt.value ? '#f59e0b' : 'var(--text-primary)' }}
-                      >
-                        {expiresIn === opt.value && <Check size={12} />}
-                        {expiresIn !== opt.value && <div style={{ width: 12 }} />}
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
               {/* Sticker button */}
               <div className="relative flex-shrink-0">
                 <button
-                  onClick={e => { e.stopPropagation(); setShowSticker(v => !v); setShowExpiry(false); }}
+                  onClick={e => { e.stopPropagation(); setShowSticker(v => !v); }}
                   className="w-9 h-9 flex items-center justify-center rounded-xl mb-1.5"
                   style={{ color: showSticker ? 'var(--accent)' : 'var(--text-muted)' }}
                   title={fa ? 'استیکر' : 'Sticker'}
@@ -1259,13 +1225,124 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     <Mic size={18} />
                   </button>
                 ) : (
-                  <button onClick={handleSend} disabled={!text.trim() || sending}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all"
-                    style={{ background: text.trim() ? (editingId ? '#10b981' : 'var(--accent)') : 'transparent', color: text.trim() ? 'white' : 'var(--text-muted)' }}>
-                    {sending
-                      ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      : editingId ? <Check size={15} /> : <Send size={15} />}
-                  </button>
+                  <div className="relative flex-shrink-0">
+                    <button
+                      disabled={!text.trim() || sending}
+                      onPointerDown={e => {
+                        if (!text.trim()) return;
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                        sendLongFired.current = false;
+                        sendLongPressTimer.current = setTimeout(() => {
+                          sendLongFired.current = true;
+                          setShowSendMenu(true);
+                        }, 2000);
+                      }}
+                      onPointerUp={e => {
+                        if (sendLongPressTimer.current) { clearTimeout(sendLongPressTimer.current); sendLongPressTimer.current = null; }
+                        if (!sendLongFired.current && text.trim() && !sending) handleSend();
+                      }}
+                      onPointerLeave={() => {
+                        if (sendLongPressTimer.current) { clearTimeout(sendLongPressTimer.current); sendLongPressTimer.current = null; }
+                      }}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mb-0.5 transition-all"
+                      style={{ background: text.trim() ? (editingId ? '#10b981' : 'var(--accent)') : 'transparent', color: text.trim() ? 'white' : 'var(--text-muted)' }}
+                    >
+                      {sending
+                        ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        : editingId ? <Check size={15} /> : <Send size={15} />}
+                    </button>
+                    {showSendMenu && (
+                      <div
+                        className="absolute bottom-full left-0 mb-2 rounded-2xl shadow-2xl overflow-hidden z-50"
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', minWidth: 200 }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <div className="px-3 py-2 text-xs font-bold" style={{ color: 'rgba(167,139,250,0.8)', borderBottom: '1px solid var(--border-color)' }}>
+                          {fa ? 'گزینه‌های ارسال' : 'Send options'}
+                        </div>
+                        <button
+                          onClick={() => { setShowSendMenu(false); handleSend(); }}
+                          className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          <Send size={13} />
+                          {fa ? 'ارسال فوری' : 'Send now'}
+                        </button>
+                        {!scheduleInput ? (
+                          <button
+                            onClick={() => setScheduleInput(true)}
+                            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                            style={{ color: '#60a5fa' }}
+                          >
+                            <Clock size={13} />
+                            {fa ? 'زمان‌بندی ارسال' : 'Schedule send'}
+                          </button>
+                        ) : (
+                          <div className="px-3 py-2 space-y-2">
+                            <input
+                              type="datetime-local"
+                              className="w-full text-xs rounded-lg px-2 py-1.5 outline-none"
+                              style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
+                              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                              value={scheduledAt}
+                              onChange={e => setScheduledAt(e.target.value)}
+                            />
+                            <button
+                              disabled={!scheduledAt}
+                              onClick={() => {
+                                if (!scheduledAt) return;
+                                const delay = new Date(scheduledAt).getTime() - Date.now();
+                                if (delay <= 0) return;
+                                setShowSendMenu(false);
+                                setScheduleInput(false);
+                                const msgText = text;
+                                setTimeout(() => {
+                                  if (msgText) handleSend();
+                                }, delay);
+                                setText('');
+                                setScheduledAt('');
+                              }}
+                              className="w-full py-1.5 rounded-lg text-xs font-bold text-white transition-colors"
+                              style={{ background: scheduledAt ? 'linear-gradient(135deg,#4f46e5,#7c3aed)' : 'rgba(255,255,255,0.1)' }}
+                            >
+                              {fa ? 'تأیید زمان‌بندی' : 'Confirm schedule'}
+                            </button>
+                          </div>
+                        )}
+                        <div style={{ borderTop: '1px solid var(--border-color)' }}>
+                          <div className="px-3 py-1.5 text-xs font-bold" style={{ color: 'rgba(245,158,11,0.8)' }}>
+                            {fa ? 'پیام موقت' : 'Ephemeral'}
+                          </div>
+                          {[
+                            { label: fa ? 'خاموش' : 'Off', value: null },
+                            { label: fa ? '۳۰ ثانیه' : '30s', value: 30 },
+                            { label: fa ? '۱ دقیقه' : '1 min', value: 60 },
+                            { label: fa ? '۵ دقیقه' : '5 min', value: 300 },
+                            { label: fa ? '۱ ساعت' : '1 hr', value: 3600 },
+                            { label: fa ? '۲۴ ساعت' : '24 hr', value: 86400 },
+                          ].map(opt => (
+                            <button
+                              key={String(opt.value)}
+                              onClick={() => { setExpiresIn(opt.value); setShowSendMenu(false); setScheduleInput(false); }}
+                              className="flex items-center gap-2 w-full px-4 py-2 text-xs hover:bg-white/5 transition-colors"
+                              style={{ color: expiresIn === opt.value ? '#f59e0b' : 'var(--text-secondary)' }}
+                            >
+                              {expiresIn === opt.value && <Check size={10} />}
+                              {expiresIn !== opt.value && <div style={{ width: 10 }} />}
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => { setShowSendMenu(false); setScheduleInput(false); }}
+                          className="flex items-center justify-center w-full py-2 text-xs hover:bg-white/5 transition-colors"
+                          style={{ color: 'rgba(156,163,175,0.6)', borderTop: '1px solid var(--border-color)' }}
+                        >
+                          {fa ? 'بستن' : 'Close'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )
               )}
             </div>

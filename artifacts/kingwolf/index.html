@@ -33,7 +33,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <style>
       * { -webkit-tap-highlight-color: transparent; }
-      html, body { margin:0; padding:0; background:#0b0f1a; color:#fff; min-height:100vh; min-height:100dvh; overscroll-behavior:none; }
+      html { margin:0; padding:0; height:100%; height:100dvh; background:#0b0f1a; overscroll-behavior:none; }
+      body { margin:0; padding:0; height:100%; height:100dvh; background:#0b0f1a; color:#fff; overscroll-behavior:none; overflow:hidden; }
+      #root { height:100%; overflow:hidden; }
       #kw-splash {
         position:fixed; inset:0; z-index:9999;
         background: radial-gradient(circle at 50% 40%, #1a1f33 0%, #0b0f1a 70%);

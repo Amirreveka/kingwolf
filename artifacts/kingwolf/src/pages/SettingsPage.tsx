@@ -414,6 +414,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 { id: 'privacy' as Section, icon: Shield, label: t('حریم خصوصی', 'Privacy'), sub: t('مشاهده و دسترسی', 'Visibility & access'), grad: 'linear-gradient(135deg,#10b981,#059669)', shadow: 'rgba(16,185,129,0.4)' },
                 { id: 'security' as Section, icon: Lock, label: t('امنیت', 'Security'), sub: t('رمز عبور و تأیید هویت', 'Password & authentication'), grad: 'linear-gradient(135deg,#eab308,#ca8a04)', shadow: 'rgba(234,179,8,0.4)' },
                 { id: 'devices' as Section, icon: Smartphone, label: t('دستگاه‌های من', 'My Devices'), sub: t('دستگاه‌های فعال', 'Active sessions'), grad: 'linear-gradient(135deg,#06b6d4,#0284c7)', shadow: 'rgba(6,182,212,0.4)' },
+                { id: 'storage' as Section, icon: HardDrive, label: t('فضای ذخیره‌سازی', 'Storage'), sub: t('مدیریت فایل‌ها و فضا', 'Manage files & space'), grad: 'linear-gradient(135deg,#7c3aed,#a78bfa)', shadow: 'rgba(124,58,237,0.4)' },
                 { id: 'about' as Section, icon: Info, label: t('درباره ما', 'About Us'), sub: t('ویژگی‌ها و نسخه', 'Features & version'), grad: 'linear-gradient(135deg,#ec4899,#db2777)', shadow: 'rgba(236,72,153,0.4)' },
               ].map((item, idx, arr) => (
                 <button
@@ -914,9 +915,10 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
               </div>
             </div>
 
-            <p className="text-xs text-center px-4 pb-4" style={{ color: 'var(--text-muted)' }}>
-              {t('برای دریافت اعلان روی صفحه قفل، مطمئن شوید مرورگر اجازه اعلان دارد.', 'To receive lock screen notifications, ensure the browser has notification permission.')}
-            </p>
+            {/* Push notification activation card */}
+            <div className="mx-4 mb-4">
+              <PushNotifCard t={t} />
+            </div>
           </div>
         )}
 
@@ -1054,7 +1056,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 <span style={{ fontSize: 18 }}>👑</span>
               </div>
               <div>
-                <p className="text-sm font-bold text-white">{t('سیدامیرحسین ابراهیمی', 'Seyyed Amirhossein Ebrahimi')}</p>
+                <p className="text-sm font-bold text-white">awir.rk</p>
                 <p className="text-xs" style={{ color: 'rgba(167,139,250,0.8)' }}>{t('سازنده و طراح KingWolf', 'Creator & Designer of KingWolf')}</p>
               </div>
             </div>
@@ -1118,6 +1120,92 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Push Notification Card ────────────────────────────────────────────────────
+function PushNotifCard({ t }: { t: (fa: string, en: string) => string }) {
+  const [status, setStatus] = useState<'idle' | 'loading' | 'granted' | 'denied'>(() => {
+    if (!('Notification' in window)) return 'denied';
+    if (Notification.permission === 'granted') return 'granted';
+    if (Notification.permission === 'denied') return 'denied';
+    return 'idle';
+  });
+
+  async function enable() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setStatus('denied');
+      return;
+    }
+    setStatus('loading');
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') { setStatus('denied'); return; }
+      const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
+      const reg = await navigator.serviceWorker.ready;
+      const keyRes = await fetch(`${API_BASE}/push/vapid-key`);
+      if (!keyRes.ok) { setStatus('denied'); return; }
+      const { publicKey } = await keyRes.json();
+      if (!publicKey) { setStatus('denied'); return; }
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) });
+      const token = localStorage.getItem('kingwolf_token');
+      await fetch(`${API_BASE}/push/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ endpoint: sub.endpoint, keys: { p256dh: arrayBufferToBase64(sub.getKey('p256dh')!), auth: arrayBufferToBase64(sub.getKey('auth')!) } }),
+      });
+      setStatus('granted');
+    } catch { setStatus('denied'); }
+  }
+
+  function urlBase64ToUint8Array(b64: string) {
+    const padding = '='.repeat((4 - b64.length % 4) % 4);
+    const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from([...atob(base64)].map(c => c.charCodeAt(0)));
+  }
+  function arrayBufferToBase64(buf: ArrayBuffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+  }
+
+  if (status === 'granted') {
+    return (
+      <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(52,211,153,0.15)' }}>
+          <Bell size={16} className="text-emerald-400" />
+        </div>
+        <p className="text-sm text-emerald-400 font-medium">{t('اعلان‌های Push فعال است ✓', 'Push notifications enabled ✓')}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(124,58,237,0.15)' }}>
+          <Bell size={16} className="text-purple-400" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white">{t('اعلان‌های Push', 'Push Notifications')}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {status === 'denied'
+              ? t('مرورگر اجازه نداد — از تنظیمات مرورگر فعال کنید', 'Browser denied — enable from browser settings')
+              : t('برای دریافت پیام حتی وقتی اپ بسته است', 'Receive messages even when the app is closed')}
+          </p>
+        </div>
+      </div>
+      {status !== 'denied' && (
+        <button
+          onClick={enable}
+          disabled={status === 'loading'}
+          className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all"
+          style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}
+        >
+          {status === 'loading'
+            ? <div className="flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />{t('در حال فعال‌سازی...', 'Activating...')}</div>
+            : t('فعال‌سازی اعلان‌های Push', 'Enable Push Notifications')}
+        </button>
+      )}
     </div>
   );
 }

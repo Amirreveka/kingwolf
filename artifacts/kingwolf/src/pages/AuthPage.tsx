@@ -224,8 +224,8 @@ export function AuthPage() {
             <form onSubmit={handleRegister} className="space-y-3">
               <InputField icon={<User size={15} />} placeholder="نام نمایشی" value={displayName} onChange={setDisplayName} />
               <InputField icon={<User size={15} />} placeholder="نام کاربری (حداقل ۳ کاراکتر)" value={username} onChange={setUsername} autoComplete="username" />
-              <InputField icon={<Mail size={15} />} placeholder="ایمیل" value={email} onChange={setEmail} type="email" autoComplete="email" label="ایمیل (اختیاری)" />
-              <InputField icon={<Phone size={15} />} placeholder="شماره تلفن" value={phone} onChange={setPhone} type="tel" autoComplete="tel" label="شماره تلفن (اختیاری)" />
+              <InputField icon={<Mail size={15} />} placeholder="ایمیل" value={email} onChange={setEmail} type="email" autoComplete="email" />
+              <InputField icon={<Phone size={15} />} placeholder="شماره تلفن" value={phone} onChange={setPhone} type="tel" autoComplete="tel" />
               <PasswordField placeholder="رمز عبور (حداقل ۶ کاراکتر)" value={password} onChange={setPassword} showPw={showPw} setShowPw={setShowPw} autoComplete="new-password" />
               {error && <ErrorMsg>{error}</ErrorMsg>}
               <SubmitBtn loading={loading}>

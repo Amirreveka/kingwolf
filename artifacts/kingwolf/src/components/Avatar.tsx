@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { WolfLogo } from './ui/WolfLogo';
 
 interface AvatarProps {
   src?: string | null;
@@ -66,13 +65,17 @@ export function Avatar({ src, name, username, size = 40, className = '', style =
     );
   }
 
-  // Fallback: WolfLogo (app logo)
+  // Fallback: app icon (KingWolf logo)
   return (
     <div
-      className={`rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${className}`}
-      style={{ width: size, height: size, background: 'linear-gradient(135deg,#1e0038,#2d0055)', ...style }}
+      className={`rounded-full overflow-hidden flex-shrink-0 ${className}`}
+      style={{ width: size, height: size, background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', ...style }}
     >
-      <WolfLogo size={Math.round(size * 0.82)} glow={false} />
+      <img
+        src="/icon-192.png"
+        alt={name || username || 'KingWolf'}
+        className="w-full h-full object-cover"
+      />
     </div>
   );
 }

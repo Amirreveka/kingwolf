@@ -746,6 +746,7 @@ export function AdminPanel() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<AdminTab>('dashboard');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [users, setUsers] = useState<Profile[]>([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, banned: 0 });
   const [appSettings, setAppSettings] = useState<Record<string, string>>({});
@@ -865,6 +866,16 @@ export function AdminPanel() {
       })
       .catch(() => {});
   }, [loggedIn]);
+
+  // Swap manifest to admin-specific PWA when admin panel is open
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (link) {
+      const orig = link.href;
+      link.href = '/admin-manifest.webmanifest';
+      return () => { link.href = orig; };
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedUser) {
@@ -1339,6 +1350,15 @@ export function AdminPanel() {
             <button className="md:hidden p-2 rounded-xl transition-colors kw-btn-press" onClick={() => setLoggedIn(false)} style={{ color: '#f87171' }}>
               <LogIn size={15} className="rotate-180" />
             </button>
+            <button
+              className="md:hidden p-2 rounded-xl transition-colors kw-btn-press flex-shrink-0"
+              onClick={() => setDrawerOpen(true)}
+              style={{ color: 'rgba(167,139,250,0.9)', background: 'rgba(124,58,237,0.1)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -1534,16 +1554,17 @@ export function AdminPanel() {
               )}
               {(isOwner || myPermissions.can_view_users) && <>
               {/* Sub-tabs */}
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="flex gap-1" style={{ minWidth: 0 }}>
                 {([
-                  { id: 'list',     label: 'کاربران',    icon: Users,         active: 'rgba(52,211,153,0.15)',  color: '#34d399',  onClick: () => setUsersSubTab('list') },
-                  { id: 'chats',    label: 'پیام‌ها',    icon: MessageSquare, active: 'rgba(59,130,246,0.15)',  color: '#60a5fa',  onClick: () => { setUsersSubTab('chats'); loadConversations('direct'); } },
-                  { id: 'groups',   label: 'گروه‌ها',    icon: Users,         active: 'rgba(167,139,250,0.15)', color: '#a78bfa',  onClick: () => { setUsersSubTab('groups'); loadConversations('group'); } },
-                  { id: 'channels', label: 'کانال‌ها',   icon: Newspaper,     active: 'rgba(34,211,238,0.15)',  color: '#22d3ee',  onClick: () => { setUsersSubTab('channels'); loadConversations('channel'); } },
-                ] as { id: typeof usersSubTab; label: string; icon: React.ElementType; active: string; color: string; onClick: () => void }[]).map(tab => (
-                  <button key={tab.id} onClick={tab.onClick} className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex-shrink-0"
-                    style={{ background: usersSubTab === tab.id ? tab.active : 'rgba(22,27,34,0.8)', color: usersSubTab === tab.id ? tab.color : '#6b7280', border: usersSubTab === tab.id ? `1px solid ${tab.color}30` : '1px solid transparent', whiteSpace: 'nowrap' }}>
-                    <tab.icon size={12} /> {tab.label}
+                  { id: 'list',     label: 'کاربران',  active: 'rgba(52,211,153,0.15)',  color: '#34d399',  onClick: () => setUsersSubTab('list') },
+                  { id: 'chats',    label: 'پیام‌ها',  active: 'rgba(59,130,246,0.15)',  color: '#60a5fa',  onClick: () => { setUsersSubTab('chats'); loadConversations('direct'); } },
+                  { id: 'groups',   label: 'گروه‌ها',  active: 'rgba(167,139,250,0.15)', color: '#a78bfa',  onClick: () => { setUsersSubTab('groups'); loadConversations('group'); } },
+                  { id: 'channels', label: 'کانال‌ها', active: 'rgba(34,211,238,0.15)',  color: '#22d3ee',  onClick: () => { setUsersSubTab('channels'); loadConversations('channel'); } },
+                ] as { id: typeof usersSubTab; label: string; active: string; color: string; onClick: () => void }[]).map(tab => (
+                  <button key={tab.id} onClick={tab.onClick}
+                    className="flex-1 py-1.5 rounded-lg font-semibold transition-colors text-center"
+                    style={{ fontSize: 11, background: usersSubTab === tab.id ? tab.active : 'rgba(22,27,34,0.8)', color: usersSubTab === tab.id ? tab.color : '#6b7280', border: usersSubTab === tab.id ? `1px solid ${tab.color}30` : '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>
+                    {tab.label}
                   </button>
                 ))}
               </div>
@@ -2514,6 +2535,77 @@ export function AdminPanel() {
                 <button type="button" onClick={() => setResetPwTarget(null)} className="px-4 py-2.5 bg-gray-700 text-gray-300 rounded-xl text-sm">لغو</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile right-side drawer */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={() => setDrawerOpen(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+          {/* Drawer panel — slides in from right */}
+          <div
+            className="absolute top-0 right-0 bottom-0 flex flex-col overflow-hidden"
+            style={{
+              width: '72vw',
+              maxWidth: 280,
+              background: 'rgba(5,10,25,0.97)',
+              borderLeft: '1px solid rgba(124,58,237,0.25)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              animation: 'kw-slide-in-right 0.22s ease-out',
+              paddingTop: 'max(16px, env(safe-area-inset-top))',
+              boxShadow: '-8px 0 32px rgba(0,0,0,0.5)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer header */}
+            <div className="px-4 pb-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center gap-2">
+                <WolfLogo size={24} />
+                <div>
+                  <p className="text-xs font-bold text-white">KingWolf</p>
+                  <p style={{ fontSize: 10, color: 'rgba(167,139,250,0.8)' }}>پنل مدیریت</p>
+                </div>
+              </div>
+              <button onClick={() => setDrawerOpen(false)} className="p-1.5 rounded-lg" style={{ color: 'rgba(107,114,128,0.8)' }}>
+                <X size={16} />
+              </button>
+            </div>
+            {/* Nav items */}
+            <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+              {navItems.map(item => {
+                const isActive = tab === item.id;
+                return (
+                  <button key={item.id}
+                    onClick={() => { setTab(item.id); setDrawerOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-right transition-all"
+                    style={{
+                      background: isActive ? item.accent : 'transparent',
+                      color: isActive ? item.color : 'rgba(107,114,128,1)',
+                      boxShadow: isActive ? `0 0 10px ${item.accent}` : 'none',
+                    }}
+                  >
+                    <item.icon size={17} className="flex-shrink-0" style={{ color: isActive ? item.color : undefined }} />
+                    <span className="text-sm font-medium">{item.label}</span>
+                    {isActive && <div className="mr-auto w-1.5 h-1.5 rounded-full" style={{ background: item.color }} />}
+                  </button>
+                );
+              })}
+            </nav>
+            {/* Logout */}
+            <div className="p-2 pb-8" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <button onClick={() => { setLoggedIn(false); setDrawerOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
+                style={{ color: '#f87171' }}>
+                <LogIn size={17} className="rotate-180 flex-shrink-0" />
+                <span className="text-sm font-medium">خروج از پنل</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

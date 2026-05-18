@@ -372,9 +372,9 @@ app.post('/auth/signin', async (req, res) => {
     return res.status(429).json({ error: 'rate_limited', retryAfter: rl.retryAfter, message: `بیش از حد تلاش — ${rl.retryAfter} ثانیه دیگر دوباره امتحان کنید` });
   }
 
-  // Try to find user by username, email, or phone
-  let profile = db.prepare('SELECT * FROM profiles WHERE username = ?').get(identifier);
-  if (!profile) profile = db.prepare('SELECT * FROM profiles WHERE email = ?').get(identifier);
+  // Try to find user by username (case-insensitive), email, or phone
+  let profile = db.prepare('SELECT * FROM profiles WHERE LOWER(username) = LOWER(?)').get(identifier);
+  if (!profile) profile = db.prepare('SELECT * FROM profiles WHERE LOWER(email) = LOWER(?)').get(identifier);
   if (!profile) profile = db.prepare('SELECT * FROM profiles WHERE phone = ?').get(identifier.replace(/\D/g, ''));
   const user = profile ? db.prepare('SELECT * FROM users WHERE id = ?').get(profile.id) : null;
   if (!user) { rlRecordFail(req, identifier); return res.status(401).json({ error: 'invalid credentials' }); }
@@ -991,11 +991,13 @@ app.post('/admin/users/create', authMiddleware, adminOnly, async (req, res) => {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
     if (!myPerms?.can_approve_users) return res.status(403).json({ error: 'دسترسی لازم است' });
   }
-  const { username, password, display_name, phone } = req.body || {};
+  const rawUsername = (req.body.username || '').toString().toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+  const { password, display_name, phone } = req.body || {};
+  const username = rawUsername;
   if (!username || !password) return res.status(400).json({ error: 'نام کاربری و رمز الزامی است' });
-  if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) return res.status(400).json({ error: 'نام کاربری فقط حروف، اعداد و _ مجاز است (۳ تا ۳۲ کاراکتر)' });
+  if (!/^[a-z0-9_]{3,32}$/.test(username)) return res.status(400).json({ error: 'نام کاربری فقط حروف کوچک، اعداد و _ مجاز است (۳ تا ۳۲ کاراکتر)' });
   if (password.length < 6) return res.status(400).json({ error: 'رمز باید حداقل ۶ کاراکتر باشد' });
-  const exists = db.prepare('SELECT 1 FROM profiles WHERE username=?').get(username);
+  const exists = db.prepare('SELECT 1 FROM profiles WHERE LOWER(username)=?').get(username);
   if (exists) return res.status(409).json({ error: 'این نام کاربری قبلاً ثبت شده' });
   try {
     const id = nanoid();
@@ -1003,7 +1005,7 @@ app.post('/admin/users/create', authMiddleware, adminOnly, async (req, res) => {
     const email = `${username}@kingwolf.internal`;
     db.transaction(() => {
       db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, email, hash, password);
-      db.prepare('INSERT INTO profiles (id, username, email, display_name, phone, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, ?, 1, 1, 0)').run(id, username, email, display_name || username, phone || null);
+      db.prepare('INSERT INTO profiles (id, username, email, display_name, phone, avatar_url, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, ?, ?, 1, 1, 0)').run(id, username, email, display_name || username, phone || null, '/icon-192.png');
     })();
     broadcast({ event: 'INSERT', table: 'profiles', new: { id, username, display_name: display_name || username, is_approved: 1 } });
     return res.json({ ok: true, id, username, password });

@@ -66,36 +66,13 @@ export function Avatar({ src, name, username, size = 40, className = '', style =
     );
   }
 
-  // Fallback: site logo (/icon-192.png), with WolfLogo as final fallback
+  // Fallback: WolfLogo (app logo)
   return (
     <div
       className={`rounded-full overflow-hidden flex items-center justify-center flex-shrink-0 ${className}`}
-      style={{ width: size, height: size, background: '#1e3a5f', ...style }}
+      style={{ width: size, height: size, background: 'linear-gradient(135deg,#1e0038,#2d0055)', ...style }}
     >
-      <img
-        src="/icon-192.png"
-        alt={name || username || ''}
-        className="w-full h-full object-cover"
-        onError={e => {
-          const el = e.currentTarget;
-          el.style.display = 'none';
-          const parent = el.parentElement;
-          if (parent) {
-            const fallback = document.createElement('div');
-            fallback.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;';
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('width', String(Math.round(size * 0.72)));
-            svg.setAttribute('height', String(Math.round(size * 0.72)));
-            svg.setAttribute('viewBox', '0 0 24 24');
-            svg.setAttribute('fill', 'white');
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', 'M12 2L4 7v10l8 5 8-5V7L12 2z');
-            svg.appendChild(path);
-            fallback.appendChild(svg);
-            parent.appendChild(fallback);
-          }
-        }}
-      />
+      <WolfLogo size={Math.round(size * 0.82)} glow={false} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, MessageCircle, Video, ShieldCheck, Users, Move } from 'lucide-react';
+import { User, Camera, Lock, Bell, Shield, Palette, Globe, ChevronLeft, Save, X, Eye, EyeOff, Check, Sun, Moon, LogOut, Smartphone, Info, MessageCircle, Video, ShieldCheck, Users, Move, HardDrive, Trash2, Image, FileVideo, File } from 'lucide-react';
 import { THEMES } from '../contexts/ThemeContext';
 import type { Theme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +10,7 @@ import { Profile } from '../types';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { Avatar } from '../components/Avatar';
 
-type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices' | 'about';
+type Section = 'main' | 'profile' | 'appearance' | 'language' | 'notifications' | 'privacy' | 'security' | 'devices' | 'about' | 'storage';
 
 const CROP_SIZE = 290;
 
@@ -336,6 +336,7 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
     { id: 'privacy' as Section, label: t('حریم خصوصی', 'Privacy'), icon: Shield, color: '#ef4444', grad: 'linear-gradient(135deg,#ef4444,#b91c1c)' },
     { id: 'security' as Section, label: t('امنیت', 'Security'), icon: Lock, color: '#64748b', grad: 'linear-gradient(135deg,#475569,#1e293b)' },
     { id: 'devices' as Section, label: t('دستگاه‌های من', 'My Devices'), icon: Smartphone, color: '#06b6d4', grad: 'linear-gradient(135deg,#06b6d4,#0ea5e9)' },
+    { id: 'storage' as Section, label: t('فضای ذخیره‌سازی', 'Storage'), icon: HardDrive, color: '#a78bfa', grad: 'linear-gradient(135deg,#7c3aed,#a78bfa)' },
     { id: 'about' as Section, label: t('درباره ما', 'About Us'), icon: Info, color: '#f59e0b', grad: 'linear-gradient(135deg,#f59e0b,#d97706)' },
   ];
 
@@ -1011,6 +1012,9 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         )}
 
+        {/* STORAGE */}
+        {section === 'storage' && <StorageSection t={t} apiBase={(import.meta.env.VITE_API_BASE as string) || '/api'} />}
+
         {/* ABOUT */}
         {section === 'about' && (
           <div className="kw-tab-in">
@@ -1043,6 +1047,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                   </div>
                 </div>
               ))}
+            </div>
+            {/* Creator card */}
+            <div className="mx-4 mb-3 p-4 rounded-2xl flex items-center gap-3" style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)' }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
+                <span style={{ fontSize: 18 }}>👑</span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">{t('سیدامیرحسین ابراهیمی', 'Seyyed Amirhossein Ebrahimi')}</p>
+                <p className="text-xs" style={{ color: 'rgba(167,139,250,0.8)' }}>{t('سازنده و طراح KingWolf', 'Creator & Designer of KingWolf')}</p>
+              </div>
             </div>
             {/* Version footer */}
             <div className="p-6 text-center space-y-1">
@@ -1104,6 +1118,135 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Storage Section ──────────────────────────────────────────────────────────
+function StorageSection({ t, apiBase }: { t: (fa: string, en: string) => string; apiBase: string }) {
+  const [storageInfo, setStorageInfo] = useState<{ quota: number; used: number; percent: number } | null>(null);
+  const [files, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  function fmtBytes(b: number) {
+    if (b >= 1073741824) return (b / 1073741824).toFixed(2) + ' GB';
+    if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+    if (b >= 1024) return (b / 1024).toFixed(0) + ' KB';
+    return b + ' B';
+  }
+
+  async function load() {
+    setLoading(true);
+    const token = localStorage.getItem('kingwolf_token');
+    try {
+      const [sRes, fRes] = await Promise.all([
+        fetch(`${apiBase}/profile/storage`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${apiBase}/profile/files`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (sRes.ok) setStorageInfo(await sRes.json());
+      if (fRes.ok) setFiles(await fRes.json());
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function deleteFile(msgId: string) {
+    setDeleting(msgId);
+    const token = localStorage.getItem('kingwolf_token');
+    await fetch(`${apiBase}/profile/files/${msgId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    setFiles(p => p.filter(f => f.id !== msgId));
+    await load();
+    setDeleting(null);
+  }
+
+  const images = files.filter(f => f.file_type?.startsWith('image/'));
+  const videos = files.filter(f => f.file_type?.startsWith('video/'));
+  const others = files.filter(f => !f.file_type?.startsWith('image/') && !f.file_type?.startsWith('video/'));
+
+  const categories = [
+    { label: t('تصاویر', 'Images'), items: images, Icon: Image, color: '#60a5fa' },
+    { label: t('ویدیو‌ها', 'Videos'), items: videos, Icon: FileVideo, color: '#f472b6' },
+    { label: t('فایل‌های دیگر', 'Other files'), items: others, Icon: File, color: '#fb923c' },
+  ];
+
+  return (
+    <div className="kw-tab-in p-4 space-y-4">
+      {/* Usage bar card */}
+      <div className="rounded-2xl p-5" style={{ background: 'rgba(8,15,35,0.6)', border: '1px solid rgba(124,58,237,0.2)', backdropFilter: 'blur(16px)' }}>
+        <div className="flex items-center gap-2 mb-4">
+          <HardDrive size={16} className="text-purple-400" />
+          <h3 className="font-bold text-sm text-white">{t('فضای ذخیره‌سازی', 'Storage')}</h3>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" /></div>
+        ) : storageInfo ? (
+          <>
+            <div className="flex justify-between text-xs mb-2">
+              <span style={{ color: 'rgba(167,139,250,0.9)' }}>{fmtBytes(storageInfo.used)} {t('مصرف شده', 'used')}</span>
+              <span style={{ color: 'rgba(156,163,175,0.7)' }}>{fmtBytes(storageInfo.quota)} {t('کل', 'total')}</span>
+            </div>
+            <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(100, storageInfo.percent)}%`, background: storageInfo.percent > 85 ? 'linear-gradient(90deg,#ef4444,#f87171)' : 'linear-gradient(90deg,#7c3aed,#a78bfa)' }} />
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              {categories.map(cat => {
+                const catBytes = cat.items.reduce((s, f) => s + (f.file_size || 0), 0);
+                return (
+                  <div key={cat.label} className="rounded-xl p-2.5 text-center" style={{ background: `${cat.color}10`, border: `1px solid ${cat.color}20` }}>
+                    <cat.Icon size={14} style={{ color: cat.color, margin: '0 auto 4px' }} />
+                    <p className="text-[10px] font-semibold" style={{ color: cat.color }}>{cat.label}</p>
+                    <p className="text-[10px]" style={{ color: 'rgba(156,163,175,0.7)' }}>{fmtBytes(catBytes)}</p>
+                    <p className="text-[10px]" style={{ color: 'rgba(156,163,175,0.5)' }}>{cat.items.length} {t('فایل', 'files')}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      {/* File list by category */}
+      {categories.map(cat => cat.items.length > 0 && (
+        <div key={cat.label} className="rounded-2xl overflow-hidden" style={{ background: 'rgba(8,15,35,0.5)', border: `1px solid ${cat.color}18`, backdropFilter: 'blur(16px)' }}>
+          <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <cat.Icon size={13} style={{ color: cat.color }} />
+            <span className="text-xs font-semibold text-white">{cat.label}</span>
+            <span className="text-[10px] mr-1" style={{ color: 'rgba(156,163,175,0.5)' }}>({cat.items.length})</span>
+          </div>
+          <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+            {cat.items.map(f => (
+              <div key={f.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${cat.color}15` }}>
+                  <cat.Icon size={14} style={{ color: cat.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-300 truncate">{f.file_name || t('فایل ناشناس', 'Unknown file')}</p>
+                  <p className="text-[10px]" style={{ color: 'rgba(156,163,175,0.5)' }}>{fmtBytes(f.file_size || 0)} · {new Date(f.created_at).toLocaleDateString('fa-IR')}</p>
+                </div>
+                <button
+                  onClick={() => deleteFile(f.id)}
+                  disabled={deleting === f.id}
+                  className="flex-shrink-0 p-1.5 rounded-lg transition-colors"
+                  style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.2)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'}
+                >
+                  {deleting === f.id ? <div className="w-3 h-3 border border-red-400 border-t-transparent rounded-full animate-spin" /> : <Trash2 size={12} />}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {!loading && files.length === 0 && (
+        <div className="text-center py-10">
+          <HardDrive size={32} className="mx-auto mb-2 text-gray-600" />
+          <p className="text-xs text-gray-500">{t('هیچ فایلی آپلود نشده', 'No files uploaded yet')}</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,11 +14,10 @@ import { WolfLogo, KingWolfBrand } from '../components/ui/WolfLogo';
 import { Avatar } from '../components/Avatar';
 import { CallsPage } from './CallsPage';
 import { StoriesPage } from './StoriesPage';
-import { ContactsPage } from './ContactsPage';
 import { TrashPage } from './TrashPage';
 import { Trash2 } from 'lucide-react';
 
-type Page = 'messages' | 'calls' | 'contacts' | 'feed' | 'stories' | 'settings' | 'trash';
+type Page = 'messages' | 'calls' | 'feed' | 'stories' | 'settings' | 'trash';
 
 // Instagram-style Stories icon
 function StoriesIcon({ size = 22, active = false }: { size?: number; active?: boolean }) {
@@ -60,6 +59,20 @@ export function MessengerLayout() {
   const [page, setPage] = useState<Page>('messages');
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [showChatOnMobile, setShowChatOnMobile] = useState(false);
+
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      const dismissed = sessionStorage.getItem('kw_install_dismissed');
+      if (!dismissed) setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   const selectedConv = conversations.find((c) => c.id === selectedConvId) ?? null;
 
@@ -382,7 +395,6 @@ export function MessengerLayout() {
   const navItems = [
     { id: 'messages'  as Page, label: fa ? 'پیام‌ها'   : 'Messages',  icon: MessageSquare },
     { id: 'calls'     as Page, label: fa ? 'تماس‌ها'   : 'Calls',     icon: Phone },
-    { id: 'contacts'  as Page, label: fa ? 'مخاطبین'   : 'Contacts',  icon: Users },
     { id: 'feed'      as Page, label: fa ? 'توییت'      : 'Tweet',     icon: null /* uses TwitterBird */ },
     { id: 'trash'     as Page, label: fa ? 'سطل زباله' : 'Trash',     icon: Trash2 },
     { id: 'settings'  as Page, label: fa ? 'تنظیمات'   : 'Settings',  icon: Settings },
@@ -494,7 +506,7 @@ export function MessengerLayout() {
         }}
       >
         {/* Mobile header for non-messages pages */}
-        {page !== 'messages' && page !== 'calls' && page !== 'contacts' && page !== 'settings' && (
+        {page !== 'messages' && page !== 'calls' && page !== 'settings' && (
           <div
             className="flex-shrink-0 flex items-center gap-3 px-4 py-3 md:hidden kw-header-accent"
             style={{
@@ -536,8 +548,6 @@ export function MessengerLayout() {
             />
           ) : page === 'calls' ? (
             <CallsPage onCall={startCall} contacts={conversations.filter(c => c.type === 'direct' && c.other_user)} />
-          ) : page === 'contacts' ? (
-            <ContactsPage onOpenChat={(userId) => handleSelectConversation(`direct:${userId}`)} />
           ) : page === 'feed' ? (
             <FeedPage />
           ) : page === 'stories' ? (
@@ -662,6 +672,34 @@ export function MessengerLayout() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── PWA Install Banner ─────────────────────── */}
+      {showInstallBanner && installPrompt && (
+        <div className="fixed top-0 inset-x-0 z-50 md:hidden flex items-center gap-3 px-4 py-3"
+          style={{ background: 'rgba(8,15,35,0.97)', borderBottom: '1px solid rgba(124,58,237,0.3)', backdropFilter: 'blur(12px)' }}>
+          <WolfLogo size={28} glow={false} />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white">نصب KingWolf</p>
+            <p className="text-[10px]" style={{ color: 'rgba(156,163,175,0.7)' }}>نصب به عنوان اپ روی گوشی</p>
+          </div>
+          <button
+            onClick={async () => {
+              if (!installPrompt) return;
+              installPrompt.prompt();
+              const result = await installPrompt.userChoice;
+              if (result.outcome === 'accepted') {
+                setInstallPrompt(null);
+                setShowInstallBanner(false);
+              }
+            }}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold text-white flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}>
+            نصب
+          </button>
+          <button onClick={() => { setShowInstallBanner(false); sessionStorage.setItem('kw_install_dismissed', '1'); }}
+            className="p-1 text-gray-500 flex-shrink-0">✕</button>
         </div>
       )}
 

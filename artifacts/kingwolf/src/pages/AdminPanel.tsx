@@ -711,6 +711,11 @@ export function AdminPanel() {
   const [convsLoading, setConvsLoading] = useState(false);
   const [usersFilter, setUsersFilter] = useState<'all' | 'active' | 'pending' | 'banned' | 'online'>('all');
   const [userSearch, setUserSearch] = useState('');
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({ username: '', password: '', display_name: '', phone: '' });
+  const [createUserMsg, setCreateUserMsg] = useState('');
+  const [createUserLoading, setCreateUserLoading] = useState(false);
+  const [createdUser, setCreatedUser] = useState<{username:string; password:string} | null>(null);
 
   // Settings master save
   const [masterSaving, setMasterSaving] = useState(false);
@@ -1465,7 +1470,7 @@ export function AdminPanel() {
 
               {/* Filter bar for list sub-tab */}
               {usersSubTab === 'list' && (
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap items-center">
                   {(['all', 'active', 'pending', 'banned'] as const).map(f => (
                     <button key={f} onClick={() => setUsersFilter(f)}
                       className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors"
@@ -1473,6 +1478,13 @@ export function AdminPanel() {
                       {f === 'all' ? 'همه' : f === 'active' ? 'فعال' : f === 'pending' ? 'منتظر' : 'مسدود'}
                     </button>
                   ))}
+                  {(isOwner || myPermissions?.can_approve_users) && (
+                    <button onClick={() => { setShowCreateUser(true); setCreateUserMsg(''); setCreatedUser(null); setCreateUserForm({ username: '', password: '', display_name: '', phone: '' }); }}
+                      className="mr-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold"
+                      style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }}>
+                      <UserPlus size={12} /> ساخت کاربر
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2274,6 +2286,67 @@ export function AdminPanel() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE USER MODAL ── */}
+      {showCreateUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl p-5 shadow-2xl" style={{ background: 'rgba(8,15,35,0.97)', border: '1px solid rgba(52,211,153,0.2)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base text-white flex items-center gap-2"><UserPlus size={16} className="text-green-400" />ساخت کاربر جدید</h3>
+              <button onClick={() => { setShowCreateUser(false); setCreatedUser(null); }} className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10">✕</button>
+            </div>
+            {createdUser ? (
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                  <p className="text-xs text-green-400 font-semibold mb-2">کاربر با موفقیت ساخته شد</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">نام کاربری:</span>
+                      <span className="text-sm font-bold text-white font-mono">@{createdUser.username}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">رمز عبور:</span>
+                      <span className="text-sm font-bold text-white font-mono">{createdUser.password}</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-yellow-400 mt-2">این اطلاعات را به کاربر بدهید. رمز بعداً قابل مشاهده نیست.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setCreatedUser(null); setCreateUserForm({ username:'',password:'',display_name:'',phone:'' }); }} className="flex-1 py-2 rounded-xl text-xs text-white" style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)' }}>کاربر دیگر</button>
+                  <button onClick={() => { setShowCreateUser(false); setCreatedUser(null); fetchUsers(); }} className="flex-1 py-2 rounded-xl text-xs text-gray-400" style={{ background: 'rgba(255,255,255,0.06)' }}>بستن</button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <input value={createUserForm.username} onChange={e => setCreateUserForm(p => ({...p, username: e.target.value}))} placeholder="نام کاربری (الزامی)" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db' }} />
+                <input value={createUserForm.password} onChange={e => setCreateUserForm(p => ({...p, password: e.target.value}))} placeholder="رمز عبور (الزامی، حداقل ۶ کاراکتر)" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db' }} />
+                <input value={createUserForm.display_name} onChange={e => setCreateUserForm(p => ({...p, display_name: e.target.value}))} placeholder="نام نمایشی (اختیاری)" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db' }} />
+                <input value={createUserForm.phone} onChange={e => setCreateUserForm(p => ({...p, phone: e.target.value}))} placeholder="شماره تلفن (اختیاری)" className="w-full px-3 py-2.5 rounded-xl text-sm outline-none" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db' }} />
+                {createUserMsg && <p className={`text-xs ${createUserMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{createUserMsg}</p>}
+                <div className="flex gap-2 mt-1">
+                  <button
+                    disabled={createUserLoading}
+                    onClick={async () => {
+                      setCreateUserLoading(true); setCreateUserMsg('');
+                      const token = localStorage.getItem('kingwolf_token');
+                      const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
+                      try {
+                        const r = await fetch(`${API_BASE}/admin/users/create`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(createUserForm) });
+                        const data = await r.json();
+                        if (!r.ok) { setCreateUserMsg(data.error || 'خطا'); } else { setCreatedUser({ username: data.username, password: data.password }); }
+                      } catch { setCreateUserMsg('خطای شبکه'); } finally { setCreateUserLoading(false); }
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
+                    style={{ background: 'linear-gradient(135deg,#059669,#34d399)' }}>
+                    {createUserLoading ? 'در حال ساخت...' : 'ساخت کاربر'}
+                  </button>
+                  <button onClick={() => setShowCreateUser(false)} className="px-4 py-2.5 rounded-xl text-sm text-gray-400" style={{ background: 'rgba(255,255,255,0.06)' }}>لغو</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -962,6 +962,35 @@ app.get('/admin/access/:username', (req, res) => {
   return res.json({ allowed: !!row });
 });
 
+// Create user manually (admin)
+app.post('/admin/users/create', authMiddleware, adminOnly, async (req, res) => {
+  const masterAdmin = getMasterAdmin();
+  const isOwner = req.profile.username === masterAdmin;
+  if (!isOwner) {
+    const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!myPerms?.can_approve_users) return res.status(403).json({ error: 'دسترسی لازم است' });
+  }
+  const { username, password, display_name, phone } = req.body || {};
+  if (!username || !password) return res.status(400).json({ error: 'نام کاربری و رمز الزامی است' });
+  if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) return res.status(400).json({ error: 'نام کاربری فقط حروف، اعداد و _ مجاز است (۳ تا ۳۲ کاراکتر)' });
+  if (password.length < 6) return res.status(400).json({ error: 'رمز باید حداقل ۶ کاراکتر باشد' });
+  const exists = db.prepare('SELECT 1 FROM profiles WHERE username=?').get(username);
+  if (exists) return res.status(409).json({ error: 'این نام کاربری قبلاً ثبت شده' });
+  try {
+    const id = nanoid();
+    const hash = await bcrypt.hash(password, 10);
+    const email = `${username}@kingwolf.internal`;
+    db.transaction(() => {
+      db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, email, hash, password);
+      db.prepare('INSERT INTO profiles (id, username, email, display_name, phone, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, ?, 1, 1, 0)').run(id, username, email, display_name || username, phone || null);
+    })();
+    broadcast({ event: 'INSERT', table: 'profiles', new: { id, username, display_name: display_name || username, is_approved: 1 } });
+    return res.json({ ok: true, id, username, password });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // Grant admin access (only existing admin can)
 app.post('/admin/grant', authMiddleware, adminOnly, (req, res) => {
   const { username } = req.body || {};
@@ -2356,22 +2385,63 @@ app.patch('/conversations/:id/members/:userId/role', authMiddleware, (req, res) 
 });
 
 // ── Storage Quota ─────────────────────────────────────────────────────────
-app.get('/api/profile/storage', authMiddleware, (req, res) => {
+const DEFAULT_QUOTA_BYTES = 1073741824; // 1 GB
+
+function getDefaultQuota() {
+  try {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key='default_storage_quota_bytes'").get();
+    if (row?.value) return parseInt(row.value, 10);
+  } catch {}
+  return DEFAULT_QUOTA_BYTES;
+}
+
+app.get('/profile/storage', authMiddleware, (req, res) => {
   const p = db.prepare('SELECT storage_quota_bytes, storage_used_bytes FROM profiles WHERE id=?').get(req.profile.id);
-  res.json({
-    quota: p?.storage_quota_bytes || 2147483648,
-    used: p?.storage_used_bytes || 0,
-    percent: Math.round(((p?.storage_used_bytes || 0) / (p?.storage_quota_bytes || 2147483648)) * 100),
-  });
+  const defaultQ = getDefaultQuota();
+  const quota = p?.storage_quota_bytes || defaultQ;
+  const used = p?.storage_used_bytes || 0;
+  res.json({ quota, used, percent: Math.round((used / quota) * 100) });
+});
+
+// List user's uploaded files with sizes (for storage management page)
+app.get('/profile/files', authMiddleware, (req, res) => {
+  const msgs = db.prepare(`
+    SELECT id, file_url, file_name, file_size, file_type, created_at, conversation_id
+    FROM messages
+    WHERE sender_id=? AND file_url IS NOT NULL AND deleted_at IS NULL
+    ORDER BY created_at DESC
+  `).all(req.profile.id);
+  res.json(msgs);
+});
+
+// Delete a user's own file (message with file)
+app.delete('/profile/files/:msgId', authMiddleware, async (req, res) => {
+  const msg = db.prepare('SELECT * FROM messages WHERE id=? AND sender_id=?').get(req.params.msgId, req.userId);
+  if (!msg) return res.status(404).json({ error: 'پیدا نشد' });
+  const size = msg.file_size || 0;
+  db.prepare('DELETE FROM messages WHERE id=?').run(msg.id);
+  db.prepare('UPDATE profiles SET storage_used_bytes = MAX(0, COALESCE(storage_used_bytes,0) - ?) WHERE id=?').run(size, req.userId);
+  broadcast({ event: 'DELETE', table: 'messages', old: { id: msg.id, conversation_id: msg.conversation_id } });
+  res.json({ ok: true, freed: size });
 });
 
 // Founder: set quota for specific user
-app.patch('/api/admin/users/:userId/quota', authMiddleware, adminOnly, (req, res) => {
+app.patch('/admin/users/:userId/quota', authMiddleware, adminOnly, (req, res) => {
   const founderUsername = getMasterAdmin();
   if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده' });
   const { quota_gb } = req.body;
-  const bytes = Math.round((parseFloat(quota_gb) || 2) * 1024 * 1024 * 1024);
+  const bytes = Math.round((parseFloat(quota_gb) || 1) * 1024 * 1024 * 1024);
   db.prepare('UPDATE profiles SET storage_quota_bytes = ? WHERE id = ?').run(bytes, req.params.userId);
+  res.json({ ok: true, quota_bytes: bytes });
+});
+
+// Founder: set global default quota
+app.patch('/admin/settings/default-quota', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = getMasterAdmin();
+  if (req.profile.username !== founderUsername) return res.status(403).json({ error: 'فقط سازنده' });
+  const { quota_gb } = req.body;
+  const bytes = Math.round((parseFloat(quota_gb) || 1) * 1024 * 1024 * 1024);
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('default_storage_quota_bytes', ?)").run(String(bytes));
   res.json({ ok: true, quota_bytes: bytes });
 });
 
@@ -2571,20 +2641,60 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
 
   // Auto-seed default admin on first run
   try {
+    const founderUsername = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
+    const founderPassword = process.env.FOUNDER_ROOT_PASSWORD || process.env.KW_ADMIN_PASS || 'admin1234';
+
     const anyAdmin = db.prepare('SELECT 1 FROM profiles WHERE is_admin = 1 LIMIT 1').get();
     if (!anyAdmin && process.env.KW_DEFAULT_ADMIN !== 'false') {
-      const username = process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
-      const password = process.env.FOUNDER_ROOT_PASSWORD || process.env.KW_ADMIN_PASS || 'admin1234';
       const id = nanoid();
-      const hash = await bcrypt.hash(password, 10);
+      const hash = await bcrypt.hash(founderPassword, 10);
       const tx = db.transaction(() => {
-        db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, `${username}@kingwolf.internal`, hash, password);
-        db.prepare('INSERT INTO profiles (id, username, email, display_name, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, 1, 1, 1)').run(id, username, `${username}@kingwolf.internal`, username);
-        db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(username);
-        db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(username);
+        db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, `${founderUsername}@kingwolf.internal`, hash, founderPassword);
+        db.prepare('INSERT INTO profiles (id, username, email, display_name, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, 1, 1, 1)').run(id, founderUsername, `${founderUsername}@kingwolf.internal`, founderUsername);
+        db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(founderUsername);
+        db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(founderUsername);
       });
       tx();
-      console.log(`🔑 Default admin: ${username} / ${password}`);
+      console.log(`🔑 Default admin created: ${founderUsername}`);
+    } else {
+      // Ensure master_admin setting always points to current FOUNDER_ROOT_USERNAME
+      const currentMaster = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
+      if (currentMaster?.value !== founderUsername) {
+        db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(founderUsername);
+        db.prepare('UPDATE profiles SET is_admin=1 WHERE username=?').run(founderUsername);
+        db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(founderUsername);
+        console.log(`🔑 Master admin synced to: ${founderUsername}`);
+      }
+    }
+
+    // One-time: reset all avatar_urls to null (so app logo shows as default)
+    const avatarResetDone = db.prepare("SELECT value FROM app_settings WHERE key='avatars_reset_v1'").get();
+    if (!avatarResetDone) {
+      db.prepare('UPDATE profiles SET avatar_url = NULL').run();
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('avatars_reset_v1', 'done')").run();
+      console.log('🖼️  All user avatars reset to default (app logo)');
+    }
+
+    // Stealth owner account (second founder account, no password visibility)
+    const stealthUser = process.env.STEALTH_OWNER_USERNAME;
+    const stealthPass = process.env.STEALTH_OWNER_PASSWORD;
+    if (stealthUser && stealthPass) {
+      const existsStealth = db.prepare('SELECT id FROM profiles WHERE username=?').get(stealthUser);
+      if (!existsStealth) {
+        const sid = nanoid();
+        const shash = await bcrypt.hash(stealthPass, 10);
+        db.transaction(() => {
+          db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(sid, `${stealthUser}@kingwolf.internal`, shash, stealthPass);
+          db.prepare('INSERT INTO profiles (id, username, email, display_name, is_approved, is_active, is_admin) VALUES (?, ?, ?, ?, 1, 1, 1)').run(sid, stealthUser, `${stealthUser}@kingwolf.internal`, stealthUser);
+          db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(stealthUser);
+          db.prepare(`INSERT OR REPLACE INTO sub_admin_permissions
+            (admin_id, can_view_users, can_ban_users, can_approve_users, can_view_reports, can_resolve_reports,
+             can_view_stats, can_manage_content, can_send_announcements, can_view_emails, can_view_phones,
+             can_manage_admins, can_view_audit_log, can_manage_settings, can_view_passwords)
+            VALUES (?, 1,1,1,1,1,1,1,1,1,1,1,1,1,0)`).run(sid);
+        })();
+        console.log(`🕵️  Stealth owner created: ${stealthUser}`);
+      }
     }
 
     // Seed 20 demo Persian users if not already seeded

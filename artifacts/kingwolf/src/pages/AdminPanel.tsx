@@ -397,12 +397,21 @@ function BotTab() {
   );
 }
 
+const PERM_LABELS: Record<string, string> = {
+  can_view_users: 'مشاهده کاربران', can_ban_users: 'مسدود کردن', can_approve_users: 'تأیید کاربران',
+  can_view_reports: 'مشاهده گزارش‌ها', can_resolve_reports: 'رسیدگی به گزارش', can_view_stats: 'آمار',
+  can_manage_content: 'مدیریت محتوا', can_send_announcements: 'اطلاع‌رسانی', can_view_emails: 'ایمیل',
+  can_view_phones: 'شماره', can_manage_admins: 'مدیریت مدیران', can_view_audit_log: 'لاگ فعالیت',
+  can_manage_settings: 'تنظیمات اپ',
+};
+
 function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, myPermissions }: { isMasterAdmin: boolean; isOwner: boolean; ownerUsername: string; onOpenPermModal: (user: any) => void; myPermissions: Record<string, any> }) {
   const canManage = isOwner || !!myPermissions?.can_manage_admins;
   const [managers, setManagers] = useState<any[]>([]);
   const [loadingMgr, setLoadingMgr] = useState(true);
   const [promoteUsername, setPromoteUsername] = useState('');
   const [promotedMsg, setPromotedMsg] = useState('');
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, { online_status: string; last_seen: string }>>({});
 
   async function loadManagers() {
     setLoadingMgr(true);
@@ -411,7 +420,21 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
     setLoadingMgr(false);
   }
 
-  useEffect(() => { loadManagers(); }, []);
+  async function loadOnline() {
+    const { body } = await adminFetch('/admin/online-users');
+    if (body?.data) {
+      const map: Record<string, { online_status: string; last_seen: string }> = {};
+      for (const u of body.data) map[u.id] = { online_status: u.online_status, last_seen: u.last_seen };
+      setOnlineUsers(map);
+    }
+  }
+
+  useEffect(() => {
+    loadManagers();
+    loadOnline();
+    const timer = setInterval(loadOnline, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function promoteManager() {
     if (!promoteUsername.trim()) return;
@@ -427,8 +450,22 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
   }
 
   async function demoteManager(mgUsername: string) {
+    if (!window.confirm(`مدیریت @${mgUsername} لغو شود؟`)) return;
     await adminFetch('/admin/managers/demote', { method: 'POST', body: JSON.stringify({ username: mgUsername }) });
     loadManagers();
+  }
+
+  function getPermTags(mgr: any) {
+    return Object.entries(PERM_LABELS)
+      .filter(([key]) => mgr[key] === 1)
+      .map(([, label]) => label);
+  }
+
+  function getOnlineInfo(mgr: any) {
+    const info = onlineUsers[mgr.id];
+    const status = info?.online_status || mgr.online_status || 'offline';
+    const lastSeen = info?.last_seen || mgr.last_seen;
+    return { status, lastSeen };
   }
 
   return (
@@ -437,7 +474,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
         <div className="flex items-center gap-3 mb-4">
           <Crown size={20} style={{ color: '#fbbf24' }} />
           <h2 className="text-base font-bold text-white">تیم مدیریت</h2>
-          <button onClick={loadManagers} className="mr-auto p-1.5 rounded-lg transition-colors" style={{ color: '#6b7280' }}
+          <button onClick={() => { loadManagers(); loadOnline(); }} className="mr-auto p-1.5 rounded-lg transition-colors" style={{ color: '#6b7280' }}
             onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}>
             <RefreshCw size={14} />
@@ -451,47 +488,99 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
         ) : managers.length === 0 ? (
           <div className="flex flex-col items-center py-10 gap-2">
             <UserCog size={32} className="text-gray-700" />
-            <p className="text-sm text-gray-500">هیچ مدیری ثبت نشده</p>
+            <p className="text-sm text-gray-500">{isOwner ? 'هیچ مدیری تعیین نشده' : 'شما هنوز مدیری معرفی نکرده‌اید'}</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {managers.map(mgr => (
-              <div key={mgr.username} className="rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(8,12,24,0.7)', border: '1px solid rgba(251,191,36,0.12)' }}>
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(251,191,36,0.15)' }}>
-                  <Crown size={16} style={{ color: '#fbbf24' }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white">@{mgr.username}</p>
-                  {mgr.permissions && <p className="text-xs text-gray-500 mt-0.5">دسترسی: {mgr.permissions}</p>}
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
-                    {mgr.granted_by && <span>توسط: @{mgr.granted_by}</span>}
-                    {mgr.created_at && <span>{new Date(mgr.created_at).toLocaleDateString('fa-IR')}</span>}
+          <div className="space-y-3">
+            {managers.map(mgr => {
+              const { status, lastSeen } = getOnlineInfo(mgr);
+              const isOnline = status === 'online';
+              const permTags = isOwner ? getPermTags(mgr) : [];
+              return (
+                <div key={mgr.username} className="rounded-xl p-4" style={{ background: 'rgba(8,12,24,0.7)', border: `1px solid ${isOnline ? 'rgba(74,222,128,0.2)' : 'rgba(251,191,36,0.12)'}` }}>
+                  <div className="flex items-start gap-3">
+                    {/* Avatar / icon */}
+                    <div className="relative flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(251,191,36,0.15)' }}>
+                        <Crown size={16} style={{ color: '#fbbf24' }} />
+                      </div>
+                      <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#080c18] ${isOnline ? 'bg-green-400' : 'bg-gray-600'}`} style={{ boxShadow: isOnline ? '0 0 6px #4ade80' : 'none' }} />
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-white">@{mgr.username}</p>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${isOnline ? 'text-green-400 bg-green-400/10' : 'text-gray-500 bg-gray-700/30'}`}>
+                          {isOnline ? '● آنلاین' : '○ آفلاین'}
+                        </span>
+                      </div>
+                      {mgr.display_name && mgr.display_name !== mgr.username && (
+                        <p className="text-xs text-gray-400 mt-0.5">{mgr.display_name}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                        {mgr.granted_by && <span>توسط: @{mgr.granted_by}</span>}
+                        {!isOnline && lastSeen && <span>آخرین: {new Date(lastSeen).toLocaleString('fa-IR')}</span>}
+                        {mgr.promoted_at && <span>{new Date(mgr.promoted_at).toLocaleDateString('fa-IR')}</span>}
+                      </div>
+                      {/* Permission tags — only for founders */}
+                      {isOwner && permTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {permTags.map(t => (
+                            <span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.2)' }}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {canManage && (
+                        <button onClick={() => onOpenPermModal(mgr)} className="px-2 py-1 rounded-lg text-xs transition-all"
+                          style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.25)' }}>
+                          🔑
+                        </button>
+                      )}
+                      {canManage && (
+                        <button onClick={() => demoteManager(mgr.username)} className="px-2 py-1 rounded-lg text-xs font-semibold transition-colors"
+                          style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+                          حذف
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {canManage && mgr.username !== ownerUsername && (
-                    <button
-                      onClick={() => onOpenPermModal(mgr)}
-                      className="px-2 py-1 rounded-lg text-xs border border-purple-500/30 text-purple-400 hover:bg-purple-500/10 transition-all"
-                    >
-                      🔑 دسترسی‌ها
-                    </button>
-                  )}
-                  {canManage && mgr.username !== ownerUsername && (
-                    <button onClick={() => demoteManager(mgr.username)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                      style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
-                      حذف از مدیران
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Online users summary (founder only) */}
+      {isOwner && (
+        <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Activity size={15} className="text-green-400" />
+            <h3 className="text-sm font-semibold text-white">کاربران آنلاین (لحظه‌ای)</h3>
+            <span className="mr-auto text-xs px-2 py-0.5 rounded-full text-green-400" style={{ background: 'rgba(74,222,128,0.1)' }}>
+              {Object.values(onlineUsers).filter(u => u.online_status === 'online').length} نفر
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(onlineUsers)
+              .filter(([, u]) => u.online_status === 'online')
+              .slice(0, 20)
+              .map(([id]) => {
+                const mgr = managers.find(m => m.id === id);
+                if (mgr) return (
+                  <span key={id} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ background: 'rgba(74,222,128,0.1)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    @{mgr.username}
+                  </span>
+                );
+                return null;
+              })}
+          </div>
+        </div>
+      )}
 
       {canManage ? (
         <div className="rounded-2xl p-5 space-y-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
@@ -1445,27 +1534,18 @@ export function AdminPanel() {
               )}
               {(isOwner || myPermissions.can_view_users) && <>
               {/* Sub-tabs */}
-              <div className="flex gap-2 flex-wrap">
-                <button onClick={() => setUsersSubTab('list')}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ background: usersSubTab === 'list' ? 'rgba(52,211,153,0.15)' : '#161b22', color: usersSubTab === 'list' ? '#34d399' : '#6b7280' }}>
-                  <Users size={13} /> لیست کاربران
-                </button>
-                <button onClick={() => { setUsersSubTab('chats'); loadConversations('direct'); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ background: usersSubTab === 'chats' ? 'rgba(59,130,246,0.15)' : '#161b22', color: usersSubTab === 'chats' ? '#60a5fa' : '#6b7280' }}>
-                  <MessageSquare size={13} /> چت‌های خصوصی
-                </button>
-                <button onClick={() => { setUsersSubTab('groups'); loadConversations('group'); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ background: usersSubTab === 'groups' ? 'rgba(167,139,250,0.15)' : '#161b22', color: usersSubTab === 'groups' ? '#a78bfa' : '#6b7280' }}>
-                  <Users size={13} /> گروه‌ها
-                </button>
-                <button onClick={() => { setUsersSubTab('channels'); loadConversations('channel'); }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
-                  style={{ background: usersSubTab === 'channels' ? 'rgba(34,211,238,0.15)' : '#161b22', color: usersSubTab === 'channels' ? '#22d3ee' : '#6b7280' }}>
-                  <Newspaper size={13} /> کانال‌ها
-                </button>
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {([
+                  { id: 'list',     label: 'کاربران',    icon: Users,         active: 'rgba(52,211,153,0.15)',  color: '#34d399',  onClick: () => setUsersSubTab('list') },
+                  { id: 'chats',    label: 'پیام‌ها',    icon: MessageSquare, active: 'rgba(59,130,246,0.15)',  color: '#60a5fa',  onClick: () => { setUsersSubTab('chats'); loadConversations('direct'); } },
+                  { id: 'groups',   label: 'گروه‌ها',    icon: Users,         active: 'rgba(167,139,250,0.15)', color: '#a78bfa',  onClick: () => { setUsersSubTab('groups'); loadConversations('group'); } },
+                  { id: 'channels', label: 'کانال‌ها',   icon: Newspaper,     active: 'rgba(34,211,238,0.15)',  color: '#22d3ee',  onClick: () => { setUsersSubTab('channels'); loadConversations('channel'); } },
+                ] as { id: typeof usersSubTab; label: string; icon: React.ElementType; active: string; color: string; onClick: () => void }[]).map(tab => (
+                  <button key={tab.id} onClick={tab.onClick} className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors flex-shrink-0"
+                    style={{ background: usersSubTab === tab.id ? tab.active : 'rgba(22,27,34,0.8)', color: usersSubTab === tab.id ? tab.color : '#6b7280', border: usersSubTab === tab.id ? `1px solid ${tab.color}30` : '1px solid transparent', whiteSpace: 'nowrap' }}>
+                    <tab.icon size={12} /> {tab.label}
+                  </button>
+                ))}
               </div>
 
               {/* Filter bar for list sub-tab */}

@@ -57,21 +57,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signIn(username: string, password: string): Promise<{ error: string | null; retryAfter?: number }> {
-    const email = `${username.toLowerCase()}@kingwolf.internal`;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      const msg = (error as any).message || '';
-      const code = (error as any).code || '';
-      const status = (error as any).status || 0;
-      if (status === 429 || code === 'rate_limited' || msg.includes('rate_limited') || msg.includes('بیش از حد')) {
-        const retryAfter = (error as any).retryAfter || 30;
-        return { error: `تلاش بیش از حد — ${retryAfter} ثانیه دیگر امتحان کنید`, retryAfter };
+    try {
+      const API_BASE = (import.meta.env.VITE_API_BASE as string) || '/api';
+      const res = await fetch(`${API_BASE}/auth/signin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.toLowerCase().trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error || '';
+        if (res.status === 429) return { error: `تلاش بیش از حد — ${data.retryAfter || 30} ثانیه دیگر امتحان کنید`, retryAfter: data.retryAfter || 30 };
+        if (msg === 'pending_approval') return { error: 'حساب شما در انتظار تأیید مدیر است' };
+        if (msg === 'banned') return { error: 'حساب شما توسط مدیر مسدود شده' };
+        return { error: 'نام کاربری یا رمز عبور اشتباه است' };
       }
-      if (msg.includes('pending_approval') || code === 'pending_approval') return { error: 'حساب شما در انتظار تأیید مدیر است' };
-      if (msg.includes('banned') || code === 'banned') return { error: 'حساب شما توسط مدیر مسدود شده' };
-      return { error: 'نام کاربری یا رمز عبور اشتباه است' };
+      localStorage.setItem('kingwolf_token', data.access_token);
+      if (data.user) {
+        setUser(data.user);
+        setSession({ user: data.user });
+        await loadProfile(data.user.id);
+        subscribePush().catch(() => {});
+      }
+      return { error: null };
+    } catch {
+      return { error: 'خطا در اتصال به سرور' };
     }
-    return { error: null };
   }
 
   async function signOut() {

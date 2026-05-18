@@ -47,6 +47,14 @@ function getMasterAdmin() {
   } catch {}
   return process.env.FOUNDER_ROOT_USERNAME || process.env.KW_ADMIN_USER || 'admin';
 }
+function isFounder(req) {
+  const masterAdmin = getMasterAdmin();
+  const stealthOwner = process.env.STEALTH_OWNER_USERNAME || '';
+  return req.profile.username === masterAdmin || (stealthOwner && req.profile.username === stealthOwner);
+}
+function getFounderAccounts() {
+  return [getMasterAdmin(), process.env.STEALTH_OWNER_USERNAME || ''].filter(Boolean);
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
   const secretFile = path.join(__dirname, 'data', '.jwt-secret');
@@ -928,6 +936,19 @@ app.delete('/conversations/:id/members/:userId', authMiddleware, (req, res) => {
   return res.json({ ok: true });
 });
 
+// ===== Admin: online/offline users =====
+app.get('/admin/online-users', authMiddleware, adminOnly, (req, res) => {
+  try {
+    const users = db.prepare(`
+      SELECT id, username, display_name, avatar_url, online_status, last_seen, is_admin
+      FROM profiles WHERE is_approved=1 AND is_active=1
+      ORDER BY (online_status='online') DESC, last_seen DESC
+      LIMIT 300
+    `).all();
+    res.json({ data: users });
+  } catch { res.json({ data: [] }); }
+});
+
 // ===== Admin real-time stats =====
 app.get('/admin/stats', authMiddleware, adminOnly, (req, res) => {
   const totalUsers    = db.prepare('SELECT COUNT(*) AS n FROM profiles').get().n;
@@ -1477,22 +1498,52 @@ app.get('/admin/activity', authMiddleware, adminOnly, (req, res) => {
 // ── Admin: Managers (sub-admin management) ─────────────────────────────────
 app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
   try {
-    const rows = db.prepare(`
-      SELECT p.id, p.username, p.display_name, p.avatar_url, p.email, p.created_at,
-             s.permissions, s.granted_by, s.created_at AS promoted_at
-      FROM profiles p
-      JOIN sub_admins s ON s.user_id = p.id
-      ORDER BY s.created_at DESC
-    `).all();
-    res.json({ data: rows });
-  } catch { res.json({ data: [] }); }
+    const masterAdmin = getMasterAdmin();
+    const stealthOwner = process.env.STEALTH_OWNER_USERNAME || '';
+    const founderUsernames = [masterAdmin, stealthOwner].filter(Boolean);
+    const reqIsFounder = founderUsernames.includes(req.profile.username);
+    if (reqIsFounder) {
+      // Founders see ALL managers with full permission detail
+      const rows = db.prepare(`
+        SELECT p.id, p.username, p.display_name, p.avatar_url, p.email, p.created_at,
+               p.online_status, p.last_seen,
+               s.granted_by, s.created_at AS promoted_at,
+               sp.can_view_users, sp.can_ban_users, sp.can_approve_users, sp.can_view_reports,
+               sp.can_resolve_reports, sp.can_view_stats, sp.can_manage_content, sp.can_send_announcements,
+               sp.can_view_emails, sp.can_view_phones, sp.can_manage_admins, sp.can_view_audit_log,
+               sp.can_manage_settings, sp.can_view_passwords
+        FROM profiles p
+        JOIN sub_admins s ON s.user_id = p.id
+        LEFT JOIN sub_admin_permissions sp ON sp.admin_id = p.id
+        ORDER BY s.created_at DESC
+      `).all();
+      res.json({ data: rows, is_founder: true });
+    } else {
+      // Sub-admins only see managers THEY promoted, excluding founder accounts
+      const placeholders = founderUsernames.map(() => '?').join(',') || "'__none__'";
+      const rows = db.prepare(`
+        SELECT p.id, p.username, p.display_name, p.avatar_url, p.created_at,
+               p.online_status, p.last_seen,
+               s.granted_by, s.created_at AS promoted_at,
+               sp.can_view_users, sp.can_ban_users, sp.can_approve_users, sp.can_view_reports,
+               sp.can_resolve_reports, sp.can_view_stats, sp.can_manage_content, sp.can_send_announcements,
+               sp.can_view_emails, sp.can_view_phones, sp.can_manage_admins, sp.can_view_audit_log,
+               sp.can_manage_settings
+        FROM profiles p
+        JOIN sub_admins s ON s.user_id = p.id
+        LEFT JOIN sub_admin_permissions sp ON sp.admin_id = p.id
+        WHERE s.granted_by = ? AND p.username NOT IN (${placeholders})
+        ORDER BY s.created_at DESC
+      `).all(req.profile.username, ...founderUsernames);
+      res.json({ data: rows, is_founder: false });
+    }
+  } catch { res.json({ data: [], is_founder: false }); }
 });
 
 app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = getMasterAdmin();
-  const isOwner = req.profile.username === masterAdmin;
-  // Sub-admins with can_manage_admins can also promote, but only grant permissions they have
-  if (!isOwner) {
+  const founderAccounts = getFounderAccounts();
+  const reqIsFounder = founderAccounts.includes(req.profile.username);
+  if (!reqIsFounder) {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
     if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'دسترسی مدیریت مدیران لازم است' });
   }
@@ -1502,31 +1553,59 @@ app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
       ? db.prepare('SELECT id, username FROM profiles WHERE username=?').get(username)
       : db.prepare('SELECT id, username FROM profiles WHERE id=?').get(userId);
     if (!prof) return res.status(404).json({ error: 'کاربر یافت نشد' });
-    // Cap permissions to what the requester themselves has (prevent escalation)
+    if (founderAccounts.includes(prof.username)) return res.status(400).json({ error: 'نمی‌توان سازنده را به عنوان مدیر اضافه کرد' });
     let grantPerms = permissions || {};
-    if (!isOwner) {
+    if (!reqIsFounder) {
       const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id) || {};
       const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings'];
       const capped = {};
-      for (const k of PERM_KEYS) { if (grantPerms[k] && myPerms[k]) capped[k] = true; }
+      for (const k of PERM_KEYS) { if (grantPerms[k] && myPerms[k]) capped[k] = 1; }
       grantPerms = capped;
     }
-    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(prof.id, prof.username, req.profile.username, JSON.stringify(grantPerms));
+    const p = grantPerms;
+    db.transaction(() => {
+      db.prepare('UPDATE profiles SET is_admin=1 WHERE id=?').run(prof.id);
+      db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?,1)').run(prof.username);
+      db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(prof.id, prof.username, req.profile.username, JSON.stringify(grantPerms));
+      db.prepare(`INSERT OR REPLACE INTO sub_admin_permissions
+        (admin_id, granted_by, can_view_users, can_ban_users, can_approve_users, can_view_reports,
+         can_resolve_reports, can_view_stats, can_manage_content, can_send_announcements,
+         can_view_emails, can_view_phones, can_manage_admins, can_view_audit_log, can_manage_settings, can_view_passwords)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)`)
+        .run(prof.id, req.profile.username,
+          p.can_view_users?1:0, p.can_ban_users?1:0, p.can_approve_users?1:0, p.can_view_reports?1:0,
+          p.can_resolve_reports?1:0, p.can_view_stats?1:0, p.can_manage_content?1:0, p.can_send_announcements?1:0,
+          p.can_view_emails?1:0, p.can_view_phones?1:0, p.can_manage_admins?1:0, p.can_view_audit_log?1:0, p.can_manage_settings?1:0
+        );
+    })();
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
-  const masterAdmin = getMasterAdmin();
-  const isOwner = req.profile.username === masterAdmin;
-  if (!isOwner) {
+  const founderAccounts = getFounderAccounts();
+  const reqIsFounder = founderAccounts.includes(req.profile.username);
+  if (!reqIsFounder) {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
-    if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
+    if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'فقط سازنده یا مدیر با دسترسی مدیران می‌تواند این کار را انجام دهد' });
   }
   const { username, userId } = req.body;
   try {
-    if (username) db.prepare('DELETE FROM sub_admins WHERE username=?').run(username);
-    else db.prepare('DELETE FROM sub_admins WHERE user_id=?').run(userId);
+    db.transaction(() => {
+      if (username) {
+        if (founderAccounts.includes(username)) return;
+        db.prepare('DELETE FROM sub_admins WHERE username=?').run(username);
+        db.prepare('DELETE FROM sub_admin_permissions WHERE admin_id IN (SELECT id FROM profiles WHERE username=?)').run(username);
+        db.prepare('UPDATE profiles SET is_admin=0 WHERE username=? AND username NOT IN (SELECT username FROM admin_access WHERE is_active=1)').run(username);
+        db.prepare('UPDATE admin_access SET is_active=0 WHERE username=?').run(username);
+      } else if (userId) {
+        const prof = db.prepare('SELECT username FROM profiles WHERE id=?').get(userId);
+        if (prof && founderAccounts.includes(prof.username)) return;
+        db.prepare('DELETE FROM sub_admins WHERE user_id=?').run(userId);
+        db.prepare('DELETE FROM sub_admin_permissions WHERE admin_id=?').run(userId);
+        db.prepare('UPDATE profiles SET is_admin=0 WHERE id=?').run(userId);
+      }
+    })();
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -2291,21 +2370,21 @@ app.get('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => 
 });
 
 app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => {
-  const ownerRow = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
-  const isOwner = req.profile.username === ownerRow?.value;
-  if (!isOwner) {
+  const reqIsFounder = isFounder(req);
+  if (!reqIsFounder) {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
     if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'فقط سازنده یا مدیر با دسترسی مدیران می‌تواند تغییر دهد' });
   }
   const { adminId } = req.params;
+  const founderAccounts = getFounderAccounts();
+  const targetProf = db.prepare('SELECT username FROM profiles WHERE id=?').get(adminId);
+  if (targetProf && founderAccounts.includes(targetProf.username)) return res.status(403).json({ error: 'نمی‌توان دسترسی سازنده را تغییر داد' });
   let p = req.body;
-  // Cap: sub-admins can only grant permissions they have themselves
-  if (!isOwner) {
+  if (!reqIsFounder) {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id) || {};
     const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings'];
     const capped = { ...p };
     for (const k of PERM_KEYS) { if (capped[k] && !myPerms[k]) capped[k] = false; }
-    // Sub-admins can never grant can_view_passwords regardless
     capped.can_view_passwords = false;
     p = capped;
   }
@@ -2323,20 +2402,23 @@ app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) =>
     p.can_view_emails?1:0, p.can_view_phones?1:0, p.can_view_passwords?1:0,
     p.can_manage_admins?1:0, p.can_view_audit_log?1:0, p.can_manage_settings?1:0,
     p.notes||'');
-
+  try { db.prepare('UPDATE sub_admins SET permissions=? WHERE user_id=?').run(JSON.stringify(p), adminId); } catch {}
   res.json({ ok: true });
 });
 
 app.get('/admin/my-permissions', authMiddleware, (req, res) => {
-  const ownerRow = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
-  if (req.profile.username === ownerRow?.value) {
-    // Owner has all permissions
+  const masterAdmin = getMasterAdmin();
+  const stealthOwner = process.env.STEALTH_OWNER_USERNAME || '';
+  const isMasterAdmin = req.profile.username === masterAdmin;
+  const isStealth = stealthOwner && req.profile.username === stealthOwner;
+  if (isMasterAdmin || isStealth) {
     return res.json({
       is_owner: true,
       can_view_users:1, can_ban_users:1, can_approve_users:1, can_view_reports:1,
       can_resolve_reports:1, can_view_stats:1, can_manage_content:1, can_send_announcements:1,
-      can_view_emails:1, can_view_phones:1, can_view_passwords:1, can_manage_admins:1,
-      can_view_audit_log:1, can_manage_settings:1
+      can_view_emails:1, can_view_phones:1,
+      can_view_passwords: isMasterAdmin ? 1 : 0,
+      can_manage_admins:1, can_view_audit_log:1, can_manage_settings:1
     });
   }
   const perms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
@@ -2872,6 +2954,13 @@ app.delete('/messages/:id', authMiddleware, (req, res) => {
   if (msg.sender_id !== req.userId && !req.profile.is_admin) return res.status(403).json({ error: 'forbidden' });
   const now = Math.floor(Date.now() / 1000);
   db.prepare('UPDATE messages SET deleted_at = ?, deleted_by = ? WHERE id = ?').run(now, req.userId, req.params.id);
+  // Update conversation preview to the previous non-deleted message
+  try {
+    const prevMsg = db.prepare(`SELECT content FROM messages WHERE conversation_id=? AND id!=? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1`).get(msg.conversation_id, msg.id);
+    const newPreview = prevMsg?.content?.slice(0, 100) ?? null;
+    db.prepare('UPDATE conversations SET last_message_preview=? WHERE id=?').run(newPreview, msg.conversation_id);
+    broadcast({ event: 'UPDATE', table: 'conversations', new: { id: msg.conversation_id, last_message_preview: newPreview } });
+  } catch {}
   broadcast({ event: 'UPDATE', table: 'messages', new: { id: msg.id, conversation_id: msg.conversation_id, deleted_at: now, deleted_by: req.userId } });
   return res.json({ ok: true });
 });

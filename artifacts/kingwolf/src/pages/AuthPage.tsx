@@ -127,9 +127,13 @@ export function AuthPage() {
     >
       {/* Ambient glows */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: 600, height: 300, background: 'radial-gradient(ellipse, rgba(139,92,246,0.15) 0%, transparent 70%)', borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', bottom: '-5%', left: '20%', width: 400, height: 200, background: 'radial-gradient(ellipse, rgba(37,99,235,0.1) 0%, transparent 70%)', borderRadius: '50%' }} />
-        <div style={{ position: 'absolute', top: '30%', right: '10%', width: 300, height: 300, background: 'radial-gradient(ellipse, rgba(168,85,247,0.07) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: '-15%', left: '50%', transform: 'translateX(-50%)', width: 700, height: 400, background: 'radial-gradient(ellipse, rgba(124,58,237,0.18) 0%, transparent 65%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', bottom: '-10%', left: '10%', width: 500, height: 300, background: 'radial-gradient(ellipse, rgba(37,99,235,0.12) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: '25%', right: '5%', width: 350, height: 350, background: 'radial-gradient(ellipse, rgba(168,85,247,0.1) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: '60%', left: '5%', width: 280, height: 280, background: 'radial-gradient(ellipse, rgba(79,70,229,0.08) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: '5%', right: '15%', width: 200, height: 200, background: 'radial-gradient(ellipse, rgba(196,181,253,0.06) 0%, transparent 70%)', borderRadius: '50%' }} />
+        {/* Fine grid overlay */}
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'linear-gradient(rgba(139,92,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
       </div>
 
       <div className="relative z-10 w-full max-w-sm">
@@ -220,8 +224,8 @@ export function AuthPage() {
             <form onSubmit={handleRegister} className="space-y-3">
               <InputField icon={<User size={15} />} placeholder="نام نمایشی" value={displayName} onChange={setDisplayName} />
               <InputField icon={<User size={15} />} placeholder="نام کاربری (حداقل ۳ کاراکتر)" value={username} onChange={setUsername} autoComplete="username" />
-              <InputField icon={<Mail size={15} />} placeholder="ایمیل (اختیاری)" value={email} onChange={setEmail} type="email" autoComplete="email" />
-              <InputField icon={<Phone size={15} />} placeholder="شماره تلفن (اختیاری)" value={phone} onChange={setPhone} type="tel" autoComplete="tel" />
+              <InputField icon={<Mail size={15} />} placeholder="ایمیل" value={email} onChange={setEmail} type="email" autoComplete="email" label="ایمیل (اختیاری)" />
+              <InputField icon={<Phone size={15} />} placeholder="شماره تلفن" value={phone} onChange={setPhone} type="tel" autoComplete="tel" label="شماره تلفن (اختیاری)" />
               <PasswordField placeholder="رمز عبور (حداقل ۶ کاراکتر)" value={password} onChange={setPassword} showPw={showPw} setShowPw={setShowPw} autoComplete="new-password" />
               {error && <ErrorMsg>{error}</ErrorMsg>}
               <SubmitBtn loading={loading}>
@@ -307,26 +311,31 @@ export function AuthPage() {
 
 /* ── helpers ── */
 
-function InputField({ icon, placeholder, value, onChange, type = 'text', autoComplete }: {
+function InputField({ icon, placeholder, value, onChange, type = 'text', autoComplete, label }: {
   icon: React.ReactNode; placeholder: string; value: string;
-  onChange: (v: string) => void; type?: string; autoComplete?: string;
+  onChange: (v: string) => void; type?: string; autoComplete?: string; label?: string;
 }) {
   return (
-    <div className="relative">
-      <span className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(107,114,128,0.7)' }}>{icon}</span>
-      <input
-        type={type} value={value} onChange={e => onChange(e.target.value)}
-        placeholder={placeholder} autoComplete={autoComplete}
-        className="w-full pr-10 pl-4 py-3 rounded-xl text-sm outline-none transition-colors"
-        style={{
-          background: 'rgba(255,255,255,0.05)',
-          color: '#f9fafb',
-          border: '1px solid rgba(255,255,255,0.08)',
-          caretColor: '#a78bfa',
-        }}
-        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'; e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
-        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-      />
+    <div>
+      {label && (
+        <p className="text-xs mb-1 pr-1" style={{ color: 'rgba(139,92,246,0.7)' }}>{label}</p>
+      )}
+      <div className="relative">
+        <span className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(107,114,128,0.7)' }}>{icon}</span>
+        <input
+          type={type} value={value} onChange={e => onChange(e.target.value)}
+          placeholder={placeholder} autoComplete={autoComplete}
+          className="w-full pr-10 pl-4 py-3 rounded-xl text-sm outline-none transition-colors"
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            color: '#f9fafb',
+            border: '1px solid rgba(255,255,255,0.08)',
+            caretColor: '#a78bfa',
+          }}
+          onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'; e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
+          onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+        />
+      </div>
     </div>
   );
 }

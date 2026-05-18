@@ -209,6 +209,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const videoInputRef = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressFired = useRef(false);
+  const ignoreNextClickRef = useRef(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -234,7 +235,10 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   }, [messages]);
 
   useEffect(() => {
-    function handleClick() { setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); setShowAttach(false); }
+    function handleClick() {
+      if (ignoreNextClickRef.current) { ignoreNextClickRef.current = false; return; }
+      setShowEmoji(false); setContextMenu(null); setShowHeaderMenu(false); setShowAttach(false);
+    }
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
@@ -776,8 +780,13 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                         setContextMenu({ msg, x: touch.clientX, y: touch.clientY });
                       }, 500);
                     }}
-                    onTouchEnd={() => {
+                    onTouchEnd={e => {
                       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                      if (longPressFired.current) {
+                        e.preventDefault();
+                        ignoreNextClickRef.current = true;
+                        longPressFired.current = false;
+                      }
                     }}
                     onTouchMove={() => {
                       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
@@ -944,37 +953,45 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
             ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
           ];
           return (
-            <div
-              className="fixed z-[60] rounded-2xl shadow-2xl overflow-hidden"
-              style={{ left: x, top: y, width: 200, background: 'var(--bg-card)', border: '1px solid var(--border-color)', backdropFilter: 'blur(12px)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Quick emoji reactions */}
-              <div className="flex items-center justify-around px-2 py-2.5" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {QUICK_EMOJIS.map(emoji => {
-                  const myR = reactions[contextMenu.msg.id]?.find(r => r.emoji === emoji && r.myReaction);
-                  return (
-                    <button key={emoji}
-                      onClick={() => { toggleReaction(contextMenu.msg.id, emoji); setContextMenu(null); }}
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-xl transition-all hover:scale-125 active:scale-110"
-                      style={{ background: myR ? 'rgba(37,99,235,0.2)' : 'transparent', transform: myR ? 'scale(1.15)' : undefined }}
-                      title={emoji}
-                    >
-                      {emoji}
-                    </button>
-                  );
-                })}
+            <>
+              {/* Mobile backdrop to close menu on tap */}
+              <div
+                className="fixed inset-0 z-[59]"
+                onTouchStart={() => setContextMenu(null)}
+                onClick={() => setContextMenu(null)}
+              />
+              <div
+                className="fixed z-[60] rounded-2xl shadow-2xl overflow-hidden"
+                style={{ left: x, top: y, width: 200, background: 'var(--bg-card)', border: '1px solid var(--border-color)', backdropFilter: 'blur(12px)' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Quick emoji reactions */}
+                <div className="flex items-center justify-around px-2 py-2.5" style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  {QUICK_EMOJIS.map(emoji => {
+                    const myR = reactions[contextMenu.msg.id]?.find(r => r.emoji === emoji && r.myReaction);
+                    return (
+                      <button key={emoji}
+                        onClick={() => { toggleReaction(contextMenu.msg.id, emoji); setContextMenu(null); }}
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-xl transition-all hover:scale-125 active:scale-110"
+                        style={{ background: myR ? 'rgba(37,99,235,0.2)' : 'transparent', transform: myR ? 'scale(1.15)' : undefined }}
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Action items */}
+                {actions.map(item => (
+                  <button key={item.label}
+                    className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5 active:bg-white/10"
+                    style={{ color: item.color }}
+                    onClick={item.action}>
+                    <item.icon size={15} /><span>{item.label}</span>
+                  </button>
+                ))}
               </div>
-              {/* Action items */}
-              {actions.map(item => (
-                <button key={item.label}
-                  className="flex items-center gap-3 px-4 py-2.5 w-full text-right text-sm transition-colors hover:bg-white/5 active:bg-white/10"
-                  style={{ color: item.color }}
-                  onClick={item.action}>
-                  <item.icon size={15} /><span>{item.label}</span>
-                </button>
-              ))}
-            </div>
+            </>
           );
         })()}
 

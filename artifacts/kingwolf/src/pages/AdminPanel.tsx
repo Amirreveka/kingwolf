@@ -4,7 +4,7 @@ import {
   UserCheck, Lock, Key, CheckCircle2, Server, HardDrive, Cpu, X,
   BadgeCheck, Activity, ChevronDown, Newspaper, Pin, PinOff, Trash2, FileText,
   Flag, MessageSquare, CheckCheck, Download, Upload, Bot, UserPlus, AlertTriangle,
-  Clock, UserCog, Crown, Database, Globe,
+  Clock, UserCog, Crown, Database, Globe, Info, Search,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
@@ -44,6 +44,28 @@ interface FeedPost {
   is_pinned: number;
   authorUsername?: string;
   authorDisplay?: string;
+}
+
+function SectionDecor({ icon, label, color = '#a78bfa' }: { icon: string; label: string; color?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center pt-10 pb-4 gap-3 select-none" style={{ opacity: 0.35 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[...Array(8)].map((_, i) => (
+          <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: color, opacity: (i % 2 === 0 ? 0.6 : 1) }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontSize: 28 }}>{icon}</div>
+        <WolfLogo size={28} glow={false} />
+        <span style={{ fontSize: 10, color, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{label}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[...Array(8)].map((_, i) => (
+          <div key={i} style={{ width: 4, height: 4, borderRadius: '50%', background: color, opacity: (i % 2 === 0 ? 0.6 : 1) }} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function BackupTab() {
@@ -682,6 +704,7 @@ export function AdminPanel() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [convsLoading, setConvsLoading] = useState(false);
   const [usersFilter, setUsersFilter] = useState<'all' | 'active' | 'pending' | 'banned' | 'online'>('all');
+  const [userSearch, setUserSearch] = useState('');
 
   // Settings master save
   const [masterSaving, setMasterSaving] = useState(false);
@@ -1333,6 +1356,7 @@ export function AdminPanel() {
                   ))}
                 </div>
               </div>
+              <SectionDecor icon="📊" label="داشبورد" color="#60a5fa" />
             </div>
           )}
 
@@ -1383,91 +1407,132 @@ export function AdminPanel() {
                 </div>
               )}
 
-              {/* List sub-tab */}
-              {usersSubTab === 'list' && (
-                <div className="space-y-2">
-                  <p className="text-xs" style={{ color: 'rgba(107,114,128,0.8)' }}>روی هر کاربر کلیک کنید تا اطلاعات کامل ببینید</p>
-                  {users.filter(u => {
-                    if (usersFilter === 'active') return u.is_approved && !u.is_banned;
-                    if (usersFilter === 'pending') return !u.is_approved && !u.is_banned;
-                    if (usersFilter === 'banned') return u.is_banned;
-                    return true;
-                  }).map(u => (
-                    <div
-                      key={u.id}
-                      onClick={() => setSelectedUser(u)}
-                      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                      style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(25,35,65,0.8)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(15,23,42,0.7)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.06)'; }}
-                    >
-                      {u.avatar_url
-                        ? <img src={u.avatar_url} className="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="" />
-                        : <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center flex-shrink-0 text-white text-sm font-bold">{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
-                      }
-                      <div className="flex-1 min-w-0 text-right">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-white truncate">{u.display_name || u.username}</p>
-                          {!!(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
-                        </div>
-                        <p className="text-xs text-gray-500">@{u.username}</p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {u.is_banned
-                          ? <span className="kw-badge kw-badge-banned">🚫 مسدود</span>
-                          : u.is_approved
-                            ? <span className="kw-badge kw-badge-online">● فعال</span>
-                            : <span className="kw-badge kw-badge-pending">⏳ منتظر</span>
-                        }
-
-                        {/* Blue tick button */}
-                        <button
-                          onClick={e => { e.stopPropagation(); (u as any).is_verified ? revokeBlueTick(u.id) : grantBlueTick(u.id); }}
-                          className={`p-1.5 rounded-lg transition-colors ${(u as any).is_verified ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-gray-700/50 text-gray-500 hover:bg-blue-500/10 hover:text-blue-400'}`}
-                          title={(u as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
-                        >
-                          {blueTickLoadingId === u.id
-                            ? <div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
-                            : <BadgeCheck size={14} />
-                          }
-                        </button>
-
-                        {isOwner && (
-                          <button
-                            onClick={e => revealPassword(u, e)}
-                            className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-colors"
-                            title={userPasswords[u.id] ? 'پنهان' : 'نمایش رمز'}
-                          >
-                            {loadingPasswordId === u.id
-                              ? <div className="w-3.5 h-3.5 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                              : userPasswords[u.id] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        )}
-                        {!u.is_approved && !u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); approveUser(u.id); }} className="kw-btn-primary p-1.5 rounded-lg" title="تأیید">
-                            <Check size={14} />
-                          </button>
-                        )}
-                        {!u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); banUser(u.id); }} className="kw-btn-danger p-1.5 rounded-lg" title="مسدود">
-                            <Ban size={14} />
-                          </button>
-                        )}
-                        {u.is_banned && (
-                          <button onClick={e => { e.stopPropagation(); unbanUser(u.id); }} className="kw-btn-ghost p-1.5 rounded-lg" title="رفع مسدود">
-                            <UserCheck size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {userPasswords[u.id] && (
-                        <div className="w-full mt-1 col-span-full">
-                          <span className="text-xs text-yellow-400 font-mono bg-yellow-500/10 px-2 py-0.5 rounded">🔑 {userPasswords[u.id]}</span>
+              {/* List sub-tab — TABLE VIEW */}
+              {usersSubTab === 'list' && (() => {
+                const filtered = users.filter(u => {
+                  const matchFilter = usersFilter === 'all' || (usersFilter === 'active' ? u.is_approved && !u.is_banned : usersFilter === 'pending' ? !u.is_approved && !u.is_banned : usersFilter === 'banned' ? u.is_banned : true);
+                  const q = userSearch.toLowerCase();
+                  const matchSearch = !q || (u.username || '').toLowerCase().includes(q) || (u.display_name || '').toLowerCase().includes(q) || ((u as any).email || '').toLowerCase().includes(q);
+                  return matchFilter && matchSearch;
+                });
+                return (
+                  <div className="space-y-3">
+                    {/* Search */}
+                    <div className="relative">
+                      <Search size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                      <input value={userSearch} onChange={e => setUserSearch(e.target.value)} placeholder="جستجو در نام، نام کاربری یا ایمیل..." className="w-full pr-9 pl-4 py-2 rounded-xl text-xs outline-none" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.07)', color: '#d1d5db' }} />
+                    </div>
+                    {/* Count row */}
+                    <p className="text-xs" style={{ color: 'rgba(107,114,128,0.7)' }}>{filtered.length} کاربر پیدا شد</p>
+                    {/* Table */}
+                    <div className="rounded-2xl overflow-hidden overflow-x-auto" style={{ border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600, fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(10,18,40,0.95)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <th style={{ textAlign: 'right', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>کاربر</th>
+                            {(isOwner || myPermissions.can_view_emails) && <th style={{ textAlign: 'right', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>ایمیل</th>}
+                            {(isOwner || myPermissions.can_view_phones) && <th style={{ textAlign: 'right', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>شماره</th>}
+                            <th style={{ textAlign: 'right', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>شناسه</th>
+                            <th style={{ textAlign: 'right', padding: '10px 12px', color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap' }}>تاریخ عضویت</th>
+                            <th style={{ textAlign: 'center', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>وضعیت</th>
+                            <th style={{ textAlign: 'center', padding: '10px 12px', color: '#6b7280', fontWeight: 600 }}>عملیات</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((u, idx) => (
+                            <tr key={u.id} style={{ background: idx % 2 === 0 ? 'rgba(15,23,42,0.75)' : 'rgba(8,14,28,0.6)', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.12s' }}
+                              onClick={() => setSelectedUser(u)}
+                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(37,58,107,0.5)'}
+                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'rgba(15,23,42,0.75)' : 'rgba(8,14,28,0.6)'}
+                            >
+                              {/* Avatar + name */}
+                              <td style={{ padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  {u.avatar_url
+                                    ? <img src={u.avatar_url} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+                                    : <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'linear-gradient(135deg,#1d4ed8,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
+                                  }
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <span style={{ color: '#f9fafb', fontWeight: 600, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{u.display_name || u.username}</span>
+                                      {!!(u as any).is_verified && <BadgeCheck size={11} color="#60a5fa" style={{ flexShrink: 0 }} />}
+                                    </div>
+                                    <span style={{ color: '#6b7280' }}>@{u.username}</span>
+                                    {userPasswords[u.id] && <div style={{ color: '#fbbf24', fontFamily: 'monospace', fontSize: 10 }}>🔑 {userPasswords[u.id]}</div>}
+                                  </div>
+                                </div>
+                              </td>
+                              {/* Email */}
+                              {(isOwner || myPermissions.can_view_emails) && (
+                                <td style={{ padding: '10px 12px', color: '#9ca3af', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {(u as any).email || <span style={{ color: '#374151' }}>—</span>}
+                                </td>
+                              )}
+                              {/* Phone */}
+                              {(isOwner || myPermissions.can_view_phones) && (
+                                <td style={{ padding: '10px 12px', color: '#9ca3af', whiteSpace: 'nowrap' }}>
+                                  {(u as any).phone || <span style={{ color: '#374151' }}>—</span>}
+                                </td>
+                              )}
+                              {/* ID */}
+                              <td style={{ padding: '10px 12px' }}>
+                                <button onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(u.id); }}
+                                  style={{ fontFamily: 'monospace', fontSize: 10, color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                  title={u.id} onMouseEnter={e => (e.currentTarget.style.color = '#9ca3af')} onMouseLeave={e => (e.currentTarget.style.color = '#4b5563')}>
+                                  {u.id.slice(0, 8)}…
+                                </button>
+                              </td>
+                              {/* Date */}
+                              <td style={{ padding: '10px 12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                                {new Date(u.created_at).toLocaleDateString('fa-IR')}
+                              </td>
+                              {/* Status */}
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                {u.is_banned
+                                  ? <span style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>مسدود</span>
+                                  : u.is_approved
+                                    ? <span style={{ background: 'rgba(52,211,153,0.12)', color: '#34d399', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>فعال</span>
+                                    : <span style={{ background: 'rgba(245,158,11,0.12)', color: '#fbbf24', padding: '2px 8px', borderRadius: 12, fontWeight: 600 }}>منتظر</span>
+                                }
+                              </td>
+                              {/* Actions */}
+                              <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                                  <button onClick={() => (u as any).is_verified ? revokeBlueTick(u.id) : grantBlueTick(u.id)} title={(u as any).is_verified ? 'رفع تیک آبی' : 'اعطای تیک آبی'}
+                                    style={{ padding: '5px', borderRadius: 8, background: (u as any).is_verified ? 'rgba(59,130,246,0.15)' : 'rgba(55,65,81,0.3)', color: (u as any).is_verified ? '#60a5fa' : '#6b7280', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                    {blueTickLoadingId === u.id ? <div style={{ width: 11, height: 11, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : <BadgeCheck size={11} />}
+                                  </button>
+                                  {isOwner && (
+                                    <button onClick={e => revealPassword(u, e)} title="رمز"
+                                      style={{ padding: '5px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                                      {loadingPasswordId === u.id ? <div style={{ width: 11, height: 11, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : userPasswords[u.id] ? <EyeOff size={11} /> : <Eye size={11} />}
+                                    </button>
+                                  )}
+                                  {!u.is_approved && !u.is_banned && (
+                                    <button onClick={() => approveUser(u.id)} title="تأیید" style={{ padding: '5px', borderRadius: 8, background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={11} /></button>
+                                  )}
+                                  {!u.is_banned ? (
+                                    <button onClick={() => banUser(u.id)} title="مسدود" style={{ padding: '5px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', color: '#f87171', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Ban size={11} /></button>
+                                  ) : (
+                                    <button onClick={() => unbanUser(u.id)} title="رفع مسدود" style={{ padding: '5px', borderRadius: 8, background: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><UserCheck size={11} /></button>
+                                  )}
+                                  <button onClick={() => setSelectedUser(u)} title="جزئیات" style={{ padding: '5px', borderRadius: 8, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Info size={11} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {filtered.length === 0 && (
+                        <div style={{ padding: '32px', textAlign: 'center', color: '#4b5563' }}>
+                          <Users size={28} style={{ margin: '0 auto 8px', opacity: 0.3 }} />
+                          <p style={{ fontSize: 13 }}>کاربری یافت نشد</p>
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                );
+              })()}
 
               {/* Chats / Groups / Channels sub-tabs */}
               {(usersSubTab === 'chats' || usersSubTab === 'groups' || usersSubTab === 'channels') && (
@@ -1498,6 +1563,7 @@ export function AdminPanel() {
                 </div>
               )}
               </>}
+              <SectionDecor icon="👥" label="کاربران" color="#34d399" />
             </div>
           )}
 
@@ -1583,6 +1649,7 @@ export function AdminPanel() {
                   </div>
                 )}
               </div>
+              <SectionDecor icon="📝" label="محتوا" color="#a78bfa" />
             </div>
           )}
 
@@ -1718,6 +1785,7 @@ export function AdminPanel() {
                   </button>
                 </form>
               </div>
+              <SectionDecor icon="⚙️" label="تنظیمات" color="#60a5fa" />
             </div>
           )}
 
@@ -1930,6 +1998,7 @@ export function AdminPanel() {
               )}
               </>);
               })()}
+              <SectionDecor icon="🚩" label="گزارش‌ها" color="#f87171" />
             </div>
           )}
 

@@ -31,6 +31,7 @@ export function useMessages(conversationId: string | null) {
         .select('*, sender:profiles!sender_id(*)')
         .eq('conversation_id', conversationId)
         .eq('is_deleted', false)
+        .is('deleted_at', null)
         .order('created_at', { ascending: true })
         .limit(200),
       apiCall(`/messages/reactions?conversation_id=${conversationId}`),
@@ -110,7 +111,7 @@ export function useMessages(conversationId: string | null) {
         event: 'UPDATE', schema: 'public', table: 'messages',
         filter: `conversation_id=eq.${conversationId}`,
       }, (payload) => {
-        if (payload.new.is_deleted) {
+        if (payload.new.is_deleted || payload.new.deleted_at) {
           setMessages(prev => prev.filter(m => m.id !== payload.new.id));
         } else {
           setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));

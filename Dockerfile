@@ -5,7 +5,7 @@ WORKDIR /app
 COPY artifacts/api-server/ ./
 COPY artifacts/kingwolf/dist/public/ /kingwolf/dist/public/
 
-RUN mkdir -p data uploads/avatars uploads/media
+RUN npm install --omit=dev && mkdir -p data uploads/avatars uploads/media
 
 ENV NODE_ENV=production
 EXPOSE 3001

@@ -558,6 +558,10 @@ const colMigrations = [
   ['messages', 'expires_at', 'INTEGER DEFAULT NULL'],
   ['messages', 'deleted_at', 'INTEGER DEFAULT NULL'],
   ['messages', 'deleted_by', 'TEXT DEFAULT NULL'],
+  ['messages', 'file_url', "TEXT DEFAULT NULL"],
+  ['messages', 'file_name', "TEXT DEFAULT NULL"],
+  ['messages', 'file_size', 'INTEGER DEFAULT NULL'],
+  ['messages', 'file_type', "TEXT DEFAULT NULL"],
   ['profiles', 'is_premium', 'INTEGER DEFAULT 0'],
   ['profiles', 'premium_expires_at', 'TEXT DEFAULT NULL'],
 ];

@@ -3,6 +3,8 @@ import { MessageSquare, Settings, Sun, Moon, Phone, PhoneOff, Mic, MicOff, Video
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAppConfig } from '../contexts/AppConfigContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useE2E } from '../hooks/useE2E';
 import { useConversations } from '../hooks/useConversations';
 import { useIsMobile } from '../hooks/use-mobile';
 import { ChatList } from '../components/chat/ChatList';
@@ -54,6 +56,8 @@ function TwitterBird({ size = 20 }: { size?: number }) {
 export function MessengerLayout() {
   const { profile, signOut } = useAuth();
   const { user } = useAuth();
+  usePushNotifications(user?.id);
+  useE2E(user?.id); // Initialize E2E keypair & upload public key on login
   const { theme, language, setTheme, setLanguage } = useTheme();
   const appConfig = useAppConfig();
   const isMobile = useIsMobile();

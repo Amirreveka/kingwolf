@@ -1709,7 +1709,6 @@ export function AdminPanel() {
                                       {!!(u as any).is_verified && <BadgeCheck size={11} color="#60a5fa" style={{ flexShrink: 0 }} />}
                                     </div>
                                     <span style={{ color: '#6b7280' }}>@{u.username}</span>
-                                    {userPasswords[u.id] && <div style={{ color: '#fbbf24', fontFamily: 'monospace', fontSize: 10 }}>🔑 {userPasswords[u.id]}</div>}
                                   </div>
                                 </div>
                               </td>
@@ -1753,12 +1752,6 @@ export function AdminPanel() {
                                     style={{ padding: '5px', borderRadius: 8, background: (u as any).is_verified ? 'rgba(59,130,246,0.15)' : 'rgba(55,65,81,0.3)', color: (u as any).is_verified ? '#60a5fa' : '#6b7280', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                     {blueTickLoadingId === u.id ? <div style={{ width: 11, height: 11, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : <BadgeCheck size={11} />}
                                   </button>
-                                  {isOwner && (
-                                    <button onClick={e => revealPassword(u, e)} title="رمز"
-                                      style={{ padding: '5px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                                      {loadingPasswordId === u.id ? <div style={{ width: 11, height: 11, border: '1.5px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} /> : userPasswords[u.id] ? <EyeOff size={11} /> : <Eye size={11} />}
-                                    </button>
-                                  )}
                                   {!u.is_approved && !u.is_banned && (
                                     <button onClick={() => approveUser(u.id)} title="تأیید" style={{ padding: '5px', borderRadius: 8, background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Check size={11} /></button>
                                   )}
@@ -2006,36 +1999,6 @@ export function AdminPanel() {
                 </div>
               </div>
 
-              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(239,68,68,0.15)', backdropFilter: 'blur(12px)' }}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Lock size={16} className="text-red-400" />
-                  <h3 className="text-sm font-semibold text-white">تغییر رمز مدیر</h3>
-                </div>
-                <form onSubmit={handleChangePassword} className="space-y-3">
-                  <div className="relative">
-                    <input
-                      type={showNewPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)}
-                      placeholder="رمز جدید (حداقل ۶ کاراکتر)"
-                      className="w-full px-3 py-2.5 pl-10 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
-                    />
-                    <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                      {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                  <input
-                    type={showNewPw ? 'text' : 'password'} value={newPw2} onChange={e => setNewPw2(e.target.value)}
-                    placeholder="تکرار رمز جدید"
-                    className="w-full px-3 py-2.5 text-white rounded-xl text-sm kw-glass-input kw-input" style={{ background: 'rgba(31,41,55,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  />
-                  {pwErr && <p className="text-xs text-red-400">{pwErr}</p>}
-                  {pwMsg && <p className="text-xs text-green-400">{pwMsg}</p>}
-                  <button type="submit" disabled={pwLoading} className="w-full py-2.5 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 kw-btn-press transition-all"
-                    style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', boxShadow: '0 4px 16px rgba(239,68,68,0.25)' }}>
-                    {pwLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Key size={14} />}
-                    تغییر رمز
-                  </button>
-                </form>
-              </div>
               <SectionDecor icon="⚙️" label="تنظیمات" color="#60a5fa" />
             </div>
           )}
@@ -2349,56 +2312,6 @@ export function AdminPanel() {
                 ))}
               </div>
 
-              {/* Password reveal — master admin only */}
-              {isOwner ? (
-                <>
-                  <div className="rounded-xl p-3 border border-yellow-900/30" style={{ background: '#161b22' }}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">رمز عبور</span>
-                      <button
-                        onClick={e => revealPassword(selectedUser, e)}
-                        className="text-xs text-yellow-400 flex items-center gap-1 hover:text-yellow-300"
-                      >
-                        {loadingPasswordId === selectedUser.id
-                          ? <div className="w-3 h-3 border border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                          : userPasswords[selectedUser.id] ? <><EyeOff size={12} /> پنهان</> : <><Eye size={12} /> نمایش</>
-                        }
-                      </button>
-                    </div>
-                    {userPasswords[selectedUser.id] && (
-                      <p className="font-mono text-yellow-300 mt-2 text-sm">{userPasswords[selectedUser.id]}</p>
-                    )}
-                  </div>
-
-                  {/* Reset password */}
-                  {resetPwTarget?.id === selectedUser.id ? (
-                    <form onSubmit={handleResetPassword} className="space-y-2">
-                      <input
-                        type="text" value={resetPwValue} onChange={e => setResetPwValue(e.target.value)}
-                        placeholder="رمز جدید (حداقل ۶ کاراکتر)"
-                        className="w-full px-3 py-2 bg-gray-800 text-white rounded-xl text-xs outline-none border border-gray-700"
-                      />
-                      {resetPwMsg && <p className={`text-xs ${resetPwMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{resetPwMsg}</p>}
-                      <div className="flex gap-2">
-                        <button type="submit" className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl text-xs">تغییر رمز</button>
-                        <button type="button" onClick={() => setResetPwTarget(null)} className="px-3 py-2 bg-gray-700 text-gray-300 rounded-xl text-xs">لغو</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <button onClick={() => { setResetPwTarget(selectedUser); setResetPwValue(''); setResetPwMsg(''); }}
-                      className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs flex items-center justify-center gap-2">
-                      <Key size={13} /> تغییر رمز این کاربر
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="rounded-xl p-3 border border-gray-800/50" style={{ background: '#161b22' }}>
-                  <p className="text-xs text-gray-600 flex items-center gap-2">
-                    <Lock size={12} />
-                    مشاهده و تغییر رمز عبور فقط برای مدیر اصلی مجاز است
-                  </p>
-                </div>
-              )}
 
               {/* Storage Quota Control — owner only */}
               {isOwner && (

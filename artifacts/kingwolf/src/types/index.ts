@@ -13,6 +13,7 @@ export interface Profile {
   is_admin: boolean;
   is_verified?: number;
   ban_reason: string;
+  public_key?: string;
   last_seen: string;
   online_status: string;
   settings: UserSettings;

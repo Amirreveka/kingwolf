@@ -10,6 +10,8 @@ import { WolfLogo } from '../ui/WolfLogo';
 import { Avatar } from '../Avatar';
 import { MediaViewer } from '../MediaViewer';
 import { ProfileOverlay } from '../ProfileOverlay';
+import { useE2E } from '../../hooks/useE2E';
+import { encryptMessage, decryptMessage, isEncrypted } from '../../lib/e2e';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -137,6 +139,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
   const { language } = useTheme();
   const fa = language === 'fa';
   const { messages, loading, sendMessage, sendMediaMessage, editMessage, deleteMessage, readMessageIds, reactions, toggleReaction } = useMessages(conversation?.id ?? null);
+  const { keyPair } = useE2E(user?.id);
+  const [decryptedContents, setDecryptedContents] = useState<Record<string, string>>({});
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -259,7 +263,34 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
     setForwardMsg(null);
     setText('');
     setShowInfo(false);
+    setDecryptedContents({});
   }, [conversation?.id]);
+
+  // Decrypt E2E messages
+  useEffect(() => {
+    if (!keyPair || !messages.length) return;
+    const isDirect = conversation?.type === 'direct' && conversation.name !== '__saved__';
+    if (!isDirect) return;
+    const theirKey = conversation?.other_user?.public_key;
+    if (!theirKey) return;
+
+    let active = true;
+    async function run() {
+      const patch: Record<string, string> = {};
+      for (const msg of messages) {
+        if (msg.content && isEncrypted(msg.content)) {
+          try {
+            patch[msg.id] = await decryptMessage(msg.content, keyPair!.privateKey, theirKey!);
+          } catch {
+            patch[msg.id] = msg.content;
+          }
+        }
+      }
+      if (active && Object.keys(patch).length) setDecryptedContents(prev => ({ ...prev, ...patch }));
+    }
+    run();
+    return () => { active = false; };
+  }, [messages, keyPair, conversation?.other_user?.public_key]);
 
   async function loadMembers() {
     if (!conversation) return;
@@ -322,15 +353,26 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
     await loadMembers();
   }
 
+  function getMsgContent(msg: Message): string {
+    return decryptedContents[msg.id] ?? msg.content;
+  }
+
   async function handleSend() {
     if (sending) return;
-    const content = text.trim();
+    let content = text.trim();
     if (!content) return;
 
     if (editingId) {
       await editMessage(editingId, content);
       setEditingId(null); setEditText(''); setText('');
       return;
+    }
+
+    // E2E encrypt for direct messages when both keys are available
+    const isDirect = conversation?.type === 'direct' && conversation.name !== '__saved__';
+    const theirKey = conversation?.other_user?.public_key;
+    if (isDirect && keyPair && theirKey) {
+      try { content = await encryptMessage(content, keyPair.privateKey, theirKey); } catch { /* fallback plaintext */ }
     }
 
     setSending(true);
@@ -502,8 +544,8 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
 
   function startEdit(msg: Message) {
     setEditingId(msg.id);
-    setEditText(msg.content);
-    setText(msg.content);
+    setEditText(getMsgContent(msg));
+    setText(getMsgContent(msg));
     setReplyTo(null);
     setContextMenu(null);
     setTimeout(() => textareaRef.current?.focus(), 50);
@@ -624,7 +666,14 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                 <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{getDisplayName()}</p>
                 {!!conversation.is_verified && <BadgeCheck size={14} className="text-blue-400 flex-shrink-0" />}
               </div>
-              <p className="text-xs truncate" style={{ color: conversation.other_user?.online_status === 'online' ? '#4ade80' : 'var(--text-muted)' }}>{getStatus()}</p>
+              {conversation.type === 'direct' && conversation.name !== '__saved__' ? (
+                <div className="flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <p className="text-xs" style={{ color: '#4ade80', fontSize: 10 }}>{fa ? 'رمزنگاری سرتاسری' : 'End-to-end encrypted'}</p>
+                </div>
+              ) : (
+                <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{getStatus()}</p>
+              )}
             </div>
           </button>
 
@@ -832,12 +881,12 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                     {/* Media content */}
                     {msg.media_url && msg.type === 'image' && (
                       <img src={msg.media_url} alt="" className="rounded-xl max-w-full max-h-64 object-cover mb-1 cursor-zoom-in block"
-                           onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'image', caption: msg.content || undefined }); }}
+                           onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'image', caption: getMsgContent(msg) || undefined }); }}
                            onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
                     )}
                     {msg.media_url && msg.type === 'video' && (
                       <video controls className="rounded-xl max-w-full max-h-64 mb-1 block cursor-pointer" style={{ maxWidth: 280 }}
-                             onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'video', caption: msg.content || undefined }); }}>
+                             onClick={e => { e.stopPropagation(); setMediaViewer({ src: msg.media_url!, type: 'video', caption: getMsgContent(msg) || undefined }); }}>
                         <source src={msg.media_url} />
                       </video>
                     )}
@@ -850,13 +899,13 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                       <a href={msg.media_url} download target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1 text-sm hover:opacity-80"
                         style={{ background: 'rgba(255,255,255,0.1)' }}>
-                        <Download size={16} /><span className="truncate max-w-[200px]">{msg.content.replace(/^📎\s*/, '')}</span>
+                        <Download size={16} /><span className="truncate max-w-[200px]">{getMsgContent(msg).replace(/^📎\s*/, '')}</span>
                       </a>
                     )}
                     {/* Location message — fully local, no external map API */}
                     {msg.type === 'location' && (() => {
                       try {
-                        const loc = JSON.parse(msg.content);
+                        const loc = JSON.parse(getMsgContent(msg));
                         const mapUrl = `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}&zoom=15`;
                         return (
                           <div className="rounded-xl overflow-hidden mt-1"
@@ -893,16 +942,17 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
                           </div>
                         );
                       } catch {
-                        return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>;
+                        return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(getMsgContent(msg))}</p>;
                       }
                     })()}
                     {/* Text content - show for text type OR when no media_url */}
                     {(msg.type === 'text' || (!msg.media_url && msg.type !== 'image' && msg.type !== 'video' && msg.type !== 'file' && msg.type !== 'audio' && msg.type !== 'location')) && (() => {
-                      const stickerEmoji = stickerTextToEmoji(msg.content);
+                      const displayContent = getMsgContent(msg);
+                      const stickerEmoji = stickerTextToEmoji(displayContent);
                       if (stickerEmoji) {
                         return <span style={{ fontSize: '3rem', lineHeight: 1, display: 'block' }}>{stickerEmoji}</span>;
                       }
-                      return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(msg.content)}</p>;
+                      return <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{renderContent(displayContent)}</p>;
                     })()}
                     {/* Footer */}
                     <div className={`flex items-center gap-1 mt-0.5 ${isOwn ? 'justify-start flex-row-reverse' : 'justify-end'}`}>
@@ -953,7 +1003,7 @@ export function ChatWindow({ conversation, conversations, onBack, onSelectConv, 
             { icon: Reply, label: fa ? 'ریپلای' : 'Reply', color: 'var(--text-primary)', action: () => startReply(contextMenu.msg) },
             ...(contextMenu.msg.sender_id === user?.id && contextMenu.msg.type === 'text' ? [{ icon: Edit2, label: fa ? 'ویرایش' : 'Edit', color: 'var(--text-primary)', action: () => startEdit(contextMenu.msg) }] : []),
             { icon: Forward, label: fa ? 'فوروارد' : 'Forward', color: 'var(--text-primary)', action: () => { setForwardMenu({ msg: contextMenu.msg, x: contextMenu.x, y: contextMenu.y }); setContextMenu(null); } },
-            { icon: Copy, label: fa ? 'کپی متن' : 'Copy', color: 'var(--text-primary)', action: () => copyText(contextMenu.msg.content) },
+            { icon: Copy, label: fa ? 'کپی متن' : 'Copy', color: 'var(--text-primary)', action: () => copyText(getMsgContent(contextMenu.msg)) },
             ...(contextMenu.msg.sender_id === user?.id || isAdmin ? [{ icon: Trash2, label: fa ? 'حذف' : 'Delete', color: '#f87171', action: () => { deleteMessage(contextMenu.msg.id); setContextMenu(null); } }] : []),
           ];
           return (

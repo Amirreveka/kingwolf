@@ -454,7 +454,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
                       🔑 دسترسی‌ها
                     </button>
                   )}
-                  {isMasterAdmin && (
+                  {isOwner && (
                     <button onClick={() => demoteManager(mgr.username)}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                       style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
@@ -470,7 +470,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
         )}
       </div>
 
-      {isMasterAdmin ? (
+      {isOwner ? (
         <div className="rounded-2xl p-5 space-y-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
           <div className="flex items-center gap-2 mb-1">
             <UserPlus size={15} className="text-green-400" />
@@ -668,6 +668,11 @@ export function AdminPanel() {
   // Blue tick loading states
   const [blueTickLoadingId, setBlueTickLoadingId] = useState<string | null>(null);
 
+  // Storage quota state
+  const [quotaGb, setQuotaGb] = useState(2);
+  const [quotaMsg, setQuotaMsg] = useState('');
+  const [quotaSaving, setQuotaSaving] = useState(false);
+
   // Activity feed state
   const [activityFeed, setActivityFeed] = useState<any[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -702,6 +707,28 @@ export function AdminPanel() {
   const language = 'fa';
   function t(fa: string, _en?: string) { return fa; }
 
+  // Auto-login if kingwolf_token already exists (e.g. user came from the main app)
+  useEffect(() => {
+    const token = localStorage.getItem('kingwolf_token');
+    if (!token || loggedIn) return;
+    fetch('/api/admin/my-permissions', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const hasAccess = data.is_owner || data.can_view_users || data.can_view_stats;
+        if (hasAccess) {
+          setIsOwner(!!data.is_owner);
+          setMyPermissions(data);
+          setLoggedIn(true);
+          loadData();
+          if (liveStatsRef.current) clearInterval(liveStatsRef.current);
+          liveStatsRef.current = setInterval(() => fetchLiveStats(), 15000);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load owner/permissions on login
   useEffect(() => {
     if (!loggedIn) return;
@@ -715,6 +742,14 @@ export function AdminPanel() {
       })
       .catch(() => {});
   }, [loggedIn]);
+
+  useEffect(() => {
+    if (selectedUser) {
+      const bytes = (selectedUser as any).storage_quota_bytes;
+      setQuotaGb(bytes ? Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10 : 2);
+      setQuotaMsg('');
+    }
+  }, [selectedUser?.id]);
 
   async function openPermModal(user: any) {
     const res = await fetch(`/api/admin/permissions/${user.id}`, {
@@ -757,24 +792,38 @@ export function AdminPanel() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setError('');
-    const email = `${username.toLowerCase().trim()}@kingwolf.internal`;
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-    if (authError || !authData?.user) {
-      setError('نام کاربری یا رمز عبور اشتباه است');
-      setLoading(false); return;
+    try {
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.access_token) {
+        setError(data.error === 'invalid credentials' ? 'نام کاربری یا رمز عبور اشتباه است' : (data.message || data.error || 'خطا در ورود'));
+        setLoading(false); return;
+      }
+      localStorage.setItem('kingwolf_token', data.access_token);
+      const permRes = await fetch('/api/admin/my-permissions', {
+        headers: { Authorization: `Bearer ${data.access_token}` },
+      });
+      const permData = await permRes.json();
+      const hasAccess = permData.is_owner || permData.can_view_users || permData.can_view_stats;
+      if (!hasAccess) {
+        localStorage.removeItem('kingwolf_token');
+        setError('شما دسترسی مدیریتی ندارید');
+        setLoading(false); return;
+      }
+      setIsOwner(!!permData.is_owner);
+      setMyPermissions(permData);
+      setLoggedIn(true);
+      loadData();
+      if (liveStatsRef.current) clearInterval(liveStatsRef.current);
+      liveStatsRef.current = setInterval(() => fetchLiveStats(), 15000);
+    } catch {
+      setError('خطا در اتصال به سرور');
     }
-    const { data: profile } = await supabase.from('profiles').select('is_admin').eq('id', authData.user.id).single();
-    if (!profile?.is_admin) {
-      await supabase.auth.signOut();
-      setError('شما دسترسی مدیریتی ندارید');
-      setLoading(false); return;
-    }
-    setLoggedIn(true);
-    loadData();
     setLoading(false);
-    // Refresh live stats every 15 seconds
-    if (liveStatsRef.current) clearInterval(liveStatsRef.current);
-    liveStatsRef.current = setInterval(() => fetchLiveStats(), 15000);
   }
 
   async function handleChangePassword(e: React.FormEvent) {
@@ -1981,7 +2030,7 @@ export function AdminPanel() {
               </div>
 
               {/* Password reveal — master admin only */}
-              {isMasterAdmin ? (
+              {isOwner ? (
                 <>
                   <div className="rounded-xl p-3 border border-yellow-900/30" style={{ background: '#161b22' }}>
                     <div className="flex items-center justify-between">
@@ -2035,32 +2084,39 @@ export function AdminPanel() {
               {isOwner && (
                 <div className="p-3 rounded-xl mt-3" style={{ border: '1px solid rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
                   <div className="text-xs font-bold mb-2" style={{ color: '#fbbf24' }}>💾 سهمیه ذخیره‌سازی</div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <input
                       type="number"
                       min="0.1" max="100" step="0.5"
-                      defaultValue={2}
+                      value={quotaGb}
+                      onChange={e => setQuotaGb(parseFloat(e.target.value) || 2)}
                       className="w-20 rounded-lg px-2 py-1 text-sm text-center outline-none"
                       style={{ background: 'var(--bg-secondary, #161b22)', border: '1px solid rgba(255,255,255,0.1)', color: 'white' }}
-                      id={`quota-${selectedUser?.id}`}
                     />
                     <span className="text-sm" style={{ color: 'var(--text-secondary, #6b7280)' }}>GB</span>
                     <button
+                      disabled={quotaSaving}
                       onClick={async () => {
-                        const input = document.getElementById(`quota-${selectedUser?.id}`) as HTMLInputElement;
-                        const gb = parseFloat(input.value) || 2;
-                        const token = localStorage.getItem('kingwolf_token');
-                        await fetch(`${API_BASE}/admin/users/${selectedUser?.id}/quota`, {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                          body: JSON.stringify({ quota_gb: gb }),
-                        });
+                        setQuotaSaving(true);
+                        setQuotaMsg('');
+                        try {
+                          const token = localStorage.getItem('kingwolf_token');
+                          const res = await fetch(`${API_BASE}/admin/users/${selectedUser?.id}/quota`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ quota_gb: quotaGb }),
+                          });
+                          setQuotaMsg(res.ok ? '✅ ذخیره شد' : '❌ خطا');
+                        } catch { setQuotaMsg('❌ خطا'); }
+                        setQuotaSaving(false);
+                        setTimeout(() => setQuotaMsg(''), 3000);
                       }}
                       className="px-3 py-1 rounded-lg text-xs font-medium text-white"
-                      style={{ background: 'linear-gradient(135deg, #92400e, #f59e0b)' }}
+                      style={{ background: 'linear-gradient(135deg, #92400e, #f59e0b)', opacity: quotaSaving ? 0.6 : 1 }}
                     >
-                      تنظیم
+                      {quotaSaving ? '...' : 'ذخیره'}
                     </button>
+                    {quotaMsg && <span className="text-xs">{quotaMsg}</span>}
                   </div>
                 </div>
               )}

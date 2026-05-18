@@ -10,26 +10,27 @@ interface WolfLogoProps {
 
 export function WolfLogo({ size = 32, glow = true, className = '', animated = false }: WolfLogoProps) {
   const uid = useId().replace(/:/g, '');
-  const r = Math.round(size * 0.22);
   return (
     <div
       className={`inline-flex items-center justify-center flex-shrink-0 ${animated ? 'kw-float' : ''} ${className}`}
       style={{
         width: size,
         height: size,
-        borderRadius: r,
-        background: 'linear-gradient(135deg, #1e0038 0%, #3b0066 100%)',
         filter: glow ? `drop-shadow(0 0 ${Math.round(size * 0.12)}px rgba(168,85,247,0.65))` : undefined,
       }}
     >
       <svg
-        width={size * 0.74}
-        height={size * 0.74}
-        viewBox="0 0 100 108"
+        width={size}
+        height={size}
+        viewBox="0 0 100 112"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
+          <linearGradient id={`bg-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#1e0038" />
+            <stop offset="100%" stopColor="#3b0066" />
+          </linearGradient>
           <linearGradient id={`wg-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#c084fc" />
             <stop offset="100%" stopColor="#818cf8" />
@@ -40,7 +41,10 @@ export function WolfLogo({ size = 32, glow = true, className = '', animated = fa
           </linearGradient>
         </defs>
 
-        {/* Crown */}
+        {/* Background rounded rect — starts below crown, fills the rest */}
+        <rect x="0" y="14" width="100" height="98" rx="22" fill={`url(#bg-${uid})`} />
+
+        {/* Crown — fully above background, no CSS clipping */}
         <polygon points="50,3 43,19 34,11 39,27 50,22 61,27 66,11 57,19" fill={`url(#cg-${uid})`} />
         <circle cx="50" cy="3"  r="4"   fill="#fbbf24" />
         <circle cx="34" cy="11" r="2.8" fill="#fbbf24" />

@@ -2758,6 +2758,16 @@ app.get('/trash', authMiddleware, (req, res) => {
   return res.json({ data: out });
 });
 
+// Permanently delete a message from trash (only sender)
+app.delete('/trash/:id', authMiddleware, (req, res) => {
+  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);
+  if (!msg) return res.status(404).json({ error: 'message not found' });
+  if (msg.sender_id !== req.userId) return res.status(403).json({ error: 'only sender can permanently delete' });
+  db.prepare('DELETE FROM messages WHERE id = ?').run(req.params.id);
+  broadcast({ event: 'DELETE', table: 'messages', old: { id: req.params.id, conversation_id: msg.conversation_id } });
+  return res.json({ ok: true });
+});
+
 // Restore a message from trash (within 30 days, only sender)
 app.post('/trash/:id/restore', authMiddleware, (req, res) => {
   const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(req.params.id);

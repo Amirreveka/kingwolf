@@ -19,7 +19,7 @@ interface TrashedMessage {
   id: string;
   content: string;
   sender_username?: string;
-  deleted_at?: string;
+  deleted_at?: string | number;
   conversation_name?: string;
   type?: string;
 }
@@ -29,6 +29,7 @@ export const TrashPage = memo(function TrashPage() {
   const [items, setItems] = useState<TrashedMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   async function load() {
@@ -58,9 +59,24 @@ export const TrashPage = memo(function TrashPage() {
     }
   }
 
-  function formatDate(iso?: string) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' });
+  async function permanentDelete(id: string) {
+    if (!window.confirm(t('این پیام برای همیشه حذف می‌شود. ادامه می‌دهید؟', 'This message will be permanently deleted. Continue?'))) return;
+    setDeletingId(id);
+    try {
+      await apiFetch(`/trash/${id}`, { method: 'DELETE' });
+      setItems(prev => prev.filter(i => i.id !== id));
+    } catch {
+      alert(t('حذف دائمی ناموفق بود', 'Permanent delete failed'));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function formatDate(val?: string | number) {
+    if (!val) return '';
+    const n = typeof val === 'number' ? val : Number(val);
+    const d = n > 1e10 ? new Date(n) : new Date(n * 1000);
+    return d.toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' });
   }
 
   return (
@@ -186,15 +202,14 @@ export const TrashPage = memo(function TrashPage() {
                 {t('بازیابی', 'Restore')}
               </button>
               <button
-                onClick={() => {
-                  if (window.confirm(t('پاک دائمی؟ (۳۰ روز پس از حذف خودکار پاک می‌شود)', 'Permanently delete? (auto-deletes after 30 days anyway)'))) {
-                    setItems(prev => prev.filter(i => i.id !== item.id));
-                  }
-                }}
+                onClick={() => permanentDelete(item.id)}
+                disabled={deletingId === item.id}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all active:scale-95"
-                style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)' }}
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)', opacity: deletingId === item.id ? 0.6 : 1 }}
               >
-                <Trash2 size={11} />
+                {deletingId === item.id
+                  ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  : <Trash2 size={11} />}
                 {t('پاک دائمی', 'Delete')}
               </button>
             </div>

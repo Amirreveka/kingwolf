@@ -229,7 +229,7 @@ export function useMessages(conversationId: string | null) {
   }
 
   async function deleteMessage(messageId: string): Promise<void> {
-    await supabase.from('messages').update({ is_deleted: true }).eq('id', messageId);
+    await apiCall(`/messages/${messageId}`, { method: 'DELETE' });
     setMessages((prev) => prev.filter((m) => m.id !== messageId));
   }
 

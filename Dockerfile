@@ -8,6 +8,8 @@ COPY artifacts/landing/ /landing/
 
 RUN npm install --omit=dev && mkdir -p data uploads/avatars uploads/media
 
+VOLUME ["/app/data", "/app/uploads"]
+
 ENV NODE_ENV=production
 EXPOSE 3001
 

@@ -494,7 +494,7 @@ export function MessengerLayout() {
             onCreateGroup={handleCreateGroup}
             onCreateChannel={handleCreateChannel}
             onSavedMessages={handleSavedMessages}
-            onOpenStories={appConfig.feature_stories ? () => setShowStoriesOverlay(true) : undefined}
+            onOpenStories={() => { if (appConfig.feature_stories) setShowStoriesOverlay(true); }}
           />
         </div>
       )}

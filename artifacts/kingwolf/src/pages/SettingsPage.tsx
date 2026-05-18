@@ -545,6 +545,16 @@ export function SettingsPage({ onClose }: SettingsPageProps) {
                 </div>
               )}
             </div>
+
+            {/* Save button — always visible at bottom of profile section */}
+            <button
+              onClick={saveProfile}
+              disabled={saving}
+              className="w-full py-3.5 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+              style={{ background: saving ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg,#7c3aed,#a855f7)', boxShadow: '0 4px 20px rgba(124,58,237,0.3)' }}
+            >
+              {saved ? <><Check size={16} /> {t('ذخیره شد!', 'Saved!')}</> : saving ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> {t('در حال ذخیره...', 'Saving...')}</> : <><Save size={16} /> {t('ذخیره پروفایل', 'Save Profile')}</>}
+            </button>
           </div>
         )}
 

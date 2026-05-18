@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KingWolf Messenger | پیام‌رسان بومی</title>
+  <meta name="description" content="پیام‌رسان KingWolf — امن، سریع، بومی" />
+  <meta property="og:title" content="KingWolf Messenger" />
+  <meta property="og:description" content="پیام‌رسان بومی نسل بعدی" />
+  <meta property="og:image" content="/opengraph.jpg" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --neon-purple:#a855f7;
+      --neon-cyan:#06b6d4;
+      --bg:#080c18;
+      --bg2:#0d1120;
+      --bg3:#111827;
+      --text:#f1f5f9;
+      --text2:#94a3b8;
+      --border:rgba(255,255,255,0.07);
+      --card:rgba(255,255,255,0.04);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{
+      font-family:'Vazirmatn',sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      min-height:100vh;
+      overflow-x:hidden;
+      direction:rtl;
+    }
+
+    /* ── Noise overlay ── */
+    body::before{
+      content:'';
+      position:fixed;inset:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events:none;z-index:0;opacity:.4;
+    }
+
+    /* ── Glow blobs ── */
+    .blob{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+    .blob1{width:600px;height:600px;top:-200px;right:-150px;background:radial-gradient(circle,rgba(168,85,247,.18),transparent 70%)}
+    .blob2{width:500px;height:500px;bottom:-150px;left:-100px;background:radial-gradient(circle,rgba(6,182,212,.14),transparent 70%)}
+    .blob3{width:300px;height:300px;top:40%;left:50%;transform:translateX(-50%);background:radial-gradient(circle,rgba(168,85,247,.08),transparent 70%)}
+
+    /* ── Nav ── */
+    nav{
+      position:fixed;top:0;left:0;right:0;z-index:100;
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 clamp(16px,5vw,64px);height:64px;
+      background:rgba(8,12,24,.8);
+      backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);
+    }
+    .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+    .nav-logo img{width:32px;height:32px;border-radius:8px}
+    .nav-logo span{font-weight:800;font-size:18px;color:var(--text)}
+    .nav-cta{
+      padding:8px 20px;border-radius:10px;font-size:14px;font-weight:700;
+      background:linear-gradient(135deg,var(--neon-purple),var(--neon-cyan));
+      color:#fff;text-decoration:none;
+      transition:opacity .2s,transform .15s;
+    }
+    .nav-cta:hover{opacity:.88;transform:translateY(-1px)}
+
+    /* ── Hero ── */
+    .hero{
+      position:relative;z-index:1;
+      min-height:100vh;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      text-align:center;
+      padding:100px clamp(16px,5vw,64px) 80px;
+    }
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 16px;border-radius:999px;
+      border:1px solid rgba(168,85,247,.3);
+      background:rgba(168,85,247,.1);
+      font-size:13px;font-weight:600;
+      color:var(--neon-purple);
+      margin-bottom:28px;
+      animation:fadeUp .6s ease both;
+    }
+    h1{
+      font-size:clamp(2.4rem,7vw,5rem);
+      font-weight:900;line-height:1.1;
+      background:linear-gradient(135deg,#fff 30%,var(--neon-purple) 70%,var(--neon-cyan));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      margin-bottom:8px;
+      animation:fadeUp .7s .1s ease both;
+    }
+    .hero-sub{
+      font-size:clamp(1rem,2.5vw,1.25rem);
+      color:var(--text2);font-weight:400;line-height:1.7;
+      max-width:560px;margin:0 auto 40px;
+      animation:fadeUp .7s .2s ease both;
+    }
+    .hero-btns{
+      display:flex;flex-wrap:wrap;gap:14px;justify-content:center;
+      animation:fadeUp .7s .3s ease both;
+    }
+    .btn-primary{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:14px 32px;border-radius:14px;font-size:16px;font-weight:700;
+      background:linear-gradient(135deg,var(--neon-purple),#7c3aed);
+      color:#fff;text-decoration:none;
+      box-shadow:0 0 32px rgba(168,85,247,.35);
+      transition:transform .15s,box-shadow .2s;
+    }
+    .btn-primary:hover{transform:translateY(-2px);box-shadow:0 0 48px rgba(168,85,247,.5)}
+    .btn-secondary{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:14px 28px;border-radius:14px;font-size:15px;font-weight:600;
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--border);
+      color:var(--text);text-decoration:none;
+      transition:background .2s,transform .15s;
+    }
+    .btn-secondary:hover{background:rgba(255,255,255,.1);transform:translateY(-2px)}
+
+    /* ── Mockup ── */
+    .mockup-wrap{
+      position:relative;z-index:1;
+      display:flex;justify-content:center;
+      margin:-20px 0 80px;
+      animation:fadeUp .8s .4s ease both;
+    }
+    .mockup{
+      width:min(340px,80vw);
+      border-radius:28px;
+      border:1px solid rgba(168,85,247,.2);
+      background:var(--bg2);
+      overflow:hidden;
+      box-shadow:0 0 80px rgba(168,85,247,.15),0 40px 80px rgba(0,0,0,.5);
+    }
+    .mockup-bar{
+      display:flex;align-items:center;gap:8px;
+      padding:14px 16px;
+      background:var(--bg3);
+      border-bottom:1px solid var(--border);
+    }
+    .mockup-dot{width:9px;height:9px;border-radius:50%}
+    .mockup-chat{padding:16px;display:flex;flex-direction:column;gap:10px}
+    .msg{
+      padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5;max-width:80%;
+    }
+    .msg-in{
+      background:rgba(168,85,247,.15);border:1px solid rgba(168,85,247,.2);
+      border-bottom-right-radius:4px;align-self:flex-end;
+    }
+    .msg-out{
+      background:var(--bg3);border:1px solid var(--border);
+      border-bottom-left-radius:4px;align-self:flex-start;
+    }
+    .msg-time{font-size:10px;color:var(--text2);text-align:left;margin-top:4px}
+
+    /* ── Features ── */
+    .section{
+      position:relative;z-index:1;
+      padding:80px clamp(16px,5vw,64px);
+      max-width:1100px;margin:0 auto;
+    }
+    .section-title{
+      text-align:center;font-size:clamp(1.6rem,4vw,2.4rem);font-weight:800;
+      margin-bottom:12px;
+    }
+    .section-sub{text-align:center;color:var(--text2);font-size:15px;margin-bottom:56px}
+    .features{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+      gap:20px;
+    }
+    .feature{
+      padding:28px;border-radius:20px;
+      background:var(--card);
+      border:1px solid var(--border);
+      transition:border-color .25s,transform .2s;
+    }
+    .feature:hover{border-color:rgba(168,85,247,.3);transform:translateY(-3px)}
+    .feat-icon{
+      width:48px;height:48px;border-radius:14px;
+      display:flex;align-items:center;justify-content:center;
+      font-size:24px;margin-bottom:16px;
+      background:rgba(168,85,247,.12);
+    }
+    .feat-title{font-size:17px;font-weight:700;margin-bottom:8px}
+    .feat-desc{font-size:14px;color:var(--text2);line-height:1.7}
+
+    /* ── Stats ── */
+    .stats-wrap{
+      position:relative;z-index:1;
+      padding:60px clamp(16px,5vw,64px);
+    }
+    .stats{
+      max-width:900px;margin:0 auto;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:24px;
+    }
+    .stat{
+      text-align:center;
+      padding:32px 20px;border-radius:20px;
+      background:var(--card);border:1px solid var(--border);
+    }
+    .stat-val{
+      font-size:2.4rem;font-weight:900;
+      background:linear-gradient(135deg,var(--neon-purple),var(--neon-cyan));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    }
+    .stat-label{font-size:13px;color:var(--text2);margin-top:6px}
+
+    /* ── CTA strip ── */
+    .cta-strip{
+      position:relative;z-index:1;
+      margin:0 clamp(16px,5vw,64px) 80px;
+      padding:56px clamp(20px,5vw,80px);
+      border-radius:28px;
+      background:linear-gradient(135deg,rgba(168,85,247,.15),rgba(6,182,212,.1));
+      border:1px solid rgba(168,85,247,.2);
+      text-align:center;
+    }
+    .cta-strip h2{font-size:clamp(1.4rem,3.5vw,2rem);font-weight:800;margin-bottom:12px}
+    .cta-strip p{color:var(--text2);font-size:15px;margin-bottom:32px}
+
+    /* ── Footer ── */
+    footer{
+      position:relative;z-index:1;
+      border-top:1px solid var(--border);
+      padding:28px clamp(16px,5vw,64px);
+      display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    }
+    footer a{color:var(--text2);text-decoration:none;font-size:13px}
+    footer a:hover{color:var(--neon-purple)}
+    .footer-logo{display:flex;align-items:center;gap:8px}
+    .footer-logo img{width:24px;height:24px;border-radius:6px;opacity:.7}
+    .footer-text{font-size:13px;color:var(--text2)}
+
+    /* ── Divider ── */
+    .neon-line{
+      height:1px;
+      background:linear-gradient(90deg,transparent,var(--neon-purple),transparent);
+      opacity:.3;margin:0 64px;
+    }
+
+    /* ── Animations ── */
+    @keyframes fadeUp{
+      from{opacity:0;transform:translateY(24px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+    @keyframes pulse{
+      0%,100%{opacity:1} 50%{opacity:.5}
+    }
+    .online-dot{
+      display:inline-block;width:8px;height:8px;border-radius:50%;
+      background:#4ade80;margin-left:4px;
+      animation:pulse 2s infinite;
+    }
+
+    @media(max-width:600px){
+      .nav-logo span{display:none}
+      h1{font-size:2.2rem}
+    }
+  </style>
+</head>
+<body>
+
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+<div class="blob blob3"></div>
+
+<!-- Nav -->
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/icon-192.png" alt="KingWolf" />
+    <span>KingWolf</span>
+  </a>
+  <a id="nav-cta" href="/app" class="nav-cta">ورود به اپ</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div id="badge" class="badge">⚡ پیام‌رسان بومی نسل بعدی</div>
+  <h1 id="hero-title">ارتباط بی‌مرز</h1>
+  <p id="hero-sub" class="hero-sub">پیام‌رسان KingWolf — امن، سریع، و کاملاً بومی.</p>
+  <div class="hero-btns">
+    <a id="cta-main" href="/app" class="btn-primary">🚀 شروع کن — رایگان</a>
+    <a href="#features" class="btn-secondary">بیشتر بدانید ↓</a>
+  </div>
+</section>
+
+<!-- Mockup -->
+<div class="mockup-wrap">
+  <div class="mockup">
+    <div class="mockup-bar">
+      <div class="mockup-dot" style="background:#ff5f57"></div>
+      <div class="mockup-dot" style="background:#ffbd2e"></div>
+      <div class="mockup-dot" style="background:#28c840"></div>
+      <span style="margin-right:auto;font-size:13px;color:#94a3b8">KingWolf Messenger</span>
+    </div>
+    <div class="mockup-chat">
+      <div class="msg msg-out">سلام! اپ جدید KingWolf رو امتحان کردی؟ <div class="msg-time">۱۰:۲۲</div></div>
+      <div class="msg msg-in">آره! خیلی سریع و راحته 🔥 <div class="msg-time">۱۰:۲۳</div></div>
+      <div class="msg msg-out">پیام‌های صوتی و ویدیو هم داره؟ <div class="msg-time">۱۰:۲۴</div></div>
+      <div class="msg msg-in">آره، همه چیز داره. بیا امتحان کن! <div class="msg-time">۱۰:۲۴</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Features -->
+<section id="features" class="section">
+  <h2 class="section-title">چرا KingWolf؟</h2>
+  <p class="section-sub">همه آنچه نیاز داری، در یک پیام‌رسان بومی</p>
+  <div class="features">
+    <div class="feature">
+      <div class="feat-icon">🔒</div>
+      <div class="feat-title">امنیت بالا</div>
+      <div class="feat-desc">پیام‌های شما با رمزنگاری end-to-end محافظت می‌شوند. حریم خصوصی شما اولویت ماست.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">⚡</div>
+      <div class="feat-title">سرعت فوق‌العاده</div>
+      <div class="feat-desc">پیام‌رسانی آنی با تأخیر بسیار پایین. سرورهای اختصاصی داخل کشور.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">🎙️</div>
+      <div class="feat-title">صدا و تصویر</div>
+      <div class="feat-desc">تماس صوتی و تصویری با کیفیت HD. استوری، پیام صوتی، ارسال فایل.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">👥</div>
+      <div class="feat-title">گروه و کانال</div>
+      <div class="feat-desc">گروه‌های خصوصی و کانال‌های عمومی. مدیریت اعضا و دسترسی‌ها.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">🌐</div>
+      <div class="feat-title">کاملاً بومی</div>
+      <div class="feat-desc">زیرساخت داخلی، بدون وابستگی به سرورهای خارجی. داده‌های شما در کشور می‌مانند.</div>
+    </div>
+    <div class="feature">
+      <div class="feat-icon">📱</div>
+      <div class="feat-title">همه دستگاه‌ها</div>
+      <div class="feat-desc">وب اپ پیشرفته (PWA)، نصب روی موبایل و دسکتاپ. همیشه به‌روز و بدون آپدیت دستی.</div>
+    </div>
+  </div>
+</section>
+
+<div class="neon-line"></div>
+
+<!-- Stats -->
+<div class="stats-wrap">
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-val">۱۰۰٪</div>
+      <div class="stat-label">بومی و داخلی</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">&lt;۱۰ms</div>
+      <div class="stat-label">تأخیر پیام</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">E2E</div>
+      <div class="stat-label">رمزنگاری</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">رایگان</div>
+      <div class="stat-label">همیشه</div>
+    </div>
+  </div>
+</div>
+
+<div class="neon-line"></div>
+
+<!-- CTA strip -->
+<div class="cta-strip">
+  <h2>همین الان شروع کن</h2>
+  <p>ثبت‌نام رایگان • بدون نیاز به شماره خارجی • در چند ثانیه</p>
+  <a id="cta-bottom" href="/app" class="btn-primary" style="font-size:17px;padding:16px 40px">🚀 ورود به KingWolf</a>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo">
+    <img src="/icon-192.png" alt="" />
+    <span class="footer-text" id="footer-text">© ۱۴۰۳ KingWolf Messenger — ساخته شده با ❤️ در ایران</span>
+  </div>
+  <div style="display:flex;gap:20px">
+    <a href="/app">ورود به اپ</a>
+    <a href="/app#register">ثبت‌نام</a>
+  </div>
+</footer>
+
+<script>
+  // Apply CMS values injected by server
+  (function() {
+    var cms = window.__CMS__ || {};
+
+    // Badge
+    if (cms.hero_badge) {
+      var badge = document.getElementById('badge');
+      if (badge) badge.textContent = cms.hero_badge;
+    }
+
+    // Hero title — use FA
+    var title = cms.hero_title_fa || cms.hero_title_en;
+    if (title) {
+      var el = document.getElementById('hero-title');
+      if (el) el.textContent = title;
+    }
+
+    // Hero sub
+    var sub = cms.hero_sub_fa || cms.hero_sub_en;
+    if (sub) {
+      var el2 = document.getElementById('hero-sub');
+      if (el2) el2.textContent = sub;
+    }
+
+    // CTA button
+    var ctaText = cms.cta_main_fa || cms.cta_main_en;
+    var appUrl = cms.app_url || '/app';
+    if (ctaText) {
+      var cta = document.getElementById('cta-main');
+      if (cta) cta.textContent = ctaText;
+    }
+    // Set all app links
+    ['cta-main','cta-bottom','nav-cta'].forEach(function(id) {
+      var a = document.getElementById(id);
+      if (a) a.href = appUrl;
+    });
+
+    // Footer text
+    if (cms.footer_text) {
+      var ft = document.getElementById('footer-text');
+      if (ft) ft.textContent = cms.footer_text;
+    }
+
+    // Neon colors via CSS variables
+    if (cms.neon_primary) {
+      document.documentElement.style.setProperty('--neon-purple', cms.neon_primary);
+    }
+    if (cms.neon_secondary) {
+      document.documentElement.style.setProperty('--neon-cyan', cms.neon_secondary);
+    }
+  })();
+</script>
+</body>
+</html>

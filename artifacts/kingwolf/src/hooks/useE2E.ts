@@ -10,13 +10,22 @@ export interface E2EState {
 let _singleton: E2EKeyPair | null = null;
 let _pending: Promise<E2EKeyPair> | null = null;
 
-// Upload public key to server profile
+// Upload public key to server profile via generic update endpoint
 async function uploadPublicKey(publicKeyRaw: string, token: string) {
   try {
-    await fetch('/api/profile/public-key', {
+    const res = await fetch('/api/auth/session', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const { user } = await res.json();
+    if (!user?.id) return;
+    await fetch('/api/db/profiles/update', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body:    JSON.stringify({ public_key: publicKeyRaw }),
+      body:    JSON.stringify({
+        filters: [{ col: 'id', op: 'eq', val: user.id }],
+        values:  { public_key: publicKeyRaw },
+      }),
     });
   } catch { /* silent */ }
 }

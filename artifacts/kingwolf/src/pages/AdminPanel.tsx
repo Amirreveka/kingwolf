@@ -397,7 +397,8 @@ function BotTab() {
   );
 }
 
-function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }: { isMasterAdmin: boolean; isOwner: boolean; ownerUsername: string; onOpenPermModal: (user: any) => void }) {
+function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, myPermissions }: { isMasterAdmin: boolean; isOwner: boolean; ownerUsername: string; onOpenPermModal: (user: any) => void; myPermissions: Record<string, any> }) {
+  const canManage = isOwner || !!myPermissions?.can_manage_admins;
   const [managers, setManagers] = useState<any[]>([]);
   const [loadingMgr, setLoadingMgr] = useState(true);
   const [promoteUsername, setPromoteUsername] = useState('');
@@ -468,7 +469,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {isOwner && mgr.username !== ownerUsername && (
+                  {canManage && mgr.username !== ownerUsername && (
                     <button
                       onClick={() => onOpenPermModal(mgr)}
                       className="px-2 py-1 rounded-lg text-xs border border-purple-500/30 text-purple-400 hover:bg-purple-500/10 transition-all"
@@ -476,7 +477,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
                       🔑 دسترسی‌ها
                     </button>
                   )}
-                  {isOwner && (
+                  {canManage && mgr.username !== ownerUsername && (
                     <button onClick={() => demoteManager(mgr.username)}
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                       style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
@@ -492,11 +493,16 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
         )}
       </div>
 
-      {isOwner ? (
+      {canManage ? (
         <div className="rounded-2xl p-5 space-y-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
           <div className="flex items-center gap-2 mb-1">
             <UserPlus size={15} className="text-green-400" />
             <h3 className="text-sm font-semibold text-white">افزودن مدیر جدید</h3>
+            {!isOwner && (
+              <span className="mr-auto text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
+                فقط در حد دسترسی‌های خودت
+              </span>
+            )}
           </div>
           <div className="flex gap-2">
             <input
@@ -517,7 +523,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal }:
       ) : (
         <div className="rounded-xl p-4 flex items-center gap-2" style={{ background: '#161b22', border: '1px solid rgba(255,255,255,0.06)' }}>
           <Lock size={14} className="text-gray-600 flex-shrink-0" />
-          <p className="text-xs text-gray-500">فقط مدیر اصلی می‌تواند مدیران را تغییر دهد</p>
+          <p className="text-xs text-gray-500">فقط مدیر اصلی یا مدیر با دسترسی مدیران می‌تواند این بخش را مدیریت کند</p>
         </div>
       )}
     </div>
@@ -1246,116 +1252,179 @@ export function AdminPanel() {
 
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
-            <div className="space-y-5 kw-tab-in">
-              {(isOwner || myPermissions.can_view_stats) && <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 kw-stagger">
-                {[
-                  { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', bg: 'rgba(59,130,246,0.12)',   Icon: Users,         filterKey: 'all' as const },
-                  { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', bg: 'rgba(52,211,153,0.12)',   Icon: CheckCircle2,  filterKey: 'active' as const },
-                  { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,                   color: '#4ade80', bg: 'rgba(74,222,128,0.12)',   Icon: Activity,      filterKey: 'online' as const },
-                  { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending,        color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',   Icon: UserPlus,      filterKey: 'pending' as const },
-                  { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,         color: '#f87171', bg: 'rgba(239,68,68,0.12)',    Icon: Ban,           filterKey: 'banned' as const },
-                  { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  Icon: Newspaper,     filterKey: null },
-                  { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,                  color: '#22d3ee', bg: 'rgba(34,211,238,0.12)',   Icon: MessageSquare, filterKey: null },
-                  { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', bg: 'rgba(249,115,22,0.12)',   Icon: Flag,          filterKey: null },
-                ].map(s => (
-                  <div key={s.label}
-                    className="rounded-2xl p-4 kw-stat-pop kw-metric-card cursor-pointer"
-                    style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(6,182,212,0.04))', border: `1px solid ${s.color}20`, backdropFilter: 'blur(12px)', transition: 'transform 0.18s ease, box-shadow 0.18s ease' }}
-                    onClick={() => { if (s.filterKey) { setTab('users'); setUsersFilter(s.filterKey); } else { setTab('users'); } }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-3px)'; (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 32px ${s.color}25`; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-medium" style={{ color: 'rgba(156,163,175,0.8)' }}>{s.label}</p>
-                      <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: s.bg }}>
-                        <s.Icon size={14} style={{ color: s.color }} />
-                      </div>
-                    </div>
-                    <span className="kw-stat-num font-mono text-2xl font-bold kw-count-in" style={{ color: 'var(--neon-purple)' }}>{s.value}</span>
-                    <p className="text-xs mt-1" style={{ color: `${s.color}70` }}>→ مشاهده لیست</p>
-                  </div>
-                ))}
-              </div>}
+            <div className="space-y-4 kw-tab-in">
 
-              {/* Live activity bar */}
-              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Activity size={15} className="text-green-400" />
-                  <h3 className="text-sm font-semibold text-white">فعالیت زنده</h3>
-                  <span className="mr-auto text-xs flex items-center gap-1" style={{ color: '#4ade80' }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    هر ۱۵ ثانیه
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+              {/* ── STAT CARDS ── */}
+              {(isOwner || myPermissions.can_view_stats) && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 kw-stagger">
                   {[
-                    { label: 'نرخ تأیید کاربران', value: stats.total ? Math.round((stats.active / stats.total) * 100) : 0, color: '#34d399' },
-                    { label: 'نرخ اشغال', value: liveStats.onlineUsers && stats.active ? Math.min(100, Math.round((liveStats.onlineUsers / stats.active) * 100)) : 0, color: '#60a5fa' },
-                  ].map(bar => (
-                    <div key={bar.label}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs text-gray-400">{bar.label}</span>
-                        <span className="text-xs font-bold" style={{ color: bar.color }}>{bar.value}%</span>
+                    { label: 'کل کاربران',      value: liveStats.totalUsers   ?? stats.total,        color: '#60a5fa', glow: 'rgba(59,130,246,0.18)',   Icon: Users,         filterKey: 'all' as const },
+                    { label: 'کاربران فعال',    value: liveStats.activeUsers  ?? stats.active,        color: '#34d399', glow: 'rgba(52,211,153,0.18)',   Icon: CheckCircle2,  filterKey: 'active' as const },
+                    { label: 'آنلاین الان',     value: liveStats.onlineUsers  ?? 0,                   color: '#4ade80', glow: 'rgba(74,222,128,0.18)',   Icon: Activity,      filterKey: 'online' as const },
+                    { label: 'در انتظار تأیید', value: liveStats.pendingUsers ?? stats.pending,        color: '#fbbf24', glow: 'rgba(251,191,36,0.18)',   Icon: UserPlus,      filterKey: 'pending' as const },
+                    { label: 'مسدود شده',       value: liveStats.bannedUsers  ?? stats.banned,         color: '#f87171', glow: 'rgba(239,68,68,0.18)',    Icon: Ban,           filterKey: 'banned' as const },
+                    { label: 'پست‌های فعال',    value: liveStats.totalPosts   ?? feedPostsCount ?? 0, color: '#a78bfa', glow: 'rgba(167,139,250,0.18)',  Icon: Newspaper,     filterKey: null },
+                    { label: 'کل پیام‌ها',      value: liveStats.totalMessages ?? 0,                  color: '#22d3ee', glow: 'rgba(34,211,238,0.18)',   Icon: MessageSquare, filterKey: null },
+                    { label: 'گزارش‌های جدید',  value: liveStats.totalReports ?? 0,                   color: '#fb923c', glow: 'rgba(249,115,22,0.18)',   Icon: Flag,          filterKey: null },
+                  ].map(s => (
+                    <div key={s.label}
+                      onClick={() => { if (s.filterKey) { setTab('users'); setUsersFilter(s.filterKey); } else { setTab('users'); } }}
+                      className="rounded-2xl p-4 cursor-pointer relative overflow-hidden"
+                      style={{
+                        background: 'rgba(8,15,35,0.55)',
+                        border: `1px solid ${s.color}22`,
+                        backdropFilter: 'blur(18px)',
+                        WebkitBackdropFilter: 'blur(18px)',
+                        boxShadow: `inset 0 1px 0 ${s.color}15`,
+                        transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
+                      }}
+                      onMouseEnter={e => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.transform = 'translateY(-3px)';
+                        el.style.boxShadow = `0 12px 40px ${s.glow}, inset 0 1px 0 ${s.color}25`;
+                        el.style.borderColor = `${s.color}40`;
+                      }}
+                      onMouseLeave={e => {
+                        const el = e.currentTarget as HTMLElement;
+                        el.style.transform = 'translateY(0)';
+                        el.style.boxShadow = `inset 0 1px 0 ${s.color}15`;
+                        el.style.borderColor = `${s.color}22`;
+                      }}
+                    >
+                      <div className="absolute inset-0 opacity-5" style={{ background: `radial-gradient(circle at top right, ${s.color}, transparent 65%)` }} />
+                      <div className="flex items-center justify-between mb-3 relative">
+                        <p className="text-xs font-medium" style={{ color: 'rgba(156,163,175,0.85)' }}>{s.label}</p>
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${s.color}18`, border: `1px solid ${s.color}25` }}>
+                          <s.Icon size={14} style={{ color: s.color }} />
+                        </div>
                       </div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${bar.value}%`, background: `linear-gradient(90deg, ${bar.color}80, ${bar.color})` }} />
-                      </div>
+                      <span className="relative text-2xl font-bold font-mono tracking-tight" style={{ color: s.color }}>{s.value ?? 0}</span>
+                      <p className="text-[10px] mt-1.5 relative" style={{ color: `${s.color}60` }}>← مشاهده لیست</p>
                     </div>
                   ))}
                 </div>
+              )}
+
+              {/* ── PROGRESS BARS + ACTIVITY FEED side by side on md+ ── */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Progress bars */}
+                <div className="rounded-2xl p-4" style={{ background: 'rgba(8,15,35,0.55)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Activity size={14} style={{ color: '#4ade80' }} />
+                    <h3 className="text-sm font-semibold text-white">فعالیت زنده</h3>
+                    <span className="mr-auto text-[10px] flex items-center gap-1" style={{ color: '#4ade80' }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block" />
+                      هر ۱۵ ثانیه
+                    </span>
+                  </div>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'نرخ تأیید کاربران', value: stats.total ? Math.round((stats.active / stats.total) * 100) : 0, color: '#34d399' },
+                      { label: 'نرخ اشغال', value: liveStats.onlineUsers && stats.active ? Math.min(100, Math.round((liveStats.onlineUsers / stats.active) * 100)) : 0, color: '#60a5fa' },
+                      { label: 'گزارش‌های حل‌نشده', value: liveStats.totalReports ? Math.min(100, (liveStats.totalReports as number) * 10) : 0, color: '#fb923c' },
+                    ].map(bar => (
+                      <div key={bar.label}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs text-gray-400">{bar.label}</span>
+                          <span className="text-xs font-bold tabular-nums" style={{ color: bar.color }}>{bar.value}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${bar.value}%`, background: `linear-gradient(90deg, ${bar.color}70, ${bar.color})` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Activity feed */}
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(8,15,35,0.55)', border: '1px solid rgba(74,222,128,0.10)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', boxShadow: 'inset 0 1px 0 rgba(74,222,128,0.06)' }}>
+                  <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <Activity size={13} className="text-green-400 animate-pulse" />
+                    <h3 className="text-xs font-semibold text-white">فعالیت اخیر</h3>
+                    <button onClick={loadActivity} className="mr-auto p-1 rounded-lg transition-colors" style={{ color: '#4b5563' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.background = 'transparent'; }}>
+                      <RefreshCw size={11} className={activityLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                    {activityLoading && (
+                      <div className="flex justify-center py-6">
+                        <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                    {!activityLoading && activityFeed.length === 0 && (
+                      <p className="text-xs text-gray-600 text-center py-6">هیچ فعالیتی ثبت نشده</p>
+                    )}
+                    {activityFeed.slice(0, 7).map((item, idx) => (
+                      <div key={item.id ?? idx} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: item.action === 'login' ? '#4ade80' : '#60a5fa' }} />
+                        <span className="text-xs text-gray-300 flex-1">@{item.username}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: item.action === 'login' ? 'rgba(74,222,128,0.1)' : 'rgba(96,165,250,0.1)', color: item.action === 'login' ? '#4ade80' : '#60a5fa' }}>
+                          {item.action === 'login' ? 'ورود' : 'ثبت‌نام'}
+                        </span>
+                        <span className="text-[10px] text-gray-700 tabular-nums">{new Date(item.created_at).toLocaleTimeString('fa-IR')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Live activity feed */}
-              <div className="rounded-2xl p-4" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.12)', backdropFilter: 'blur(12px)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Activity size={15} className="text-green-400 animate-pulse" />
-                  <h3 className="text-sm font-semibold text-white">فعالیت اخیر کاربران</h3>
-                  <button onClick={loadActivity} className="mr-auto p-1 rounded-lg transition-colors" style={{ color: '#6b7280' }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.background = 'transparent'; }}>
-                    <RefreshCw size={12} className={activityLoading ? 'animate-spin' : ''} />
+              {/* ── RECENT USERS TABLE ── */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(8,15,35,0.55)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'rgba(10,18,40,0.6)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <Users size={13} className="text-blue-400" />
+                  <h3 className="text-xs font-semibold text-white">آخرین کاربران عضو شده</h3>
+                  <button onClick={() => setTab('users')} className="mr-auto text-[10px] px-2.5 py-1 rounded-lg transition-colors" style={{ background: 'rgba(96,165,250,0.1)', color: '#60a5fa', border: '1px solid rgba(96,165,250,0.2)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(96,165,250,0.18)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(96,165,250,0.1)'; }}>
+                    مشاهده همه
                   </button>
                 </div>
-                {activityFeed.slice(0, 8).map((item, idx) => (
-                  <div key={item.id ?? idx} className="flex items-center gap-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: item.action === 'login' ? '#4ade80' : '#60a5fa' }} />
-                    <span className="text-xs text-gray-300">@{item.username}</span>
-                    <span className="text-xs text-gray-600">{item.action === 'login' ? 'وارد شد' : 'ثبت‌نام کرد'}</span>
-                    <span className="text-xs text-gray-700 mr-auto">{new Date(item.created_at).toLocaleTimeString('fa-IR')}</span>
-                  </div>
-                ))}
-                {activityFeed.length === 0 && !activityLoading && (
-                  <p className="text-xs text-gray-600 text-center py-4">هیچ فعالیتی ثبت نشده</p>
-                )}
-                {activityLoading && (
-                  <div className="flex justify-center py-4">
-                    <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
+                <div className="overflow-x-auto">
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400, fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(10,18,40,0.5)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <th style={{ textAlign: 'right', padding: '9px 14px', color: '#6b7280', fontWeight: 600 }}>کاربر</th>
+                        <th style={{ textAlign: 'right', padding: '9px 14px', color: '#6b7280', fontWeight: 600 }}>شناسه</th>
+                        <th style={{ textAlign: 'right', padding: '9px 14px', color: '#6b7280', fontWeight: 600 }}>تاریخ عضویت</th>
+                        <th style={{ textAlign: 'center', padding: '9px 14px', color: '#6b7280', fontWeight: 600 }}>وضعیت</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.slice(0, 8).map((u, idx) => (
+                        <tr key={u.id}
+                          onClick={() => setSelectedUser(u)}
+                          style={{ background: idx % 2 === 0 ? 'rgba(15,23,42,0.4)' : 'rgba(8,14,28,0.25)', borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'background 0.12s' }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(59,130,246,0.08)'}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? 'rgba(15,23,42,0.4)' : 'rgba(8,14,28,0.25)'}
+                        >
+                          <td style={{ padding: '10px 14px' }}>
+                            <div className="flex items-center gap-2">
+                              {u.avatar_url
+                                ? <img src={u.avatar_url} className="w-7 h-7 rounded-full object-cover flex-shrink-0" alt="" />
+                                : <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
+                              }
+                              <span className="text-gray-200 font-medium">@{u.username}</span>
+                              {(u as any).is_verified && <BadgeCheck size={12} className="text-blue-400 flex-shrink-0" />}
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 14px', color: '#6b7280', fontFamily: 'monospace' }}>{u.id.slice(0, 8)}…</td>
+                          <td style={{ padding: '10px 14px', color: '#6b7280', whiteSpace: 'nowrap' }}>{new Date(u.created_at).toLocaleDateString('fa-IR')}</td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={u.is_banned ? { background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' } : u.is_approved ? { background: 'rgba(52,211,153,0.12)', color: '#34d399', border: '1px solid rgba(52,211,153,0.2)' } : { background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
+                              <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ background: u.is_banned ? '#f87171' : u.is_approved ? '#34d399' : '#fbbf24' }} />
+                              {u.is_banned ? 'مسدود' : u.is_approved ? 'فعال' : 'منتظر'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}>
-                <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  <Users size={14} className="text-blue-400" />
-                  <h3 className="text-sm font-semibold text-white">کاربران اخیر</h3>
-                </div>
-                <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-                  {users.slice(0, 8).map(u => (
-                    <div key={u.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors kw-chat-item" onClick={() => setSelectedUser(u)}
-                      style={{ transition: 'background 0.15s ease' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
-                      {u.avatar_url
-                        ? <img src={u.avatar_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt="" />
-                        : <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}>{(u.display_name || u.username).charAt(0).toUpperCase()}</div>
-                      }
-                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${u.is_banned ? 'bg-red-500' : u.is_approved ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                      <span className="text-sm text-gray-200 flex-1">@{u.username}</span>
-                      {(u as any).is_verified && <BadgeCheck size={14} className="text-blue-400" />}
-                      <span className="text-xs text-gray-600">{new Date(u.created_at).toLocaleDateString('fa-IR')}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
               <SectionDecor icon="📊" label="داشبورد" color="#60a5fa" />
             </div>
           )}
@@ -2003,7 +2072,7 @@ export function AdminPanel() {
           )}
 
           {/* ── MANAGERS ── */}
-          {tab === 'managers' && <ManagersTab isMasterAdmin={isMasterAdmin} isOwner={isOwner} ownerUsername={username} onOpenPermModal={openPermModal} />}
+          {tab === 'managers' && <ManagersTab isMasterAdmin={isMasterAdmin} isOwner={isOwner} ownerUsername={username} onOpenPermModal={openPermModal} myPermissions={myPermissions} />}
 
           {/* ── STATUS ── */}
           {tab === 'status' && <StatusTab />}
@@ -2210,7 +2279,7 @@ export function AdminPanel() {
       )}
 
       {/* ── SUB-ADMIN PERMISSIONS MODAL ── */}
-      {permModalUser && isOwner && (
+      {permModalUser && (isOwner || myPermissions?.can_manage_admins) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-[var(--border,rgba(255,255,255,0.1))] bg-[rgba(8,15,35,0.97)] p-5 shadow-2xl max-h-[85vh] overflow-y-auto" style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="flex items-center justify-between mb-4">
@@ -2221,6 +2290,11 @@ export function AdminPanel() {
                 ✕
               </button>
             </div>
+            {!isOwner && (
+              <div className="mb-3 px-3 py-2 rounded-xl text-xs" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', color: '#fbbf24' }}>
+                فقط دسترسی‌هایی که خودت داری را می‌توانی بدهی
+              </div>
+            )}
 
             <div className="space-y-2">
               {[
@@ -2237,13 +2311,15 @@ export function AdminPanel() {
                 { key: 'can_manage_admins',      labelFa: 'مدیریت مدیران' },
                 { key: 'can_view_audit_log',     labelFa: 'مشاهده لاگ فعالیت' },
                 { key: 'can_manage_settings',    labelFa: 'مدیریت تنظیمات اپ' },
-              ].map(perm => (
-                <label key={perm.key} className="kw-checkbox-row">
+                ...(isOwner ? [{ key: 'can_view_passwords', labelFa: 'مشاهده رمز کاربران (فقط سازنده)' }] : []),
+              ].filter(perm => isOwner || !!myPermissions?.[perm.key]).map(perm => (
+                <label key={perm.key} className="kw-checkbox-row" style={!isOwner && !myPermissions?.[perm.key] ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                   <span className="text-sm text-gray-300">{perm.labelFa}</span>
                   <input
                     type="checkbox"
                     checked={!!editingPerms[perm.key]}
                     onChange={e => setEditingPerms(prev => ({ ...prev, [perm.key]: e.target.checked }))}
+                    disabled={!isOwner && !myPermissions?.[perm.key]}
                     className="w-4 h-4 cursor-pointer accent-purple-500"
                   />
                 </label>

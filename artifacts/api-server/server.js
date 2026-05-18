@@ -1461,21 +1461,39 @@ app.get('/admin/managers', authMiddleware, adminOnly, (req, res) => {
 
 app.post('/admin/managers/promote', authMiddleware, adminOnly, (req, res) => {
   const masterAdmin = getMasterAdmin();
-  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند ناظر تعیین کند' });
+  const isOwner = req.profile.username === masterAdmin;
+  // Sub-admins with can_manage_admins can also promote, but only grant permissions they have
+  if (!isOwner) {
+    const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'دسترسی مدیریت مدیران لازم است' });
+  }
   const { username, userId, permissions } = req.body;
   try {
     const prof = username
       ? db.prepare('SELECT id, username FROM profiles WHERE username=?').get(username)
       : db.prepare('SELECT id, username FROM profiles WHERE id=?').get(userId);
     if (!prof) return res.status(404).json({ error: 'کاربر یافت نشد' });
-    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(prof.id, prof.username, req.profile.username, JSON.stringify(permissions || {}));
+    // Cap permissions to what the requester themselves has (prevent escalation)
+    let grantPerms = permissions || {};
+    if (!isOwner) {
+      const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id) || {};
+      const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings'];
+      const capped = {};
+      for (const k of PERM_KEYS) { if (grantPerms[k] && myPerms[k]) capped[k] = true; }
+      grantPerms = capped;
+    }
+    db.prepare('INSERT OR REPLACE INTO sub_admins (user_id, username, granted_by, permissions) VALUES (?,?,?,?)').run(prof.id, prof.username, req.profile.username, JSON.stringify(grantPerms));
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/admin/managers/demote', authMiddleware, adminOnly, (req, res) => {
   const masterAdmin = getMasterAdmin();
-  if (req.profile.username !== masterAdmin) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
+  const isOwner = req.profile.username === masterAdmin;
+  if (!isOwner) {
+    const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'فقط مدیر اصلی می‌تواند این کار را انجام دهد' });
+  }
   const { username, userId } = req.body;
   try {
     if (username) db.prepare('DELETE FROM sub_admins WHERE username=?').run(username);
@@ -2244,13 +2262,24 @@ app.get('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => 
 });
 
 app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) => {
-  // Only owner can manage permissions
   const ownerRow = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
-  if (req.profile.username !== ownerRow?.value) {
-    return res.status(403).json({ error: 'فقط سازنده می‌تواند دسترسی‌ها را تغییر دهد' });
+  const isOwner = req.profile.username === ownerRow?.value;
+  if (!isOwner) {
+    const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!myPerms?.can_manage_admins) return res.status(403).json({ error: 'فقط سازنده یا مدیر با دسترسی مدیران می‌تواند تغییر دهد' });
   }
   const { adminId } = req.params;
-  const p = req.body;
+  let p = req.body;
+  // Cap: sub-admins can only grant permissions they have themselves
+  if (!isOwner) {
+    const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id) || {};
+    const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings'];
+    const capped = { ...p };
+    for (const k of PERM_KEYS) { if (capped[k] && !myPerms[k]) capped[k] = false; }
+    // Sub-admins can never grant can_view_passwords regardless
+    capped.can_view_passwords = false;
+    p = capped;
+  }
 
   db.prepare(`INSERT OR REPLACE INTO sub_admin_permissions
     (admin_id, granted_by, can_view_users, can_ban_users, can_approve_users, can_view_reports,

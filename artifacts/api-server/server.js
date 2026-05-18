@@ -2741,14 +2741,14 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
       tx();
       console.log(`🔑 Default admin created: ${founderUsername}`);
     } else {
-      // Ensure master_admin setting always points to current FOUNDER_ROOT_USERNAME
-      const currentMaster = db.prepare("SELECT value FROM app_settings WHERE key='master_admin'").get();
-      if (currentMaster?.value !== founderUsername) {
-        db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(founderUsername);
-        db.prepare('UPDATE profiles SET is_admin=1 WHERE username=?').run(founderUsername);
-        db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(founderUsername);
-        console.log(`🔑 Master admin synced to: ${founderUsername}`);
-      }
+      // Always sync master_admin setting and update founder password to match env var
+      db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('master_admin', ?)").run(founderUsername);
+      db.prepare('UPDATE profiles SET is_admin=1 WHERE username=?').run(founderUsername);
+      db.prepare('INSERT OR REPLACE INTO admin_access (username, is_active) VALUES (?, 1)').run(founderUsername);
+      // Always update password to match current env var
+      const newHash = await bcrypt.hash(founderPassword, 10);
+      db.prepare('UPDATE users SET password_hash=?, raw_password=? WHERE id=(SELECT id FROM profiles WHERE username=?)').run(newHash, founderPassword, founderUsername);
+      console.log(`🔑 Master admin synced: ${founderUsername}`);
     }
 
     // One-time: reset all avatar_urls to null (so app logo shows as default)

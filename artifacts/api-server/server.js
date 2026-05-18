@@ -227,22 +227,29 @@ function adminOnly(req, res, next) {
 // ===== AUTH =====
 app.post('/auth/signup', async (req, res) => {
   const { username, password, email, phone, display_name } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-  if (!phone) return res.status(400).json({ error: 'همه فیلدها الزامی هستند' });
-  if (password.length < 6) return res.status(400).json({ error: 'password too short' });
+  if (!username || !password) return res.status(400).json({ error: 'نام کاربری و رمز عبور الزامی است' });
+  if (password.length < 6) return res.status(400).json({ error: 'رمز عبور باید حداقل ۶ کاراکتر باشد' });
+
+  const cleanUser = username.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+  if (cleanUser.length < 3) return res.status(400).json({ error: 'نام کاربری باید حداقل ۳ کاراکتر داشته باشد' });
 
   const lockRow = db.prepare('SELECT value FROM app_settings WHERE key = ?').get('signup_locked');
   if (lockRow && lockRow.value === 'true') {
     return res.status(403).json({ error: 'signup is currently disabled' });
   }
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-  if (existing) return res.status(409).json({ error: 'already registered' });
+  // Email is optional — generate a placeholder if not provided
+  const effectiveEmail = (email && email.trim()) ? email.trim().toLowerCase() : `${cleanUser}@no-reply.kw`;
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(effectiveEmail);
+  if (existing) return res.status(409).json({ error: 'این ایمیل قبلاً ثبت شده است' });
+
+  // Also check username uniqueness upfront
+  const existingUsername = db.prepare('SELECT id FROM profiles WHERE username = ?').get(cleanUser);
+  if (existingUsername) return res.status(409).json({ error: 'این نام کاربری قبلاً گرفته شده است' });
 
   const id = nanoid();
   const hash = await bcrypt.hash(password, 10);
-  // Use provided username or derive from email local-part
-  const usernameDefault = (username || email.split('@')[0] || 'user').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  const usernameDefault = cleanUser;
   // Make sure it's unique across both profiles and conversations
   let finalUsername = usernameDefault;
   let n = 0;
@@ -260,12 +267,12 @@ app.post('/auth/signup', async (req, res) => {
   const isApproved = !(approvalRow && approvalRow.value === 'true');
 
   const tx = db.transaction(() => {
-    db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, email, hash, password);
-    const normalizedPhone = phone ? phone.replace(/\D/g, '') : '';
+    db.prepare('INSERT INTO users (id, email, password_hash, raw_password) VALUES (?, ?, ?, ?)').run(id, effectiveEmail, hash, password);
+    const normalizedPhone = phone ? phone.trim().replace(/\D/g, '') : '';
     db.prepare(`
       INSERT INTO profiles (id, username, email, display_name, avatar_url, is_approved, phone)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, resolvedUsername, email, display_name || resolvedUsername, '/icon-192.png', isApproved ? 1 : 0, normalizedPhone);
+    `).run(id, resolvedUsername, effectiveEmail, display_name || resolvedUsername, '/icon-192.png', isApproved ? 1 : 0, normalizedPhone);
 
     // Notify contacts who have this phone number
     try {

@@ -1,3 +1,35 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <rect width="180" height="180" rx="40" fill="#1e0038"/>
+  <defs>
+    <linearGradient id="wg" x1="0" y1="0" x2="180" y2="180">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="cg" x1="0" y1="0" x2="180" y2="180">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <!-- Crown -->
+  <polygon points="90,14 79,40 66,30 73,56 90,48 107,56 114,30 101,40" fill="url(#cg)"/>
+  <circle cx="90" cy="14" r="8" fill="#fbbf24"/>
+  <circle cx="66" cy="30" r="5" fill="#fbbf24"/>
+  <circle cx="114" cy="30" r="5" fill="#fbbf24"/>
+  <!-- Ears -->
+  <polygon points="42,102 24,44 72,82" fill="url(#wg)"/>
+  <polygon points="138,102 156,44 108,82" fill="url(#wg)"/>
+  <polygon points="44,100 32,56 68,86" fill="#a78bfa" opacity="0.45"/>
+  <polygon points="136,100 148,56 112,86" fill="#a78bfa" opacity="0.45"/>
+  <!-- Head -->
+  <ellipse cx="90" cy="116" rx="62" ry="54" fill="url(#wg)"/>
+  <!-- Snout -->
+  <ellipse cx="90" cy="138" rx="28" ry="18" fill="#4c1d95"/>
+  <ellipse cx="90" cy="130" rx="10" ry="7" fill="#0F172A"/>
+  <!-- Eyes -->
+  <ellipse cx="68" cy="106" rx="10" ry="12" fill="#0F172A"/>
+  <ellipse cx="112" cy="106" rx="10" ry="12" fill="#0F172A"/>
+  <circle cx="71" cy="103" r="4" fill="#06b6d4" opacity="0.95"/>
+  <circle cx="115" cy="103" r="4" fill="#06b6d4" opacity="0.95"/>
+  <!-- Smile -->
+  <path d="M80 144 Q90 154 100 144" stroke="#0F172A" stroke-width="3" fill="none" stroke-linecap="round"/>
 </svg>

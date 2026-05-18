@@ -1,20 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Eye, EyeOff, User, Lock, UserPlus, LogIn, Shield, Phone, Mail } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, UserPlus, LogIn, Shield, Phone, Mail, Sparkles } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
 import { WolfLogo } from '../components/ui/WolfLogo';
 import { useAppSettings } from '../contexts/AppSettingsContext';
-
-function loadGoogleScript() {
-  if (typeof window === 'undefined') return;
-  if (document.getElementById('google-gsi')) return;
-  const script = document.createElement('script');
-  script.id = 'google-gsi';
-  script.src = 'https://accounts.google.com/gsi/client';
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-}
 
 export function AuthPage() {
   const { signIn } = useAuth();
@@ -30,7 +18,7 @@ export function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Admin panel: click logo 5 times quickly to reveal
+  // Tap logo 5x to reveal admin modal
   const [logoTaps, setLogoTaps] = useState(0);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminUser, setAdminUser] = useState('');
@@ -40,7 +28,9 @@ export function AuthPage() {
   const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => { loadGoogleScript(); }, []);
+  useEffect(() => () => {
+    if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current);
+  }, []);
 
   function handleLogoClick() {
     const next = logoTaps + 1;
@@ -52,40 +42,6 @@ export function AuthPage() {
     } else {
       tapTimer.current = setTimeout(() => setLogoTaps(0), 2000);
     }
-  }
-
-  async function handleGoogleSignIn() {
-    const clientId = (window as any).__GOOGLE_CLIENT_ID__ || import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-    if (!clientId) {
-      setError('برای فعال‌سازی ورود با گوگل، Client ID را در تنظیمات سرور وارد کنید');
-      return;
-    }
-
-    (window as any).google?.accounts.id.initialize({
-      client_id: clientId,
-      callback: async (response: any) => {
-        if (!response.credential) return;
-        setLoading(true);
-        try {
-          const res = await fetch('/api/auth/google', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ credential: response.credential }),
-          });
-          const data = await res.json();
-          if (data.token) {
-            localStorage.setItem('kingwolf_token', data.token);
-          } else {
-            setError(data.error || 'ورود با گوگل ناموفق بود');
-          }
-        } catch {
-          setError('ورود با گوگل ناموفق بود');
-        }
-        setLoading(false);
-      },
-      auto_select: false,
-    });
-    (window as any).google?.accounts.id.prompt();
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -100,12 +56,8 @@ export function AuthPage() {
         setRateLimitSeconds(retryAfter);
         if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current);
         rateLimitTimerRef.current = setInterval(() => {
-          setRateLimitSeconds((s) => {
-            if (s <= 1) {
-              clearInterval(rateLimitTimerRef.current!);
-              rateLimitTimerRef.current = null;
-              return 0;
-            }
+          setRateLimitSeconds(s => {
+            if (s <= 1) { clearInterval(rateLimitTimerRef.current!); rateLimitTimerRef.current = null; return 0; }
             return s - 1;
           });
         }, 1000);
@@ -114,151 +66,126 @@ export function AuthPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
-    return () => { if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current); };
-  }, []);
-
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     if (settings.registration_enabled === 'false') { setError('ثبت‌نام در حال حاضر غیرفعال است'); return; }
     if (!username.trim() || !password || !displayName.trim()) { setError('لطفاً همه فیلدها را پر کنید'); return; }
-    if (!email || !phone) { setError('ایمیل و شماره تلفن الزامی است'); return; }
     if (username.trim().length < 3) { setError('نام کاربری باید حداقل ۳ کاراکتر باشد'); return; }
     if (password.length < 6) { setError('رمز عبور باید حداقل ۶ کاراکتر باشد'); return; }
     setError(''); setLoading(true);
-
-    const { data, error: signUpErr } = await supabase.auth.signUp({ email, password });
-    if (signUpErr) {
-      if (signUpErr.message.includes('already registered')) setError('این ایمیل قبلاً ثبت شده است');
-      else setError(signUpErr.message);
-      setLoading(false); return;
-    }
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        username: username.toLowerCase().trim(),
-        display_name: displayName.trim(),
-        email,
-        phone,
-        is_approved: settings.require_admin_approval !== 'true',
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: username.toLowerCase().trim(),
+          password,
+          display_name: displayName.trim(),
+          email: email.trim() || undefined,
+          phone: phone.trim() || undefined,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'خطا در ثبت‌نام');
+      } else if (data.token) {
+        localStorage.setItem('kingwolf_token', data.token);
+        window.location.reload();
+      } else {
+        setSuccess(
+          settings.require_admin_approval === 'true'
+            ? 'حساب ایجاد شد! لطفاً منتظر تأیید مدیر باشید.'
+            : 'حساب ایجاد شد! اکنون وارد شوید.'
+        );
+      }
+    } catch {
+      setError('خطا در اتصال به سرور');
     }
-    setSuccess('حساب ایجاد شد!' + (settings.require_admin_approval === 'true' ? ' لطفاً منتظر تأیید مدیر باشید.' : ' اکنون وارد شوید.'));
     setLoading(false);
   }
 
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
     setAdminError(''); setLoading(true);
-    // Check admin_users table
-    const { data } = await supabase.from('admin_users').select('*').eq('username', adminUser.trim()).maybeSingle();
-    if (!data) { setAdminError('مدیر یافت نشد'); setLoading(false); return; }
-    if (!data.is_active) { setAdminError('حساب مدیر غیرفعال است'); setLoading(false); return; }
-    // Try to sign in with admin credentials
     const { error } = await signIn(adminUser.trim(), adminPass);
     if (error) {
-      // If login fails, still allow admin panel access via window redirect
-      window.location.href = '/admin';
+      setAdminError(error);
     } else {
       setShowAdminModal(false);
+      window.location.href = '/admin';
     }
     setLoading(false);
   }
 
+  const appName = settings.app_name || 'KingWolf';
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" dir="rtl" style={{ background: 'var(--bg-primary)' }}>
-      <div className="w-full max-w-sm animate-fadeIn">
-        {/* Logo - click 5x to reveal admin */}
+    <div
+      className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden"
+      dir="rtl"
+      style={{ background: 'linear-gradient(145deg, #020817 0%, #0d0d2b 40%, #1a0038 70%, #0a0518 100%)' }}
+    >
+      {/* Ambient glows */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div style={{ position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)', width: 600, height: 300, background: 'radial-gradient(ellipse, rgba(139,92,246,0.15) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', bottom: '-5%', left: '20%', width: 400, height: 200, background: 'radial-gradient(ellipse, rgba(37,99,235,0.1) 0%, transparent 70%)', borderRadius: '50%' }} />
+        <div style={{ position: 'absolute', top: '30%', right: '10%', width: 300, height: 300, background: 'radial-gradient(ellipse, rgba(168,85,247,0.07) 0%, transparent 70%)', borderRadius: '50%' }} />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
           <button
             onClick={handleLogoClick}
-            className="inline-flex flex-col items-center gap-3 focus:outline-none select-none cursor-pointer"
+            className="inline-flex flex-col items-center gap-4 focus:outline-none select-none cursor-pointer"
             aria-label="logo"
           >
-            <WolfLogo size={72} />
+            <div className="relative">
+              <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', background: 'radial-gradient(circle, rgba(168,85,247,0.25) 0%, transparent 70%)', filter: 'blur(8px)' }} />
+              <WolfLogo size={80} glow animated />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-                {settings.app_name || 'KingWolf'}
+              <h1 className="text-3xl font-black tracking-tight" style={{ background: 'linear-gradient(135deg, #c084fc, #818cf8, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                {appName}
               </h1>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>پیام‌رسان امن و سریع</p>
+              <p className="text-sm mt-1.5 flex items-center justify-center gap-1.5" style={{ color: 'rgba(167,139,250,0.7)' }}>
+                <Sparkles size={12} />
+                پیام‌رسان امن و سریع
+              </p>
             </div>
           </button>
           {logoTaps > 0 && logoTaps < 5 && (
-            <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs mt-3" style={{ color: 'rgba(107,114,128,0.7)' }}>
               {5 - logoTaps} بار دیگر...
             </p>
           )}
         </div>
 
-        {/* Hidden Admin Modal */}
-        {showAdminModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
-            <div className="w-full max-w-sm rounded-2xl p-6 animate-slideUp" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 bg-red-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Shield size={20} className="text-red-400" />
-                </div>
-                <div className="text-right">
-                  <h3 className="font-bold" style={{ color: 'var(--text-primary)' }}>ورود مدیر</h3>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>یا برو به /admin</p>
-                </div>
-              </div>
-              <form onSubmit={handleAdminLogin} className="space-y-3">
-                <input
-                  value={adminUser} onChange={(e) => setAdminUser(e.target.value)}
-                  placeholder="نام کاربری مدیر"
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                />
-                <input
-                  type="password" value={adminPass} onChange={(e) => setAdminPass(e.target.value)}
-                  placeholder="رمز عبور"
-                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                />
-                {adminError && <p className="text-xs text-red-400">{adminError}</p>}
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setShowAdminModal(false); setAdminError(''); }}
-                    className="flex-1 py-2.5 rounded-xl text-sm transition-colors"
-                    style={{ background: 'var(--bg-input)', color: 'var(--text-secondary)' }}
-                  >
-                    انصراف
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
-                  >
-                    {loading ? '...' : 'ورود'}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.location.href = '/admin'}
-                  className="w-full py-2 text-xs text-center transition-colors"
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  ورود مستقیم به پنل ← /admin
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Auth Card */}
-        <div className="rounded-2xl p-6 shadow-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-          {/* Tabs */}
-          <div className="flex p-1 rounded-xl mb-5" style={{ background: 'var(--bg-input)' }}>
-            {(['login', 'register'] as const).map((m) => (
+        {/* Card */}
+        <div
+          className="rounded-3xl p-6 shadow-2xl"
+          style={{
+            background: 'rgba(15,10,30,0.75)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            boxShadow: '0 25px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}
+        >
+          {/* Tab switcher */}
+          <div
+            className="flex p-1 rounded-2xl mb-6"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            {(['login', 'register'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(''); setSuccess(''); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
                 style={{
-                  background: mode === m ? 'var(--accent)' : 'transparent',
-                  color: mode === m ? 'white' : 'var(--text-secondary)',
+                  background: mode === m ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'transparent',
+                  color: mode === m ? '#fff' : 'rgba(156,163,175,0.8)',
+                  boxShadow: mode === m ? '0 4px 16px rgba(124,58,237,0.35)' : 'none',
                 }}
               >
                 {m === 'login' ? 'ورود' : 'ثبت‌نام'}
@@ -267,156 +194,192 @@ export function AuthPage() {
           </div>
 
           {success ? (
-            <div className="text-center py-4">
-              <div className="text-3xl mb-3">✅</div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{success}</p>
-              <button onClick={() => { setSuccess(''); setMode('login'); }} className="mt-4 text-sm text-blue-400 hover:text-blue-300">
+            <div className="text-center py-6">
+              <div className="text-5xl mb-4">✅</div>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(209,213,219,0.9)' }}>{success}</p>
+              <button
+                onClick={() => { setSuccess(''); setMode('login'); }}
+                className="mt-5 text-sm font-medium transition-colors"
+                style={{ color: '#a78bfa' }}
+              >
                 برو به ورود ←
               </button>
             </div>
           ) : mode === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-3">
-              <div className="relative">
-                <User size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  value={username} onChange={(e) => setUsername(e.target.value)}
-                  placeholder="نام کاربری، ایمیل یا تلفن"
-                  className="w-full pr-9 pl-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="username"
-                />
-              </div>
-              <div className="relative">
-                <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="رمز عبور"
-                  className="w-full pr-9 pl-10 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="current-password"
-                />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {error && <p className="text-xs text-red-400 px-1">{error}</p>}
-              <button
-                type="submit" disabled={loading || rateLimitSeconds > 0}
-                className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
-                style={{ background: rateLimitSeconds > 0 ? 'var(--bg-input)' : 'var(--accent)', color: rateLimitSeconds > 0 ? 'var(--text-muted)' : 'white', opacity: loading ? 0.7 : 1 }}
-              >
-                {loading
-                  ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  : rateLimitSeconds > 0
-                  ? null
-                  : <LogIn size={15} />
-                }
-                {loading ? 'در حال ورود...' : rateLimitSeconds > 0 ? `قفل — ${rateLimitSeconds} ثانیه دیگر` : 'ورود'}
-              </button>
-
-              {/* Divider */}
-              <div className="flex items-center gap-3 my-2">
-                <div className="flex-1 h-px" style={{ background: 'var(--border-color)' }} />
-                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>یا</span>
-                <div className="flex-1 h-px" style={{ background: 'var(--border-color)' }} />
-              </div>
-
-              {/* Google Sign-in Button */}
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-[var(--border-color)] bg-white hover:bg-gray-50 text-gray-800 font-medium text-sm transition-all duration-200 active:scale-95"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
-                  <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/>
-                  <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/>
-                  <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/>
-                </svg>
-                ورود با گوگل
-              </button>
+              <InputField icon={<User size={15} />} placeholder="نام کاربری، ایمیل یا تلفن" value={username} onChange={setUsername} autoComplete="username" />
+              <PasswordField placeholder="رمز عبور" value={password} onChange={setPassword} showPw={showPw} setShowPw={setShowPw} autoComplete="current-password" />
+              {error && <ErrorMsg>{error}</ErrorMsg>}
+              <SubmitBtn loading={loading} disabled={rateLimitSeconds > 0}>
+                {loading ? 'در حال ورود...' : rateLimitSeconds > 0 ? `قفل — ${rateLimitSeconds} ثانیه دیگر` : (
+                  <span className="flex items-center gap-2"><LogIn size={15} />ورود</span>
+                )}
+              </SubmitBtn>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
-              <div className="relative">
-                <User size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="نام نمایشی"
-                  className="w-full pr-9 pl-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                />
-              </div>
-              <div className="relative">
-                <User size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  value={username} onChange={(e) => setUsername(e.target.value)}
-                  placeholder="نام کاربری (حداقل ۳ کاراکتر)"
-                  className="w-full pr-9 pl-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="username"
-                />
-              </div>
-              <div className="relative">
-                <Mail size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  type="email"
-                  value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ایمیل"
-                  required
-                  className="w-full pr-9 pl-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="email"
-                />
-              </div>
-              <div className="relative">
-                <Phone size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  type="tel"
-                  value={phone} onChange={(e) => setPhone(e.target.value)}
-                  placeholder="شماره تلفن (مثلاً ۰۹۱۲۳۴۵۶۷۸۹)"
-                  required
-                  className="w-full pr-9 pl-4 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="tel"
-                />
-              </div>
-              <div className="relative">
-                <Lock size={15} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-                <input
-                  type={showPw ? 'text' : 'password'}
-                  value={password} onChange={(e) => setPassword(e.target.value)}
-                  placeholder="رمز عبور (حداقل ۶ کاراکتر)"
-                  className="w-full pr-9 pl-10 py-3 rounded-xl text-sm outline-none"
-                  style={{ background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-input)' }}
-                  autoComplete="new-password"
-                />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {error && <p className="text-xs text-red-400 px-1">{error}</p>}
-              <button
-                type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
-                style={{ background: 'var(--accent)', color: 'white', opacity: loading ? 0.7 : 1 }}
-              >
-                {loading
-                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  : <UserPlus size={15} />
-                }
-                {loading ? 'در حال ثبت‌نام...' : 'ثبت‌نام'}
-              </button>
+              <InputField icon={<User size={15} />} placeholder="نام نمایشی" value={displayName} onChange={setDisplayName} />
+              <InputField icon={<User size={15} />} placeholder="نام کاربری (حداقل ۳ کاراکتر)" value={username} onChange={setUsername} autoComplete="username" />
+              <InputField icon={<Mail size={15} />} placeholder="ایمیل (اختیاری)" value={email} onChange={setEmail} type="email" autoComplete="email" />
+              <InputField icon={<Phone size={15} />} placeholder="شماره تلفن (اختیاری)" value={phone} onChange={setPhone} type="tel" autoComplete="tel" />
+              <PasswordField placeholder="رمز عبور (حداقل ۶ کاراکتر)" value={password} onChange={setPassword} showPw={showPw} setShowPw={setShowPw} autoComplete="new-password" />
+              {error && <ErrorMsg>{error}</ErrorMsg>}
+              <SubmitBtn loading={loading}>
+                {loading ? 'در حال ثبت‌نام...' : (
+                  <span className="flex items-center gap-2"><UserPlus size={15} />ثبت‌نام</span>
+                )}
+              </SubmitBtn>
             </form>
           )}
         </div>
 
-        <p className="text-center text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
-          {settings.app_name || 'KingWolf'} © ۱۴۰۴
+        <p className="text-center text-xs mt-5" style={{ color: 'rgba(75,85,99,0.8)' }}>
+          {appName} © 2026
         </p>
       </div>
+
+      {/* Admin Modal */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)' }}>
+          <div
+            className="w-full max-w-xs rounded-3xl p-6"
+            style={{
+              background: 'rgba(15,5,30,0.95)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <Shield size={18} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">ورود مدیر</h3>
+                <p className="text-xs mt-0.5" style={{ color: 'rgba(107,114,128,0.8)' }}>دسترسی مخفی</p>
+              </div>
+            </div>
+            <form onSubmit={handleAdminLogin} className="space-y-3">
+              <input
+                value={adminUser} onChange={e => setAdminUser(e.target.value)}
+                placeholder="نام کاربری"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none text-white"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              />
+              <input
+                type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)}
+                placeholder="رمز عبور"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none text-white"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              />
+              {adminError && <ErrorMsg>{adminError}</ErrorMsg>}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowAdminModal(false); setAdminError(''); }}
+                  className="flex-1 py-2.5 rounded-xl text-sm transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(156,163,175,0.8)' }}
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit" disabled={loading}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                  style={{ background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff' }}
+                >
+                  {loading ? '...' : 'ورود'}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.location.href = '/admin'}
+                className="w-full py-2 text-xs text-center"
+                style={{ color: 'rgba(107,114,128,0.6)' }}
+              >
+                ← ورود مستقیم به /admin
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── helpers ── */
+
+function InputField({ icon, placeholder, value, onChange, type = 'text', autoComplete }: {
+  icon: React.ReactNode; placeholder: string; value: string;
+  onChange: (v: string) => void; type?: string; autoComplete?: string;
+}) {
+  return (
+    <div className="relative">
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(107,114,128,0.7)' }}>{icon}</span>
+      <input
+        type={type} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} autoComplete={autoComplete}
+        className="w-full pr-10 pl-4 py-3 rounded-xl text-sm outline-none transition-colors"
+        style={{
+          background: 'rgba(255,255,255,0.05)',
+          color: '#f9fafb',
+          border: '1px solid rgba(255,255,255,0.08)',
+          caretColor: '#a78bfa',
+        }}
+        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'; e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+      />
+    </div>
+  );
+}
+
+function PasswordField({ placeholder, value, onChange, showPw, setShowPw, autoComplete }: {
+  placeholder: string; value: string; onChange: (v: string) => void;
+  showPw: boolean; setShowPw: (v: boolean) => void; autoComplete?: string;
+}) {
+  return (
+    <div className="relative">
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(107,114,128,0.7)' }}><Lock size={15} /></span>
+      <input
+        type={showPw ? 'text' : 'password'} value={value} onChange={e => onChange(e.target.value)}
+        placeholder={placeholder} autoComplete={autoComplete}
+        className="w-full pr-10 pl-11 py-3 rounded-xl text-sm outline-none transition-colors"
+        style={{
+          background: 'rgba(255,255,255,0.05)',
+          color: '#f9fafb',
+          border: '1px solid rgba(255,255,255,0.08)',
+          caretColor: '#a78bfa',
+        }}
+        onFocus={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)'; e.currentTarget.style.background = 'rgba(139,92,246,0.06)'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
+      />
+      <button type="button" onClick={() => setShowPw(!showPw)} className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors" style={{ color: 'rgba(107,114,128,0.7)' }}>
+        {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
+    </div>
+  );
+}
+
+function SubmitBtn({ children, loading, disabled = false }: { children: React.ReactNode; loading: boolean; disabled?: boolean }) {
+  return (
+    <button
+      type="submit"
+      disabled={loading || disabled}
+      className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all mt-1"
+      style={{
+        background: disabled ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+        color: disabled ? 'rgba(107,114,128,0.8)' : '#fff',
+        opacity: loading ? 0.75 : 1,
+        boxShadow: disabled ? 'none' : '0 6px 24px rgba(124,58,237,0.4)',
+      }}
+    >
+      {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : children}
+    </button>
+  );
+}
+
+function ErrorMsg({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}>
+      {children}
     </div>
   );
 }

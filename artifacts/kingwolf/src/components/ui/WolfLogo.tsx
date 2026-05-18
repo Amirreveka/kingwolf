@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface WolfLogoProps {
@@ -8,40 +9,64 @@ interface WolfLogoProps {
 }
 
 export function WolfLogo({ size = 32, glow = true, className = '', animated = false }: WolfLogoProps) {
+  const uid = useId().replace(/:/g, '');
+  const r = Math.round(size * 0.22);
   return (
     <div
-      className={`inline-flex items-center justify-center rounded-xl ${animated ? 'kw-float' : ''} ${className}`}
+      className={`inline-flex items-center justify-center flex-shrink-0 ${animated ? 'kw-float' : ''} ${className}`}
       style={{
         width: size,
         height: size,
-        background: 'linear-gradient(135deg, #1e0038, #3b0066)',
-        filter: glow ? 'drop-shadow(0 0 8px rgba(168,85,247,0.6))' : undefined,
-        flexShrink: 0,
+        borderRadius: r,
+        background: 'linear-gradient(135deg, #1e0038 0%, #3b0066 100%)',
+        filter: glow ? `drop-shadow(0 0 ${Math.round(size * 0.12)}px rgba(168,85,247,0.65))` : undefined,
       }}
     >
-      <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg
+        width={size * 0.74}
+        height={size * 0.74}
+        viewBox="0 0 100 108"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
         <defs>
-          <linearGradient id="wolfGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={`wg-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#c084fc" />
             <stop offset="100%" stopColor="#818cf8" />
           </linearGradient>
+          <linearGradient id={`cg-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fde68a" />
+            <stop offset="100%" stopColor="#f59e0b" />
+          </linearGradient>
         </defs>
-        <polygon points="20,45 10,15 35,35" fill="url(#wolfGrad)" />
-        <polygon points="80,45 90,15 65,35" fill="url(#wolfGrad)" />
-        <polygon points="22,42 16,22 33,36" fill="#a78bfa" opacity="0.5" />
-        <polygon points="78,42 84,22 67,36" fill="#a78bfa" opacity="0.5" />
-        <ellipse cx="50" cy="55" rx="35" ry="30" fill="url(#wolfGrad)" />
-        <ellipse cx="50" cy="68" rx="16" ry="10" fill="#4c1d95" />
-        <ellipse cx="50" cy="63" rx="6" ry="4" fill="#0F172A" />
-        <ellipse cx="37" cy="50" rx="5" ry="6" fill="#0F172A" />
-        <ellipse cx="63" cy="50" rx="5" ry="6" fill="#0F172A" />
-        <circle cx="39" cy="48" r="2" fill="#06b6d4" opacity="0.9" />
-        <circle cx="65" cy="48" r="2" fill="#06b6d4" opacity="0.9" />
-        <path d="M44 72 Q50 77 56 72" stroke="#0F172A" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-        <polygon points="50,8 44,22 38,16 42,28 50,24 58,28 62,16 56,22" fill="#F59E0B" />
-        <circle cx="50" cy="8" r="3" fill="#F59E0B" />
-        <circle cx="38" cy="16" r="2" fill="#F59E0B" />
-        <circle cx="62" cy="16" r="2" fill="#F59E0B" />
+
+        {/* Crown */}
+        <polygon points="50,3 43,19 34,11 39,27 50,22 61,27 66,11 57,19" fill={`url(#cg-${uid})`} />
+        <circle cx="50" cy="3"  r="4"   fill="#fbbf24" />
+        <circle cx="34" cy="11" r="2.8" fill="#fbbf24" />
+        <circle cx="66" cy="11" r="2.8" fill="#fbbf24" />
+
+        {/* Ears */}
+        <polygon points="22,54 10,22 38,44" fill={`url(#wg-${uid})`} />
+        <polygon points="78,54 90,22 62,44" fill={`url(#wg-${uid})`} />
+        <polygon points="24,52 16,30 36,46" fill="#a78bfa" opacity="0.45" />
+        <polygon points="76,52 84,30 64,46" fill="#a78bfa" opacity="0.45" />
+
+        {/* Head */}
+        <ellipse cx="50" cy="68" rx="36" ry="32" fill={`url(#wg-${uid})`} />
+
+        {/* Snout */}
+        <ellipse cx="50" cy="82" rx="16" ry="11" fill="#4c1d95" />
+        <ellipse cx="50" cy="76" rx="6"  ry="4.5" fill="#0F172A" />
+
+        {/* Eyes */}
+        <ellipse cx="36" cy="61" rx="6"   ry="7.5" fill="#0F172A" />
+        <ellipse cx="64" cy="61" rx="6"   ry="7.5" fill="#0F172A" />
+        <circle  cx="38" cy="59" r="2.5"           fill="#06b6d4" opacity="0.95" />
+        <circle  cx="66" cy="59" r="2.5"           fill="#06b6d4" opacity="0.95" />
+
+        {/* Smile */}
+        <path d="M44 87 Q50 93 56 87" stroke="#0F172A" strokeWidth="1.8" fill="none" strokeLinecap="round" />
       </svg>
     </div>
   );

@@ -1,11 +1,12 @@
-const CACHE = 'kw-v3';
-const PRECACHE = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
+const CACHE = 'kw-v5';
+const PRECACHE = ['/', '/index.html', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png', '/favicon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(c =>
+      // allSettled: if any file missing, install still succeeds
+      Promise.allSettled(PRECACHE.map(url => c.add(url).catch(() => null)))
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -21,34 +22,49 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
 
-  // Never cache API, WS, uploads
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/uploads') || url.pathname.startsWith('/realtime')) return;
+  // Only handle same-origin
+  if (url.origin !== self.location.origin) return;
 
-  // For navigation requests (HTML pages), always serve index.html from cache first
+  // Skip: API, WebSocket, uploads — always go to network
+  if (
+    url.pathname.startsWith('/api') ||
+    url.pathname.startsWith('/uploads') ||
+    url.pathname.startsWith('/realtime') ||
+    url.pathname.startsWith('/auth')
+  ) return;
+
+  // Navigation (page loads) → NETWORK FIRST to prevent stale-HTML white screen
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      caches.match('/index.html').then(cached => {
-        const fresh = fetch('/index.html').then(res => {
-          if (res.ok) caches.open(CACHE).then(c => c.put('/index.html', res.clone()));
+      fetch(e.request, { cache: 'no-store' })
+        .then(res => {
+          if (res.ok) {
+            caches.open(CACHE).then(c => c.put('/index.html', res.clone()));
+          }
           return res;
-        }).catch(() => cached);
-        return cached || fresh;
-      })
+        })
+        .catch(() =>
+          caches.match('/index.html').then(cached =>
+            cached || new Response('<h1>آفلاین</h1>', { headers: { 'Content-Type': 'text/html;charset=utf-8' }, status: 503 })
+          )
+        )
     );
     return;
   }
 
+  // Static assets (JS, CSS, fonts, images) → cache-first, update in background
   e.respondWith(
     caches.match(e.request).then(cached => {
-      const fresh = fetch(e.request).then(res => {
+      const fetchPromise = fetch(e.request).then(res => {
         if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
         return res;
-      }).catch(() => cached);
-      return cached || fresh;
+      }).catch(() => null);
+      return cached || fetchPromise || new Response('', { status: 503 });
     })
   );
 });
 
+// Push notifications
 self.addEventListener('push', e => {
   if (!e.data) return;
   let d = {};
@@ -66,7 +82,7 @@ self.addEventListener('push', e => {
       timestamp: Date.now(),
       data: { url: d.url || '/', conversationId: d.conversationId },
       actions: [
-        { action: 'open', title: 'باز کردن' },
+        { action: 'open',    title: 'باز کردن' },
         { action: 'dismiss', title: 'بستن' },
       ],
     })
@@ -80,9 +96,7 @@ self.addEventListener('notificationclick', e => {
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
       for (const client of list) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          return client.focus();
-        }
+        if (client.url.includes(self.location.origin) && 'focus' in client) return client.focus();
       }
       return clients.openWindow(url);
     })

@@ -635,6 +635,20 @@ app.post('/db/:table/update', authMiddleware, (req, res) => {
   if (!values || !Object.keys(values).length) return res.status(400).json({ error: 'no values' });
   const w = buildWhere(filters);
 
+  // Protect: non-founder admins cannot ban the founder or other admins
+  if (table === 'profiles' && (values.is_banned === 1 || values.is_banned === true)) {
+    const founderUsername = getMasterAdmin();
+    const isReqFounder = req.profile?.username === founderUsername;
+    if (!isReqFounder) {
+      // Find targets
+      const targets = db.prepare(`SELECT username, is_admin FROM profiles ${w.sql}`).all(...w.params);
+      for (const t of targets) {
+        if (t.username === founderUsername) return res.status(403).json({ error: 'نمی‌توانید سازنده را مسدود کنید' });
+        if (t.is_admin) return res.status(403).json({ error: 'نمی‌توانید مدیر دیگری را مسدود کنید' });
+      }
+    }
+  }
+
   // Stringify json fields
   const v = { ...values };
   if (table === 'profiles' && v.settings && typeof v.settings === 'object') v.settings = JSON.stringify(v.settings);
@@ -2384,7 +2398,7 @@ app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) =>
   let p = req.body;
   if (!reqIsFounder) {
     const myPerms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id) || {};
-    const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings'];
+    const PERM_KEYS = ['can_view_users','can_ban_users','can_approve_users','can_view_reports','can_resolve_reports','can_view_stats','can_manage_content','can_send_announcements','can_view_emails','can_view_phones','can_manage_admins','can_view_audit_log','can_manage_settings','can_manage_cms'];
     const capped = { ...p };
     for (const k of PERM_KEYS) { if (capped[k] && !myPerms[k]) capped[k] = false; }
     capped.can_view_passwords = false;
@@ -2395,15 +2409,15 @@ app.post('/admin/permissions/:adminId', authMiddleware, adminOnly, (req, res) =>
     (admin_id, granted_by, can_view_users, can_ban_users, can_approve_users, can_view_reports,
      can_resolve_reports, can_view_stats, can_manage_content, can_send_announcements,
      can_view_emails, can_view_phones, can_view_passwords, can_manage_admins, can_view_audit_log,
-     can_manage_settings, notes, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+     can_manage_settings, can_manage_cms, notes, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
   `).run(adminId, req.profile.id,
     p.can_view_users?1:0, p.can_ban_users?1:0, p.can_approve_users?1:0,
     p.can_view_reports?1:0, p.can_resolve_reports?1:0, p.can_view_stats?1:0,
     p.can_manage_content?1:0, p.can_send_announcements?1:0,
     p.can_view_emails?1:0, p.can_view_phones?1:0, p.can_view_passwords?1:0,
     p.can_manage_admins?1:0, p.can_view_audit_log?1:0, p.can_manage_settings?1:0,
-    p.notes||'');
+    p.can_manage_cms?1:0, p.notes||'');
   try { db.prepare('UPDATE sub_admins SET permissions=? WHERE user_id=?').run(JSON.stringify(p), adminId); } catch {}
   res.json({ ok: true });
 });
@@ -2420,7 +2434,7 @@ app.get('/admin/my-permissions', authMiddleware, (req, res) => {
       can_resolve_reports:1, can_view_stats:1, can_manage_content:1, can_send_announcements:1,
       can_view_emails:1, can_view_phones:1,
       can_view_passwords: isMasterAdmin ? 1 : 0,
-      can_manage_admins:1, can_view_audit_log:1, can_manage_settings:1
+      can_manage_admins:1, can_view_audit_log:1, can_manage_settings:1, can_manage_cms:1
     });
   }
   const perms = db.prepare('SELECT * FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
@@ -2554,19 +2568,41 @@ app.get('/api/cms', (req, res) => {
   res.json(cms);
 });
 
-// Founder only: update a CMS field
+// Public: typed app config for React app (polls every 30s)
+app.get('/api/app-config', (req, res) => {
+  const rows = db.prepare('SELECT key, value, type FROM landing_cms').all();
+  const config = {};
+  for (const r of rows) {
+    if (r.type === 'bool')   config[r.key] = r.value === 'true';
+    else if (r.type === 'number') config[r.key] = Number(r.value) || 0;
+    else config[r.key] = r.value;
+  }
+  res.json(config);
+});
+
+// Founder or admin with can_manage_cms: update a CMS field
 app.patch('/api/cms/:key', authMiddleware, adminOnly, (req, res) => {
   const founderUsername = getMasterAdmin();
-  if (req.profile.username !== founderUsername) {
-    return res.status(403).json({ error: 'فقط سازنده می‌تواند محتوای سایت را ویرایش کند' });
+  const isFounderUser = req.profile.username === founderUsername;
+  if (!isFounderUser) {
+    const perms = db.prepare('SELECT can_manage_cms FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!perms?.can_manage_cms) {
+      return res.status(403).json({ error: 'دسترسی ندارید' });
+    }
   }
   const { value } = req.body;
   db.prepare('UPDATE landing_cms SET value=?, updated_at=datetime("now") WHERE key=?').run(value, req.params.key);
   res.json({ ok: true });
 });
 
-// Founder only: get CMS with labels for Panel UI
+// Founder or admin with can_manage_cms: get CMS with labels for Panel UI
 app.get('/api/cms/admin/all', authMiddleware, adminOnly, (req, res) => {
+  const founderUsername = getMasterAdmin();
+  const isFounderUser = req.profile.username === founderUsername;
+  if (!isFounderUser) {
+    const perms = db.prepare('SELECT can_manage_cms FROM sub_admin_permissions WHERE admin_id=?').get(req.profile.id);
+    if (!perms?.can_manage_cms) return res.status(403).json({ error: 'دسترسی ندارید' });
+  }
   const rows = db.prepare('SELECT * FROM landing_cms ORDER BY key').all();
   res.json(rows);
 });

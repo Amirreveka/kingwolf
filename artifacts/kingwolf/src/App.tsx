@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppSettingsProvider } from './contexts/AppSettingsContext';
+import { AppConfigProvider } from './contexts/AppConfigContext';
 import { AuthPage } from './pages/AuthPage';
 import { MessengerLayout } from './pages/MessengerLayout';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
@@ -101,6 +102,7 @@ export default function App() {
   }
 
   return (
+    <AppConfigProvider>
     <ThemeProvider>
       <AppSettingsProvider>
         <LocalModeBanner />
@@ -115,5 +117,6 @@ export default function App() {
         )}
       </AppSettingsProvider>
     </ThemeProvider>
+    </AppConfigProvider>
   );
 }

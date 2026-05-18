@@ -447,6 +447,109 @@
       document.documentElement.style.setProperty('--neon-cyan', cms.neon_secondary);
     }
   })();
+
+  // ── iPhone Add to Home Screen Guide ──────────────────────────────────────
+  (function() {
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    var isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
+    var isStandalone = window.navigator.standalone === true;
+    var dismissed = sessionStorage.getItem('kw_ios_dismissed');
+
+    if (!isIOS || isStandalone || dismissed) return;
+
+    // Build modal
+    var modal = document.createElement('div');
+    modal.id = 'ios-guide';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px)';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'width:100%;max-width:420px;border-radius:24px;overflow:hidden;background:#0d1120;border:1px solid rgba(168,85,247,0.3);box-shadow:0 0 60px rgba(168,85,247,0.2)';
+
+    box.innerHTML = [
+      '<div style="padding:20px 20px 0;display:flex;align-items:center;justify-content:space-between">',
+        '<div style="display:flex;align-items:center;gap:10px">',
+          '<img src="/icon-192.png" style="width:40px;height:40px;border-radius:10px" alt="">',
+          '<div>',
+            '<p style="font-size:15px;font-weight:800;color:#fff;margin:0">نصب KingWolf</p>',
+            '<p style="font-size:12px;color:#94a3b8;margin:0">روی صفحه اصلی ایفون</p>',
+          '</div>',
+        '</div>',
+        '<button id="ios-close" style="background:rgba(255,255,255,0.08);border:none;width:28px;height:28px;border-radius:50%;color:#94a3b8;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>',
+      '</div>',
+
+      '<div style="padding:16px 20px">',
+        '<p style="font-size:13px;color:#94a3b8;margin:0 0 16px">با ۳ مرحله ساده KingWolf را مثل یک اپ نصب کن:</p>',
+
+        // Step 1
+        '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">',
+          '<div style="width:32px;height:32px;border-radius:50%;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">',
+            '<span style="font-size:14px;font-weight:800;color:#a855f7">۱</span>',
+          '</div>',
+          '<div style="flex:1">',
+            '<p style="font-size:14px;font-weight:700;color:#fff;margin:0 0 2px">دکمه اشتراک‌گذاری را بزن</p>',
+            '<p style="font-size:12px;color:#94a3b8;margin:0">نوار پایین Safari — آیکون مربع با فلش رو به بالا</p>',
+            '<div style="margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);text-align:center">',
+              '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>',
+            '</div>',
+          '</div>',
+        '</div>',
+
+        // Step 2
+        '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px">',
+          '<div style="width:32px;height:32px;border-radius:50%;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">',
+            '<span style="font-size:14px;font-weight:800;color:#a855f7">۲</span>',
+          '</div>',
+          '<div style="flex:1">',
+            '<p style="font-size:14px;font-weight:700;color:#fff;margin:0 0 2px">«Add to Home Screen» را انتخاب کن</p>',
+            '<p style="font-size:12px;color:#94a3b8;margin:0">در منوی اشتراک‌گذاری اسکرول کن تا این گزینه رو ببینی</p>',
+            '<div style="margin-top:8px;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:8px">',
+              '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>',
+              '<span style="font-size:13px;color:#f1f5f9">Add to Home Screen</span>',
+            '</div>',
+          '</div>',
+        '</div>',
+
+        // Step 3
+        '<div style="display:flex;align-items:flex-start;gap:12px">',
+          '<div style="width:32px;height:32px;border-radius:50%;background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0">',
+            '<span style="font-size:14px;font-weight:800;color:#4ade80">۳</span>',
+          '</div>',
+          '<div style="flex:1">',
+            '<p style="font-size:14px;font-weight:700;color:#fff;margin:0 0 2px">روی «Add» بزن — تمام!</p>',
+            '<p style="font-size:12px;color:#94a3b8;margin:0">KingWolf مثل یک اپ کامل روی صفحه اصلی نصب می‌شود</p>',
+          '</div>',
+        '</div>',
+      '</div>',
+
+      '<div style="padding:0 20px 20px">',
+        '<a id="ios-open-app" href="/app" style="display:block;width:100%;padding:14px;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:15px;font-weight:700;text-align:center;text-decoration:none;box-sizing:border-box">',
+          '🚀 ورود به اپ',
+        '</a>',
+        '<p style="font-size:11px;color:#4b5563;text-align:center;margin:10px 0 0">بعد از نصب، از آیکون روی صفحه اصلی باز کن</p>',
+      '</div>',
+
+      // Arrow pointing to Safari share button
+      '<div style="position:relative;height:0">',
+        '<div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-top:12px solid rgba(168,85,247,0.3)"></div>',
+      '</div>',
+    ].join('');
+
+    modal.appendChild(box);
+    document.body.appendChild(modal);
+
+    document.getElementById('ios-close').addEventListener('click', function() {
+      modal.remove();
+      sessionStorage.setItem('kw_ios_dismissed', '1');
+    });
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) { modal.remove(); sessionStorage.setItem('kw_ios_dismissed', '1'); }
+    });
+
+    // Auto-show after 2s for better UX
+    modal.style.opacity = '0';
+    modal.style.transition = 'opacity 0.4s';
+    setTimeout(function() { modal.style.opacity = '1'; }, 300);
+  })();
 </script>
 </body>
 </html>

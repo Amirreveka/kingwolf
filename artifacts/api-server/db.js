@@ -488,11 +488,51 @@ const cmsDefaults = [
   ['app_url',         '/app',                                        'url',  'App URL',         'آدرس اپ'],
   ['seo_title',       'KingWolf Messenger | پیام‌رسان بومی',         'text', 'SEO Title',       'عنوان سئو'],
   ['seo_description', 'پیام‌رسان KingWolf — امن، سریع، بومی',       'text', 'SEO Description', 'توضیح سئو'],
-  ['footer_text',     '© ۱۴۰۳ KingWolf Messenger — ساخته شده با ❤️ در ایران','text','Footer Text','متن فوتر'],
+  ['footer_text',     'awir.rk','text','Footer Text','متن فوتر'],
   ['neon_primary',    '#a855f7',                                     'color','Neon Primary',    'رنگ نئون اصلی'],
   ['neon_secondary',  '#06b6d4',                                     'color','Neon Secondary',  'رنگ نئون ثانویه'],
   ['maintenance_msg_fa', 'KingWolf در حال ارتقاء است. به زودی برمی‌گردیم!','text','Maintenance Msg (FA)','پیام تعمیر فارسی'],
   ['maintenance_msg_en', 'KingWolf is being upgraded. We\'ll be back shortly!','text','Maintenance Msg (EN)','پیام تعمیر انگلیسی'],
+
+  // === App Theme ===
+  ['theme_primary',   '#a855f7', 'color',  'Primary Color',   'رنگ اصلی اپ'],
+  ['theme_accent',    '#06b6d4', 'color',  'Accent Color',    'رنگ تأکید'],
+  ['theme_bg',        '#080c18', 'color',  'Background Color','رنگ پس‌زمینه'],
+
+  // === Announcement ===
+  ['announce_enabled','false',   'bool',   'Show Announcement','نمایش اعلان سراسری'],
+  ['announce_text',   '',        'text',   'Announcement Text','متن اعلان'],
+  ['announce_color',  '#a855f7', 'color',  'Announcement Color','رنگ اعلان'],
+  ['announce_icon',   '📢',      'text',   'Announcement Icon', 'آیکون اعلان'],
+  ['announce_link',   '',        'url',    'Announcement Link', 'لینک اعلان (اختیاری)'],
+
+  // === Feature Flags ===
+  ['feature_stories',  'true',  'bool',   'Enable Stories',      'فعال: استوری‌ها'],
+  ['feature_voice_msg','true',  'bool',   'Enable Voice Msg',    'فعال: پیام صوتی'],
+  ['feature_file_share','true', 'bool',   'Enable File Sharing', 'فعال: ارسال فایل'],
+  ['feature_reactions', 'true', 'bool',   'Enable Reactions',    'فعال: واکنش‌ها'],
+  ['feature_groups',   'true',  'bool',   'Enable Groups',       'فعال: گروه‌ها'],
+  ['feature_feed',     'true',  'bool',   'Enable Feed/Tweet',   'فعال: فید توییت'],
+  ['feature_calls',    'true',  'bool',   'Enable Calls Tab',    'فعال: تماس‌ها'],
+  ['feature_trash',    'true',  'bool',   'Enable Trash',        'فعال: سطل زباله'],
+
+  // === Registration ===
+  ['reg_open',          'true', 'bool',   'Registration Open',     'ثبت‌نام باز است'],
+  ['reg_require_approval','true','bool',  'Require Approval',      'نیاز به تأیید مدیر'],
+  ['reg_invite_only',  'false', 'bool',   'Invite Only',           'فقط با دعوت'],
+  ['reg_closed_msg',   'ثبت‌نام در حال حاضر بسته است. منتظر بمانید.','text','Reg Closed Msg','پیام بسته بودن ثبت‌نام'],
+
+  // === Limits ===
+  ['limit_file_mb',      '50',  'number', 'Max File Size (MB)',    'حداکثر حجم فایل (MB)'],
+  ['limit_msg_chars',  '4000',  'number', 'Max Message Length',    'حداکثر طول پیام'],
+  ['limit_group_members','200', 'number', 'Max Group Members',     'حداکثر اعضای گروه'],
+  ['limit_story_sec',   '15',   'number', 'Story Duration (sec)',  'مدت استوری (ثانیه)'],
+
+  // === Branding ===
+  ['brand_app_name',   'KingWolf','text', 'App Name',             'نام اپ'],
+  ['brand_tagline_fa', 'پیام‌رسان بومی','text','Tagline (FA)',    'شعار فارسی'],
+  ['brand_welcome_fa', 'خوش آمدید به KingWolf 👋','text','Welcome Msg','پیام خوش‌آمدگویی'],
+  ['brand_empty_chat_fa','یک مکالمه را انتخاب کنید','text','Empty Chat Msg','پیام چت خالی'],
 ];
 const insertCms = db.prepare('INSERT OR IGNORE INTO landing_cms (key, value, type, label, label_fa) VALUES (?,?,?,?,?)');
 for (const [key, value, type, label, label_fa] of cmsDefaults) {
@@ -564,6 +604,7 @@ const colMigrations = [
   ['messages', 'file_type', "TEXT DEFAULT NULL"],
   ['profiles', 'is_premium', 'INTEGER DEFAULT 0'],
   ['profiles', 'premium_expires_at', 'TEXT DEFAULT NULL'],
+  ['sub_admin_permissions', 'can_manage_cms', 'INTEGER DEFAULT 0'],
 ];
 for (const [table, col, def] of colMigrations) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`); } catch (_) { /* already exists */ }

@@ -402,7 +402,7 @@ const PERM_LABELS: Record<string, string> = {
   can_view_reports: 'مشاهده گزارش‌ها', can_resolve_reports: 'رسیدگی به گزارش', can_view_stats: 'آمار',
   can_manage_content: 'مدیریت محتوا', can_send_announcements: 'اطلاع‌رسانی', can_view_emails: 'ایمیل',
   can_view_phones: 'شماره', can_manage_admins: 'مدیریت مدیران', can_view_audit_log: 'لاگ فعالیت',
-  can_manage_settings: 'تنظیمات اپ',
+  can_manage_settings: 'تنظیمات اپ', can_manage_cms: 'ویرایشگر CMS',
 };
 
 function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, myPermissions }: { isMasterAdmin: boolean; isOwner: boolean; ownerUsername: string; onOpenPermModal: (user: any) => void; myPermissions: Record<string, any> }) {
@@ -586,12 +586,7 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
         <div className="rounded-2xl p-5 space-y-3" style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(74,222,128,0.15)', backdropFilter: 'blur(12px)' }}>
           <div className="flex items-center gap-2 mb-1">
             <UserPlus size={15} className="text-green-400" />
-            <h3 className="text-sm font-semibold text-white">افزودن مدیر جدید</h3>
-            {!isOwner && (
-              <span className="mr-auto text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.2)' }}>
-                فقط در حد دسترسی‌های خودت
-              </span>
-            )}
+            <h3 className="text-sm font-semibold text-white">افزودن به تیم</h3>
           </div>
           <div className="flex gap-2">
             <input
@@ -619,91 +614,110 @@ function ManagersTab({ isMasterAdmin, isOwner, ownerUsername, onOpenPermModal, m
   );
 }
 
-function CMSTab({ fields, onSave, saving, onLoad, loaded, t, language }: {
+const CMS_SECTIONS: Array<{ key: string; icon: string; label: string; prefixes: string[] }> = [
+  { key: 'announce', icon: '📢', label: 'اعلان سراسری',   prefixes: ['announce_'] },
+  { key: 'feature',  icon: '⚙️', label: 'ویژگی‌های اپ',   prefixes: ['feature_'] },
+  { key: 'theme',    icon: '🎨', label: 'رنگ‌بندی و تم',   prefixes: ['theme_', 'neon_'] },
+  { key: 'reg',      icon: '🔒', label: 'ثبت‌نام',         prefixes: ['reg_'] },
+  { key: 'limits',   icon: '📏', label: 'محدودیت‌ها',       prefixes: ['limit_'] },
+  { key: 'brand',    icon: '✏️', label: 'متون و برندینگ',  prefixes: ['brand_'] },
+  { key: 'landing',  icon: '🌐', label: 'صفحه لندینگ',    prefixes: ['hero_', 'cta_', 'seo_', 'footer_', 'app_url', 'maintenance_'] },
+];
+
+function CMSTab({ fields, onSave, saving, onLoad, loaded }: {
   fields: Array<{key:string;value:string;type:string;label:string;label_fa:string}>;
   onSave: (key:string, val:string) => void;
   saving: string | null;
   onLoad: () => void;
   loaded: boolean;
-  t: (fa:string, en?:string) => string;
-  language: string;
+  t?: (fa:string, en?:string) => string;
+  language?: string;
 }) {
   const [localValues, setLocalValues] = useState<Record<string,string>>({});
+  const [openSection, setOpenSection] = useState<string>('announce');
 
-  useEffect(() => {
-    if (!loaded) onLoad();
-  }, [loaded]);
-
+  useEffect(() => { if (!loaded) onLoad(); }, [loaded]);
   useEffect(() => {
     const vals: Record<string,string> = {};
     fields.forEach(f => { vals[f.key] = f.value; });
     setLocalValues(vals);
   }, [fields]);
 
-  const groups = {
-    hero:  fields.filter(f => f.key.startsWith('hero')),
-    cta:   fields.filter(f => f.key.startsWith('cta')),
-    seo:   fields.filter(f => f.key.startsWith('seo')),
-    neon:  fields.filter(f => f.key.startsWith('neon')),
-    other: fields.filter(f => !f.key.startsWith('hero') && !f.key.startsWith('cta') && !f.key.startsWith('seo') && !f.key.startsWith('neon')),
-  };
+  function getSection(field: { key: string }) {
+    for (const s of CMS_SECTIONS) {
+      if (s.prefixes.some(p => field.key.startsWith(p) || field.key === p)) return s.key;
+    }
+    return 'landing';
+  }
 
-  const renderGroup = (title: string, items: typeof fields) => (
-    items.length > 0 && (
-      <div key={title} className="mb-6">
-        <div className="kw-section-divider mb-3">
-          <span>{title}</span>
+  function renderField(field: { key: string; value: string; type: string; label: string; label_fa: string }) {
+    const val = localValues[field.key] ?? field.value;
+    if (field.type === 'bool') {
+      const isOn = val === 'true';
+      return (
+        <div key={field.key} className="flex items-center justify-between p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{field.label_fa}</p>
+            <p className="text-xs text-gray-500">{field.key}</p>
+          </div>
+          <button
+            onClick={() => {
+              const next = isOn ? 'false' : 'true';
+              setLocalValues(prev => ({ ...prev, [field.key]: next }));
+              onSave(field.key, next);
+            }}
+            className="relative flex-shrink-0 w-12 h-6 rounded-full transition-all duration-200"
+            style={{ background: isOn ? '#a855f7' : 'rgba(255,255,255,0.1)' }}
+          >
+            <span
+              className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
+              style={{ right: isOn ? '2px' : 'calc(100% - 22px)' }}
+            />
+            {saving === field.key && <span className="absolute inset-0 rounded-full border-2 border-purple-300 animate-ping opacity-50" />}
+          </button>
         </div>
-        <div className="space-y-3">
-          {items.map(field => (
-            <div key={field.key} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
-              <label className="block text-xs font-semibold text-purple-400 mb-1.5">
-                {language === 'fa' ? field.label_fa : field.label}
-                <span className="text-gray-500 font-normal mr-1">({field.key})</span>
-              </label>
-              <div className="flex gap-2">
-                {field.type === 'color' ? (
-                  <div className="flex items-center gap-2 flex-1">
-                    <input
-                      type="color"
-                      value={localValues[field.key] || '#a855f7'}
-                      onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      className="w-10 h-8 rounded cursor-pointer border-0 bg-transparent"
-                    />
-                    <input
-                      type="text"
-                      value={localValues[field.key] || ''}
-                      onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                      className="flex-1 kw-input text-sm"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    type={field.type === 'url' ? 'url' : 'text'}
-                    value={localValues[field.key] || ''}
-                    onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))}
-                    className="flex-1 kw-input text-sm"
-                    dir="auto"
-                  />
-                )}
-                <button
-                  onClick={() => onSave(field.key, localValues[field.key] || '')}
-                  disabled={saving === field.key}
-                  className="px-3 py-1 rounded-lg text-xs font-bold text-white transition-all active:scale-95 flex-shrink-0"
-                  style={{
-                    background: saving === field.key ? 'rgba(168,85,247,.3)' : 'linear-gradient(135deg,#7c3aed,#a855f7)',
-                    minWidth: 52,
-                  }}
-                >
-                  {saving === field.key ? '...' : t('ذخیره','Save')}
-                </button>
-              </div>
-            </div>
-          ))}
+      );
+    }
+
+    if (field.type === 'color') return (
+      <div key={field.key} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+        <label className="block text-xs font-semibold text-purple-400 mb-1.5">
+          {field.label_fa} <span className="text-gray-500 font-normal">({field.key})</span>
+        </label>
+        <div className="flex gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <input type="color" value={val || '#a855f7'} onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border-0 bg-transparent" />
+            <input type="text" value={val || ''} onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))} className="flex-1 kw-input text-sm" />
+          </div>
+          <SaveBtn field={field.key} val={val} saving={saving} onSave={onSave} />
         </div>
       </div>
-    )
-  );
+    );
+
+    if (field.type === 'number') return (
+      <div key={field.key} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+        <label className="block text-xs font-semibold text-purple-400 mb-1.5">
+          {field.label_fa} <span className="text-gray-500 font-normal">({field.key})</span>
+        </label>
+        <div className="flex gap-2">
+          <input type="number" min={0} value={val || ''} onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))} className="flex-1 kw-input text-sm" dir="ltr" />
+          <SaveBtn field={field.key} val={val} saving={saving} onSave={onSave} />
+        </div>
+      </div>
+    );
+
+    return (
+      <div key={field.key} className="p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]">
+        <label className="block text-xs font-semibold text-purple-400 mb-1.5">
+          {field.label_fa} <span className="text-gray-500 font-normal">({field.key})</span>
+        </label>
+        <div className="flex gap-2">
+          <input type={field.type === 'url' ? 'url' : 'text'} value={val || ''} onChange={e => setLocalValues(prev => ({ ...prev, [field.key]: e.target.value }))} className="flex-1 kw-input text-sm" dir="auto" />
+          <SaveBtn field={field.key} val={val} saving={saving} onSave={onSave} />
+        </div>
+      </div>
+    );
+  }
 
   if (!loaded) return (
     <div className="flex items-center justify-center py-20">
@@ -713,28 +727,54 @@ function CMSTab({ fields, onSave, saving, onLoad, loaded, t, language }: {
 
   return (
     <div className="p-4 kw-scroll overflow-y-auto max-h-full">
-      {/* Preview link */}
       <div className="flex items-center justify-between mb-4 p-3 rounded-xl border border-purple-500/20 bg-purple-500/5">
         <div>
-          <p className="text-sm font-bold text-purple-400">{t('ویرایشگر CMS سایت', 'Website CMS Editor')}</p>
-          <p className="text-xs text-[var(--text-secondary)]">{t('تغییرات بلافاصله روی سایت اعمال می‌شوند', 'Changes apply immediately to the website')}</p>
+          <p className="text-sm font-bold text-purple-400">مدیریت کامل اپ</p>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>تغییرات فوری — روی همه کاربران اعمال می‌شود</p>
         </div>
-        <a
-          href="/landing"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="kw-btn-ghost text-xs px-3 py-1.5"
-        >
-          🌐 {t('مشاهده سایت', 'View Site')}
-        </a>
+        <a href="/landing" target="_blank" rel="noopener noreferrer" className="kw-btn-ghost text-xs px-3 py-1.5">🌐 لندینگ</a>
       </div>
 
-      {renderGroup(t('بخش Hero', 'Hero Section'), groups.hero)}
-      {renderGroup(t('دکمه‌های CTA', 'CTA Buttons'), groups.cta)}
-      {renderGroup(t('سئو و متا', 'SEO & Meta'), groups.seo)}
-      {renderGroup(t('رنگ‌های نئون', 'Neon Colors'), groups.neon)}
-      {renderGroup(t('سایر', 'Other'), groups.other)}
+      <div className="space-y-2">
+        {CMS_SECTIONS.map(section => {
+          const sectionFields = fields.filter(f => getSection(f) === section.key);
+          if (!sectionFields.length) return null;
+          const isOpen = openSection === section.key;
+          return (
+            <div key={section.key} className="rounded-xl border border-[var(--border)] overflow-hidden">
+              <button
+                onClick={() => setOpenSection(isOpen ? '' : section.key)}
+                className="w-full flex items-center gap-3 px-4 py-3 transition-colors text-right"
+                style={{ background: isOpen ? 'rgba(168,85,247,0.08)' : 'var(--bg-secondary)' }}
+              >
+                <span className="text-lg">{section.icon}</span>
+                <span className="font-bold text-sm flex-1" style={{ color: 'var(--text-primary)' }}>{section.label}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7' }}>{sectionFields.length}</span>
+                <span style={{ color: 'var(--text-secondary)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>▾</span>
+              </button>
+              {isOpen && (
+                <div className="p-3 space-y-2 border-t border-[var(--border)]" style={{ background: 'var(--bg-primary)' }}>
+                  {sectionFields.map(f => renderField(f))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+function SaveBtn({ field, val, saving, onSave }: { field: string; val: string; saving: string | null; onSave: (k: string, v: string) => void }) {
+  return (
+    <button
+      onClick={() => onSave(field, val || '')}
+      disabled={saving === field}
+      className="px-3 py-1 rounded-lg text-xs font-bold text-white transition-all active:scale-95 flex-shrink-0"
+      style={{ background: saving === field ? 'rgba(168,85,247,.3)' : 'linear-gradient(135deg,#7c3aed,#a855f7)', minWidth: 52 }}
+    >
+      {saving === field ? '...' : 'ذخیره'}
+    </button>
   );
 }
 
@@ -925,6 +965,7 @@ export function AdminPanel() {
       can_manage_admins:       !!data.can_manage_admins,
       can_view_audit_log:      !!data.can_view_audit_log,
       can_manage_settings:     !!data.can_manage_settings,
+      can_manage_cms:          !!data.can_manage_cms,
     });
     setPermModalUser(user);
   }
@@ -1288,18 +1329,24 @@ export function AdminPanel() {
     );
   }
 
-  const navItems: { id: AdminTab; label: string; icon: any; color: string; accent: string }[] = [
+  const allNavItems: { id: AdminTab; label: string; icon: any; color: string; accent: string; ownerOnly?: boolean; perm?: string }[] = [
     { id: 'dashboard', label: 'داشبورد',         icon: BarChart2,  color: '#60a5fa', accent: 'rgba(59,130,246,0.15)' },
-    { id: 'users',     label: 'کاربران',          icon: Users,      color: '#34d399', accent: 'rgba(52,211,153,0.15)' },
-    { id: 'managers',  label: 'مدیران',           icon: Crown,      color: '#fbbf24', accent: 'rgba(251,191,36,0.15)' },
-    { id: 'content',   label: 'مدیریت محتوا',    icon: Newspaper,  color: '#a78bfa', accent: 'rgba(167,139,250,0.15)' },
-    { id: 'reports',   label: 'گزارش‌های تخلف',  icon: Flag,       color: '#f87171', accent: 'rgba(248,113,113,0.15)' },
-    { id: 'settings',  label: 'تنظیمات',          icon: Settings,   color: '#fbbf24', accent: 'rgba(251,191,36,0.15)' },
+    { id: 'users',     label: 'کاربران',          icon: Users,      color: '#34d399', accent: 'rgba(52,211,153,0.15)', perm: 'can_view_users' },
+    { id: 'managers',  label: 'مدیران',           icon: Crown,      color: '#fbbf24', accent: 'rgba(251,191,36,0.15)', perm: 'can_manage_admins' },
+    { id: 'content',   label: 'مدیریت محتوا',    icon: Newspaper,  color: '#a78bfa', accent: 'rgba(167,139,250,0.15)', perm: 'can_manage_content' },
+    { id: 'reports',   label: 'گزارش‌های تخلف',  icon: Flag,       color: '#f87171', accent: 'rgba(248,113,113,0.15)', perm: 'can_view_reports' },
+    { id: 'settings',  label: 'تنظیمات',          icon: Settings,   color: '#fbbf24', accent: 'rgba(251,191,36,0.15)', perm: 'can_manage_settings' },
     { id: 'status',    label: 'وضعیت سیستم',      icon: Server,     color: '#4ade80', accent: 'rgba(74,222,128,0.15)' },
-    { id: 'backup',    label: 'بکاپ',             icon: Download,   color: '#38bdf8', accent: 'rgba(56,189,248,0.15)' },
-    { id: 'bot',       label: 'بات',              icon: Bot,        color: '#c084fc', accent: 'rgba(192,132,252,0.15)' },
-    { id: 'cms',       label: 'سایت CMS',         icon: Globe,      color: '#22d3ee', accent: 'rgba(34,211,238,0.15)' },
+    { id: 'backup',    label: 'بکاپ',             icon: Download,   color: '#38bdf8', accent: 'rgba(56,189,248,0.15)', ownerOnly: true },
+    { id: 'bot',       label: 'بات',              icon: Bot,        color: '#c084fc', accent: 'rgba(192,132,252,0.15)', ownerOnly: true },
+    { id: 'cms',       label: 'مدیریت اپ',        icon: Globe,      color: '#22d3ee', accent: 'rgba(34,211,238,0.15)', perm: 'can_manage_cms' },
   ];
+  const navItems = allNavItems.filter(item => {
+    if (isOwner) return true;
+    if (item.ownerOnly) return false;
+    if (!item.perm) return true;
+    return !!myPermissions?.[item.perm];
+  });
 
   return (
     <div className="h-screen flex kw-cyber-bg overflow-hidden" style={{ background: 'linear-gradient(135deg, #020817 0%, #030b1a 50%, #020710 100%)' }} dir="rtl">
@@ -2219,7 +2266,7 @@ export function AdminPanel() {
           {tab === 'bot' && <BotTab />}
 
           {/* ── CMS TAB ── */}
-          {tab === 'cms' && isOwner && (
+          {tab === 'cms' && (isOwner || !!myPermissions?.can_manage_cms) && (
             <CMSTab
               fields={cmsFields}
               onSave={saveCMSField}
@@ -2230,10 +2277,10 @@ export function AdminPanel() {
               language={language}
             />
           )}
-          {tab === 'cms' && !isOwner && (
+          {tab === 'cms' && !isOwner && !myPermissions?.can_manage_cms && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <span className="text-4xl">🔒</span>
-              <p className="text-[var(--text-secondary)] text-sm">{t('فقط سازنده به CMS دسترسی دارد', 'Only the Founder can access CMS')}</p>
+              <p className="text-[var(--text-secondary)] text-sm">{t('دسترسی به CMS ندارید', 'No CMS access')}</p>
             </div>
           )}
         </div>
@@ -2507,6 +2554,7 @@ export function AdminPanel() {
                 { key: 'can_manage_admins',      labelFa: 'مدیریت مدیران' },
                 { key: 'can_view_audit_log',     labelFa: 'مشاهده لاگ فعالیت' },
                 { key: 'can_manage_settings',    labelFa: 'مدیریت تنظیمات اپ' },
+                { key: 'can_manage_cms',         labelFa: 'ویرایشگر CMS اپ' },
                 ...(isOwner ? [{ key: 'can_view_passwords', labelFa: 'مشاهده رمز کاربران (فقط سازنده)' }] : []),
               ].filter(perm => isOwner || !!myPermissions?.[perm.key]).map(perm => (
                 <label key={perm.key} className="kw-checkbox-row" style={!isOwner && !myPermissions?.[perm.key] ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
@@ -2705,6 +2753,13 @@ function StatusTab() {
         <p className="text-2xl font-bold" style={{ color }}>{pct}%</p>
         <p className="text-xs text-gray-500">{label}</p>
       </div>
+    </div>
+  );
+
+  if (!metrics && !error) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3">
+      <div className="w-10 h-10 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>در حال دریافت اطلاعات سیستم...</p>
     </div>
   );
 

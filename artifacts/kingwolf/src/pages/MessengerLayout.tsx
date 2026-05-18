@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Settings, Sun, Moon, Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, PhoneIncoming, PhoneMissed, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAppConfig } from '../contexts/AppConfigContext';
 import { useConversations } from '../hooks/useConversations';
 import { useIsMobile } from '../hooks/use-mobile';
 import { ChatList } from '../components/chat/ChatList';
@@ -54,6 +55,7 @@ export function MessengerLayout() {
   const { profile, signOut } = useAuth();
   const { user } = useAuth();
   const { theme, language, setTheme, setLanguage } = useTheme();
+  const appConfig = useAppConfig();
   const isMobile = useIsMobile();
   const { conversations, loading, refresh, createDirectConversation, createGroup, createChannel, getSavedMessagesConversation, setActiveConversation } = useConversations();
   const [page, setPage] = useState<Page>('messages');
@@ -393,13 +395,14 @@ export function MessengerLayout() {
 
   const fa = language === 'fa';
 
-  const navItems = [
-    { id: 'messages'  as Page, label: fa ? 'پیام‌ها'   : 'Messages',  icon: MessageSquare },
-    { id: 'calls'     as Page, label: fa ? 'تماس‌ها'   : 'Calls',     icon: Phone },
-    { id: 'feed'      as Page, label: fa ? 'توییت'      : 'Tweet',     icon: null /* uses TwitterBird */ },
-    { id: 'trash'     as Page, label: fa ? 'سطل زباله' : 'Trash',     icon: Trash2 },
-    { id: 'settings'  as Page, label: fa ? 'تنظیمات'   : 'Settings',  icon: Settings },
+  const allNavItems = [
+    { id: 'messages'  as Page, label: fa ? 'پیام‌ها'   : 'Messages',  icon: MessageSquare, always: true },
+    { id: 'calls'     as Page, label: fa ? 'تماس‌ها'   : 'Calls',     icon: Phone,         flag: 'feature_calls' },
+    { id: 'feed'      as Page, label: fa ? 'توییت'      : 'Tweet',     icon: null,          flag: 'feature_feed' },
+    { id: 'trash'     as Page, label: fa ? 'سطل زباله' : 'Trash',     icon: Trash2,        flag: 'feature_trash' },
+    { id: 'settings'  as Page, label: fa ? 'تنظیمات'   : 'Settings',  icon: Settings,      always: true },
   ];
+  const navItems = allNavItems.filter(i => i.always || appConfig[i.flag as string] !== false);
 
   // Bottom nav height: 56px + safe-area; add as paddingBottom to content so input isn't hidden
   const mobileNavHeight = 'calc(56px + env(safe-area-inset-bottom))';
@@ -491,7 +494,7 @@ export function MessengerLayout() {
             onCreateGroup={handleCreateGroup}
             onCreateChannel={handleCreateChannel}
             onSavedMessages={handleSavedMessages}
-            onOpenStories={() => setShowStoriesOverlay(true)}
+            onOpenStories={appConfig.feature_stories ? () => setShowStoriesOverlay(true) : undefined}
           />
         </div>
       )}
@@ -673,6 +676,24 @@ export function MessengerLayout() {
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Global Announcement Banner ───────────────── */}
+      {appConfig.announce_enabled && appConfig.announce_text && (
+        <div
+          className="fixed top-0 inset-x-0 z-[51] flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white"
+          style={{
+            background: appConfig.announce_color || '#a855f7',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+          }}
+        >
+          {appConfig.announce_icon && <span>{appConfig.announce_icon}</span>}
+          <span className="flex-1 text-center" style={{ fontSize: 13 }}>{appConfig.announce_text}</span>
+          {appConfig.announce_link && (
+            <a href={appConfig.announce_link} target="_blank" rel="noopener noreferrer"
+              className="underline text-white/80 text-xs flex-shrink-0">بیشتر</a>
+          )}
         </div>
       )}
 
